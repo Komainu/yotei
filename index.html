@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>予定管理</title>
+<style>
+:root{
+  --bg:#0b0f1a; --panel:#121a2c; --card:#171f36; --card2:#1c2540;
+  --border:#273350; --text:#e9eef8; --muted:#8d9ab9; --dim:#5f6c8c;
+  --accent:#5b8cff; --accent2:#38d9c0; --danger:#ff6b81; --warn:#ffb454;
+  --ok:#3ecf8e; --pin:#ff7ab8;
+  --radius:14px;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html{scrollbar-color:#2b3a5e var(--bg)}
+body{
+  background:radial-gradient(1200px 600px at 80% -10%, #16224a 0%, var(--bg) 55%);
+  color:var(--text); min-height:100vh;
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  font-size:15px; line-height:1.65;
+}
+a{color:var(--accent2); text-decoration:none}
+a:hover{text-decoration:underline}
+button{font-family:inherit; cursor:pointer}
+input,textarea,select{
+  font-family:inherit; font-size:14px; color:var(--text);
+  background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  padding:9px 12px; outline:none; width:100%;
+}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+::placeholder{color:var(--dim)}
+
+/* ---------- header ---------- */
+header{
+  position:sticky; top:0; z-index:50;
+  background:rgba(11,15,26,.85); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.head-inner{
+  max-width:1080px; margin:0 auto; padding:14px 20px 0;
+}
+.brand{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.logo{
+  width:38px; height:38px; border-radius:11px; flex:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:grid; place-items:center; font-size:20px;
+  box-shadow:0 4px 18px rgba(91,140,255,.35);
+}
+.brand h1{font-size:20px; letter-spacing:.04em}
+.brand h1 small{font-size:12px; color:var(--muted); font-weight:normal; margin-left:10px}
+.stats{margin-left:auto; display:flex; gap:8px; flex-wrap:wrap}
+.stat{
+  background:var(--panel); border:1px solid var(--border); border-radius:999px;
+  padding:4px 14px; font-size:12.5px; color:var(--muted);
+}
+.stat b{color:var(--text); margin-left:4px}
+.stat.alert b{color:var(--warn)}
+nav.tabs{display:flex; gap:4px; margin-top:12px; overflow-x:auto}
+nav.tabs button{
+  background:none; border:none; color:var(--muted); font-size:14.5px;
+  padding:10px 16px 12px; border-bottom:2.5px solid transparent; white-space:nowrap;
+}
+nav.tabs button.active{color:var(--text); border-color:var(--accent); font-weight:600}
+nav.tabs button:hover{color:var(--text)}
+
+main{max-width:1080px; margin:0 auto; padding:22px 20px 90px}
+section.tab{display:none}
+section.tab.active{display:block; animation:fadein .18s ease}
+@keyframes fadein{from{opacity:0; transform:translateY(4px)}to{opacity:1}}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px}
+.toolbar .search{flex:1; min-width:200px}
+.chips{display:flex; gap:6px; flex-wrap:wrap}
+.chip{
+  background:var(--panel); border:1px solid var(--border); color:var(--muted);
+  border-radius:999px; padding:5px 14px; font-size:13px;
+}
+.chip.active{background:rgba(91,140,255,.18); border-color:var(--accent); color:var(--text)}
+.btn{
+  border:1px solid var(--border); background:var(--panel); color:var(--text);
+  border-radius:10px; padding:9px 16px; font-size:14px;
+  display:inline-flex; align-items:center; gap:7px; transition:filter .15s;
+}
+.btn:hover{filter:brightness(1.2)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#3f6fe0); border:none; font-weight:600}
+.btn.ghost{background:none}
+.btn.small{padding:5px 11px; font-size:12.5px; border-radius:8px}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.5; cursor:default}
+
+/* ---------- project cards ---------- */
+.plist{display:flex; flex-direction:column; gap:12px}
+.pcard{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 18px; transition:border-color .15s;
+}
+.pcard:hover{border-color:#35476f}
+.pcard.pinned{border-left:3.5px solid var(--pin)}
+.pcard.done{opacity:.55}
+.pcard-top{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap}
+.pname{font-size:16.5px; font-weight:700}
+.pname .strike{text-decoration:line-through}
+.badge{
+  font-size:11.5px; border-radius:6px; padding:2px 9px; white-space:nowrap;
+  background:var(--card2); border:1px solid var(--border); color:var(--muted);
+}
+.badge.chain{color:var(--accent2); border-color:rgba(56,217,192,.35)}
+.badge.due-ok{color:var(--ok)}
+.badge.due-soon{color:var(--warn); border-color:rgba(255,180,84,.4)}
+.badge.due-over{color:var(--danger); border-color:rgba(255,107,129,.4)}
+.badge.pin{color:var(--pin); border-color:rgba(255,122,184,.4)}
+.pactions{margin-left:auto; display:flex; gap:6px; flex:none}
+.icon-btn{
+  background:none; border:1px solid transparent; border-radius:8px;
+  font-size:15px; padding:4px 8px; color:var(--muted); line-height:1;
+}
+.icon-btn:hover{background:var(--card2); color:var(--text)}
+.icon-btn.on{color:var(--pin)}
+.pmeta{margin-top:8px; font-size:13px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap}
+.psources{margin-top:8px; display:flex; gap:6px; flex-wrap:wrap}
+.src-chip{
+  font-size:12px; background:var(--card2); border:1px solid var(--border);
+  border-radius:999px; padding:3px 12px; color:var(--accent2); max-width:280px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;
+}
+.pmemo{margin-top:8px; font-size:13.5px; color:var(--muted); white-space:pre-wrap}
+.ai-box{
+  margin-top:12px; background:var(--panel); border:1px solid var(--border);
+  border-radius:10px; padding:12px 14px; font-size:13.5px;
+}
+.ai-box .ai-head{
+  display:flex; align-items:center; gap:8px; font-size:12px; color:var(--dim); margin-bottom:6px;
+}
+.ai-box .ai-head b{color:var(--accent); font-size:12.5px}
+.ai-content{color:#cdd7ec}
+.ai-content h4{color:var(--text); font-size:13.5px; margin:10px 0 4px}
+.ai-content h4:first-child{margin-top:0}
+.ai-content ul{padding-left:20px; margin:2px 0}
+.ai-content li{margin:2px 0}
+.pfoot{margin-top:12px; display:flex; gap:8px; flex-wrap:wrap}
+.empty{
+  text-align:center; color:var(--dim); padding:60px 20px; border:1.5px dashed var(--border);
+  border-radius:var(--radius);
+}
+
+/* ---------- polymarket ---------- */
+.mcard{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px 18px; margin-bottom:10px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+}
+.mcard .q{flex:1; min-width:240px}
+.mcard .q .title{font-weight:600; font-size:14.5px}
+.mcard .q .sub{font-size:12px; color:var(--dim); margin-top:3px}
+.prob{
+  font-size:20px; font-weight:800; min-width:74px; text-align:center;
+  padding:6px 10px; border-radius:10px; background:var(--card2);
+}
+.prob.hi{color:var(--ok)} .prob.mid{color:var(--warn)} .prob.lo{color:var(--danger)}
+.prob small{display:block; font-size:10px; color:var(--dim); font-weight:normal}
+
+/* ---------- BTC macro ---------- */
+.grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-bottom:14px}
+.kpi{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px;
+}
+.kpi .k-label{font-size:12px; color:var(--muted); letter-spacing:.05em}
+.kpi .k-value{font-size:26px; font-weight:800; margin-top:4px}
+.kpi .k-sub{font-size:12.5px; color:var(--muted); margin-top:2px}
+.k-up{color:var(--ok)} .k-down{color:var(--danger)}
+.chart-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px}
+.chart-card h3{font-size:14px; color:var(--muted); font-weight:600; margin-bottom:10px}
+canvas{width:100%; height:auto; display:block}
+.fng-bar{height:10px; border-radius:99px; margin-top:10px;
+  background:linear-gradient(90deg,#ff6b81,#ffb454,#e8e35a,#8fd460,#3ecf8e)}
+.fng-cursor{width:3px; height:18px; background:#fff; border-radius:2px; position:relative; top:-14px}
+
+/* ---------- settings ---------- */
+.set-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:14px; max-width:640px}
+.set-card h3{font-size:15px; margin-bottom:12px}
+.set-card label{display:block; font-size:13px; color:var(--muted); margin:12px 0 5px}
+.row{display:flex; gap:8px; align-items:center}
+.hint{font-size:12px; color:var(--dim); margin-top:8px}
+
+/* ---------- dialog ---------- */
+dialog{
+  background:var(--card); color:var(--text); border:1px solid var(--border);
+  border-radius:16px; padding:0; width:min(560px,92vw); box-shadow:0 24px 80px rgba(0,0,0,.5);
+}
+dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
+.dlg-head{padding:18px 22px 0; font-size:17px; font-weight:700}
+.dlg-body{padding:14px 22px 22px}
+.dlg-body label{display:block; font-size:13px; color:var(--muted); margin:12px 0 5px}
+.dlg-foot{display:flex; justify-content:flex-end; gap:8px; padding:0 22px 20px}
+.check{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text)}
+.check input{width:auto}
+
+/* ---------- chat ---------- */
+#chatFab{
+  position:fixed; right:22px; bottom:22px; z-index:80;
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; color:#fff;
+  border-radius:999px; padding:13px 22px; font-size:15px; font-weight:700;
+  box-shadow:0 8px 30px rgba(56,217,192,.35); display:flex; gap:8px; align-items:center;
+}
+#chatPanel{
+  position:fixed; right:22px; bottom:22px; z-index:90; width:min(400px,92vw); height:min(560px,80vh);
+  background:var(--panel); border:1px solid var(--border); border-radius:18px;
+  display:none; flex-direction:column; overflow:hidden; box-shadow:0 24px 80px rgba(0,0,0,.55);
+}
+#chatPanel.open{display:flex}
+.chat-head{display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--border); background:var(--card)}
+.chat-head b{font-size:14.5px}
+.chat-head .icon-btn{margin-left:auto}
+#chatLog{flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px}
+.msg{max-width:86%; padding:9px 13px; border-radius:14px; font-size:13.5px; white-space:pre-wrap}
+.msg.user{align-self:flex-end; background:linear-gradient(135deg,var(--accent),#3f6fe0); border-bottom-right-radius:4px}
+.msg.ai{align-self:flex-start; background:var(--card2); border:1px solid var(--border); border-bottom-left-radius:4px}
+.msg.ai .ai-content{font-size:13.5px}
+.chat-input{display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); background:var(--card)}
+.chat-input textarea{resize:none; height:44px}
+.spin{display:inline-block; width:14px; height:14px; border:2px solid var(--dim); border-top-color:var(--accent); border-radius:50%; animation:sp .7s linear infinite; vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:200;
+  background:var(--card2); border:1px solid var(--border); color:var(--text);
+  border-radius:12px; padding:10px 20px; font-size:13.5px; box-shadow:0 10px 40px rgba(0,0,0,.5);
+  opacity:0; transition:opacity .25s; pointer-events:none;
+}
+.toast.show{opacity:1}
+@media (max-width:640px){
+  .stats{display:none}
+  main{padding:16px 12px 90px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-inner">
+    <div class="brand">
+      <div class="logo">🔮</div>
+      <h1>予定管理</h1>
+      <div class="stats">
+        <span class="stat">未完了<b id="stOpen">-</b></span>
+        <span class="stat alert">期限7日以内<b id="stSoon">-</b></span>
+        <span class="stat">ピン<b id="stPin">-</b></span>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button data-tab="projects" class="active">📋 よてい</button>
+      <button data-tab="poly">📊 Polymarket</button>
+      <button data-tab="btc">₿ BTCマクロ</button>
+      <button data-tab="settings">⚙️ 設定</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ projects ============ -->
+<section class="tab active" id="tab-projects">
+  <div class="toolbar">
+    <input class="search" id="pSearch" placeholder="🔍 プロジェクト検索…">
+    <div class="chips" id="pFilters">
+      <button class="chip active" data-f="all">すべて</button>
+      <button class="chip" data-f="open">未完了</button>
+      <button class="chip" data-f="pinned">📌 ピン</button>
+      <button class="chip" data-f="soon">⏰ 期限間近</button>
+      <button class="chip" data-f="done">完了</button>
+    </div>
+    <button class="btn" id="btnBulk">📝 一括登録</button>
+    <button class="btn primary" id="btnAdd">＋ 追加</button>
+  </div>
+  <div class="plist" id="projectList"></div>
+</section>
+
+<!-- ============ polymarket ============ -->
+<section class="tab" id="tab-poly">
+  <div class="toolbar">
+    <input class="search" id="polySearch" placeholder="🔍 キーワードで絞り込み (例: bitcoin)…">
+    <div class="chips" id="polyChips">
+      <button class="chip active" data-q="">人気順</button>
+      <button class="chip" data-q="bitcoin">BTC</button>
+      <button class="chip" data-q="ethereum">ETH</button>
+      <button class="chip" data-q="fed">FED</button>
+      <button class="chip" data-q="airdrop">Airdrop</button>
+      <button class="chip" data-mode="tge">🚀 TGE価格予測</button>
+    </div>
+    <button class="btn" id="polyReload">↻ 更新</button>
+  </div>
+  <div id="polyList"><div class="empty">読み込み中…</div></div>
+  <p class="hint" style="margin-top:10px">ソース: <a href="https://polymarket.com" target="_blank">Polymarket</a> (gamma-api.polymarket.com / 24h出来高順)</p>
+</section>
+
+<!-- ============ btc macro ============ -->
+<section class="tab" id="tab-btc">
+  <div class="toolbar">
+    <span style="color:var(--muted); font-size:13.5px" id="btcUpdated">—</span>
+    <button class="btn" id="btcReload" style="margin-left:auto">↻ 更新</button>
+  </div>
+  <div class="grid">
+    <div class="kpi"><div class="k-label">BTC / USD</div><div class="k-value" id="kPrice">—</div><div class="k-sub" id="kChange">—</div></div>
+    <div class="kpi"><div class="k-label">BTC / JPY</div><div class="k-value" id="kJpy">—</div><div class="k-sub">参考換算</div></div>
+    <div class="kpi"><div class="k-label">Fear & Greed Index</div><div class="k-value" id="kFng">—</div><div class="k-sub" id="kFngClass">—</div>
+      <div class="fng-bar"></div><div class="fng-cursor" id="fngCur" style="margin-left:0%"></div></div>
+  </div>
+  <div class="chart-card">
+    <h3>BTC/USD 30日チャート</h3>
+    <canvas id="btcChart" width="960" height="300"></canvas>
+  </div>
+  <div class="chart-card" style="margin-top:14px">
+    <h3>🏦 米国流動性・マクロ指標 (FRED)</h3>
+    <div class="row" style="margin-bottom:6px">
+      <input id="fredKey" type="password" placeholder="FRED API Key (任意 — 未入力でも取得できます)">
+      <button class="btn small" id="fredEye">👁</button>
+      <button class="btn" id="fredLoad" style="white-space:nowrap">取得</button>
+    </div>
+    <p class="hint" style="margin-bottom:12px">キー未入力でも公開CSV経由で取得します。キーがある場合は公式APIを優先 (取得: <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank">fred.stlouisfed.org</a>)。キーはこの端末にのみ保存。</p>
+    <div class="grid" id="fredGrid" style="margin-bottom:0"></div>
+    <p class="hint" id="fredStatus" style="margin-top:10px"></p>
+  </div>
+  <p class="hint" style="margin-top:10px">ソース: <a href="https://www.coingecko.com" target="_blank">CoinGecko</a> / <a href="https://www.binance.com" target="_blank">Binance</a>(フォールバック) / <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank">alternative.me</a> / <a href="https://fred.stlouisfed.org" target="_blank">FRED (St. Louis Fed)</a></p>
+</section>
+
+<!-- ============ settings ============ -->
+<section class="tab" id="tab-settings">
+  <div class="set-card">
+    <h3>🤖 AI設定 (Gemini)</h3>
+    <label>Gemini API Key</label>
+    <div class="row">
+      <input id="setKey" type="password" placeholder="AIza...">
+      <button class="btn small" id="keyEye">👁</button>
+    </div>
+    <label>モデル</label>
+    <select id="setModel">
+      <option value="gemini-2.5-flash">gemini-2.5-flash (推奨・無料枠)</option>
+      <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (軽量・高速)</option>
+      <option value="gemini-2.5-pro">gemini-2.5-pro (高精度・枠小)</option>
+    </select>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="btnSaveSet">保存</button>
+      <button class="btn" id="btnTestAI">接続テスト</button>
+      <span id="testResult" style="font-size:13px"></span>
+    </div>
+    <p class="hint">キーはこの端末のブラウザ (localStorage) にのみ保存され、Google以外へは送信されません。取得: <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a></p>
+  </div>
+  <div class="set-card">
+    <h3>✈️ Telegram通知 (新規案件を追加した時)</h3>
+    <label>Bot Token</label>
+    <div class="row">
+      <input id="tgToken" type="password" placeholder="123456789:AAE...">
+      <button class="btn small" id="tgEye">👁</button>
+    </div>
+    <label>Chat ID</label>
+    <div class="row">
+      <input id="tgChat" placeholder="123456789">
+      <button class="btn small" id="tgGetChat" style="white-space:nowrap">自動取得</button>
+    </div>
+    <label class="check" style="margin-top:12px"><input type="checkbox" id="tgEnabled">新規案件の追加時に通知する</label>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="tgSave">保存</button>
+      <button class="btn" id="tgTest">テスト送信</button>
+      <span id="tgResult" style="font-size:13px"></span>
+    </div>
+    <p class="hint">① Telegramで <b>@BotFather</b> に <code>/newbot</code> と送りBot Tokenを取得 → ② 作成したBotに何かメッセージを送る → ③ Tokenを入れて「自動取得」でChat IDが入ります。</p>
+  </div>
+
+  <div class="set-card">
+    <h3>☁️ クラウド同期 & 毎日のメール通知</h3>
+    <label>Google Apps Script ウェブアプリURL</label>
+    <input id="gasUrl" placeholder="https://script.google.com/macros/s/..../exec">
+    <label>メール通知の送信先</label>
+    <input id="gasMail" type="email" placeholder="you@example.com">
+    <label class="check" style="margin-top:12px"><input type="checkbox" id="gasAuto" checked>変更を自動でクラウドに保存する (推奨)</label>
+    <div id="gasStatus" style="margin-top:10px; font-size:12.5px; color:var(--muted)"></div>
+    <div class="row" style="margin-top:14px; flex-wrap:wrap">
+      <button class="btn primary" id="gasSave">設定を保存</button>
+      <button class="btn" id="gasSync">⬆ クラウドへ保存</button>
+      <button class="btn" id="gasLoad">⬇ クラウドから読込</button>
+      <button class="btn" id="gasCheck">状況を確認</button>
+    </div>
+    <div id="gasResult" style="font-size:13px; margin-top:10px"></div>
+    <p class="hint">同じURLを他のPCの設定に入れれば、案件データを共有できます (APIキー類は端末ごとに入力してください)。アプリを開いた時に新しい方のデータが自動で反映されます。セットアップ手順は同梱の <b>gas-daily-mail.gs</b> を参照。</p>
+  </div>
+
+  <div class="set-card">
+    <h3>💾 データ管理</h3>
+    <div class="row" style="flex-wrap:wrap">
+      <button class="btn" id="btnExport">⬇ エクスポート (JSON)</button>
+      <button class="btn" id="btnImport">⬆ インポート</button>
+      <button class="btn" id="btnDedup">🧹 重複プロジェクト整理</button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+    </div>
+    <p class="hint">データはすべてこの端末のブラウザ内に保存されます。定期的なエクスポートを推奨します。</p>
+  </div>
+</section>
+
+</main>
+
+<!-- ============ project dialog ============ -->
+<dialog id="pDialog">
+  <div class="dlg-head" id="dlgTitle">プロジェクトを追加</div>
+  <div class="dlg-body">
+    <label>プロジェクト名 *</label>
+    <input id="fName" placeholder="例: Tempo Network">
+    <label>チェーン / カテゴリ</label>
+    <input id="fChain" placeholder="例: Solana, Tempo, 不明">
+    <label>期限</label>
+    <div class="row">
+      <input id="fDeadline" type="datetime-local">
+      <label class="check" style="margin:0; white-space:nowrap"><input type="checkbox" id="fNoDeadline">未定</label>
+    </div>
+    <label>情報ソース (1行に1つ / 「URL タイトル」形式も可)</label>
+    <textarea id="fSources" rows="3" placeholder="https://x.com/... 公式アナウンス&#10;https://example.com/article"></textarea>
+    <label>メモ・タスク</label>
+    <textarea id="fMemo" rows="4" placeholder="やること、条件、気になる点など"></textarea>
+    <label class="check" style="margin-top:12px"><input type="checkbox" id="fPinned">📌 ピン留めする</label>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn ghost" id="dlgCancel">キャンセル</button>
+    <button class="btn primary" id="dlgSave">保存</button>
+  </div>
+</dialog>
+
+<!-- ============ bulk dialog ============ -->
+<dialog id="bulkDialog">
+  <div class="dlg-head">📝 テキストから一括登録</div>
+  <div class="dlg-body">
+    <label>ここに情報を雑に貼り付けてください (X投稿、記事、Discordの告知など何でもOK)</label>
+    <textarea id="bulkText" rows="8" placeholder="例:&#10;Tempo Networkのテストネット開始。期限は5/7まで。ブリッジとスワップが条件 https://x.com/...&#10;CQBANKキャンペーン 5/22締切 50万円以上の残高維持…"></textarea>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="bulkParse">✨ AIで解析する</button>
+      <span id="bulkStatus" style="font-size:13px; color:var(--muted)"></span>
+    </div>
+    <div id="bulkPreview" style="margin-top:14px"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn ghost" id="bulkCancel">閉じる</button>
+    <button class="btn primary" id="bulkAdd" disabled>登録</button>
+  </div>
+</dialog>
+
+<!-- ============ chat ============ -->
+<button id="chatFab">💬 AI</button>
+<div id="chatPanel">
+  <div class="chat-head">
+    <div class="logo" style="width:30px;height:30px;font-size:15px">🔮</div>
+    <b>AI</b>
+    <button class="icon-btn" id="chatClear" title="履歴クリア">🧹</button>
+    <button class="icon-btn" id="chatClose">✕</button>
+  </div>
+  <div id="chatLog"></div>
+  <div class="chat-input">
+    <textarea id="chatText" placeholder="例: 今週やるべきことは?"></textarea>
+    <button class="btn primary" id="chatSend">送信</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ================= state ================= */
+const LS_KEY = "sakiyomi_v1";
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" }, chat: [] };
+
+function load(){
+  try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); if(d) state = Object.assign(state, d); }catch(e){}
+}
+function save(opts){
+  if(!opts || !opts.silent) state.updatedAt = new Date().toISOString();
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._tm); t._tm = setTimeout(()=>t.classList.remove("show"), 2600);
+}
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* markdown-lite: headings / bold / bullets */
+function mdLite(src){
+  const lines = String(src||"").split(/\r?\n/);
+  let html = "", inUl = false;
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  for(let ln of lines){
+    const l = ln.trim();
+    const bullet = l.match(/^([・\-\*•]|\d+[.)])\s*(.+)/);
+    if(bullet){ if(!inUl){ html += "<ul>"; inUl = true; } html += "<li>" + inline(bullet[2]) + "</li>"; continue; }
+    if(inUl){ html += "</ul>"; inUl = false; }
+    const h = l.match(/^#{1,4}\s*(.+)/);
+    if(h){ html += "<h4>" + inline(h[1]) + "</h4>"; continue; }
+    if(l === ""){ html += "<div style='height:6px'></div>"; continue; }
+    html += "<div>" + inline(l) + "</div>";
+  }
+  if(inUl) html += "</ul>";
+  return html;
+}
+
+/* ================= dates ================= */
+function daysLeft(iso){
+  if(!iso) return null;
+  return Math.floor((new Date(iso) - Date.now()) / 86400000);
+}
+function fmtDeadline(iso){
+  if(!iso) return "未定";
+  const d = new Date(iso);
+  const p = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function dueBadge(p){
+  if(p.status === "done") return "";
+  if(!p.deadline) return `<span class="badge">期限未定</span>`;
+  const dl = daysLeft(p.deadline);
+  if(dl < 0)  return `<span class="badge due-over">⛔ 期限切れ (${fmtDeadline(p.deadline)})</span>`;
+  if(dl <= 7) return `<span class="badge due-soon">⏰ あと${dl}日 (${fmtDeadline(p.deadline)})</span>`;
+  return `<span class="badge due-ok">📅 あと${dl}日 (${fmtDeadline(p.deadline)})</span>`;
+}
+
+/* ================= projects ================= */
+let filter = "all";
+
+function parseSources(text){
+  return String(text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{
+    const m = l.match(/^(\S+)\s+(.+)$/);
+    if(m && /^https?:\/\//.test(m[1])) return { url:m[1], title:m[2] };
+    if(/^https?:\/\//.test(l)) return { url:l, title:"" };
+    return { url:"", title:l };
+  });
+}
+function srcLabel(s){
+  if(s.title) return s.title;
+  try{ return new URL(s.url).hostname.replace(/^www\./,""); }catch(e){ return s.url || "?"; }
+}
+
+function sortProjects(list){
+  return list.slice().sort((a,b)=>{
+    if(a.status!==b.status) return a.status==="done" ? 1 : -1;
+    if(a.pinned!==b.pinned) return a.pinned ? -1 : 1;
+    const ad = a.deadline ? +new Date(a.deadline) : Infinity;
+    const bd = b.deadline ? +new Date(b.deadline) : Infinity;
+    return ad - bd;
+  });
+}
+
+function renderProjects(){
+  const q = $("#pSearch").value.trim().toLowerCase();
+  let list = state.projects.filter(p=>{
+    if(q && !(p.name+" "+(p.chain||"")+" "+(p.memo||"")).toLowerCase().includes(q)) return false;
+    if(filter==="open") return p.status!=="done";
+    if(filter==="done") return p.status==="done";
+    if(filter==="pinned") return p.pinned;
+    if(filter==="soon"){ const d=daysLeft(p.deadline); return p.status!=="done" && p.deadline && d!==null && d<=7; }
+    return true;
+  });
+  list = sortProjects(list);
+  const box = $("#projectList");
+  if(!list.length){
+    box.innerHTML = `<div class="empty">プロジェクトがありません。<br>「＋ 追加」から登録するか、Polymarketタブの「予定に追加」も使えます。</div>`;
+  }else{
+    box.innerHTML = list.map(p=>{
+      const srcs = (p.sources||[]).map(s=> s.url
+        ? `<a class="src-chip" href="${esc(s.url)}" target="_blank" rel="noopener">🔗 ${esc(srcLabel(s))}</a>`
+        : `<span class="src-chip">📝 ${esc(s.title)}</span>`).join("");
+      const ai = p.ai ? `
+        <div class="ai-box">
+          <div class="ai-head"><b>✨ AI解析</b><span>${esc(p.ai.model)} ・ ${esc(p.ai.at)}</span></div>
+          <div class="ai-content">${mdLite(p.ai.text)}</div>
+        </div>` : "";
+      return `
+      <div class="pcard ${p.pinned?"pinned":""} ${p.status==="done"?"done":""}" data-id="${p.id}">
+        <div class="pcard-top">
+          <div>
+            <span class="pname ${p.status==="done"?"strike":""}">${esc(p.name)}</span>
+            ${p.chain?`<span class="badge chain">${esc(p.chain)}</span>`:""}
+            ${p.pinned?`<span class="badge pin">📌 ピン</span>`:""}
+            ${p.status==="done"?`<span class="badge due-ok">✅ 完了</span>`:dueBadge(p)}
+          </div>
+          <div class="pactions">
+            <button class="icon-btn ${p.pinned?"on":""}" data-act="pin" title="ピン留め">📌</button>
+            <button class="icon-btn" data-act="edit" title="編集">✏️</button>
+            <button class="icon-btn" data-act="del" title="削除">🗑</button>
+          </div>
+        </div>
+        ${srcs?`<div class="psources">${srcs}</div>`:""}
+        ${p.memo?`<div class="pmemo">${esc(p.memo)}</div>`:""}
+        ${ai}
+        <div class="pfoot">
+          <button class="btn small" data-act="toggle">${p.status==="done"?"↩ 未完了に戻す":"✅ 完了にする"}</button>
+          <button class="btn small" data-act="ai">✨ AI解析${p.ai?"を更新":""}</button>
+          ${p.ai?`<button class="btn small ghost" data-act="aidel">解析を消す</button>`:""}
+        </div>
+      </div>`;
+    }).join("");
+  }
+  const open = state.projects.filter(p=>p.status!=="done");
+  $("#stOpen").textContent = open.length;
+  $("#stSoon").textContent = open.filter(p=>{const d=daysLeft(p.deadline); return p.deadline&&d!==null&&d<=7;}).length;
+  $("#stPin").textContent = state.projects.filter(p=>p.pinned).length;
+  renderGasStatus();
+}
+
+/* ---- card actions (delegate) ---- */
+$("#projectList").addEventListener("click", e=>{
+  const btn = e.target.closest("[data-act]"); if(!btn) return;
+  const id = e.target.closest(".pcard").dataset.id;
+  const p = state.projects.find(x=>x.id===id); if(!p) return;
+  const act = btn.dataset.act;
+  if(act==="pin"){ p.pinned=!p.pinned; save(); renderProjects(); scheduleGasSync(); }
+  else if(act==="toggle"){ p.status = p.status==="done"?"open":"done"; save(); renderProjects(); scheduleGasSync(); }
+  else if(act==="edit"){ openDialog(p); }
+  else if(act==="del"){ if(confirm(`「${p.name}」を削除しますか?`)){ state.projects = state.projects.filter(x=>x.id!==id); save(); renderProjects(); scheduleGasSync(); } }
+  else if(act==="ai"){ analyzeProject(p, btn); }
+  else if(act==="aidel"){ delete p.ai; save(); renderProjects(); }
+});
+
+/* ---- dialog ---- */
+let editId = null;
+function openDialog(p){
+  editId = p ? p.id : null;
+  $("#dlgTitle").textContent = p ? "プロジェクトを編集" : "プロジェクトを追加";
+  $("#fName").value = p?.name || "";
+  $("#fChain").value = p?.chain || "";
+  $("#fNoDeadline").checked = p ? !p.deadline : false;
+  $("#fDeadline").value = p?.deadline ? p.deadline.slice(0,16) : "";
+  $("#fDeadline").disabled = $("#fNoDeadline").checked;
+  $("#fSources").value = (p?.sources||[]).map(s=> s.url ? (s.title? s.url+" "+s.title : s.url) : s.title).join("\n");
+  $("#fMemo").value = p?.memo || "";
+  $("#fPinned").checked = !!p?.pinned;
+  $("#pDialog").showModal();
+}
+$("#fNoDeadline").addEventListener("change", e=>{ $("#fDeadline").disabled = e.target.checked; });
+$("#btnAdd").addEventListener("click", ()=>openDialog(null));
+$("#dlgCancel").addEventListener("click", ()=>$("#pDialog").close());
+$("#dlgSave").addEventListener("click", ()=>{
+  const name = $("#fName").value.trim();
+  if(!name){ toast("プロジェクト名を入力してください"); return; }
+  const data = {
+    name, chain: $("#fChain").value.trim(),
+    deadline: $("#fNoDeadline").checked ? "" : $("#fDeadline").value,
+    sources: parseSources($("#fSources").value),
+    memo: $("#fMemo").value.trim(),
+    pinned: $("#fPinned").checked,
+  };
+  let added = null;
+  if(editId){
+    Object.assign(state.projects.find(x=>x.id===editId), data);
+  }else{
+    added = Object.assign({ id: uid(), status:"open", createdAt: new Date().toISOString() }, data);
+    state.projects.push(added);
+  }
+  save(); renderProjects(); $("#pDialog").close();
+  toast(editId ? "更新しました" : "追加しました");
+  added ? afterProjectsAdded([added]) : scheduleGasSync();
+});
+
+/* ---- search & filter ---- */
+$("#pSearch").addEventListener("input", renderProjects);
+$("#pFilters").addEventListener("click", e=>{
+  const c = e.target.closest(".chip"); if(!c) return;
+  $$("#pFilters .chip").forEach(x=>x.classList.remove("active"));
+  c.classList.add("active"); filter = c.dataset.f; renderProjects();
+});
+
+/* ---- dedup / export / import ---- */
+$("#btnDedup").addEventListener("click", ()=>{
+  const seen = new Map(); let removed = 0;
+  for(const p of state.projects){
+    const k = p.name.trim().toLowerCase();
+    if(seen.has(k)){ const kept = seen.get(k); kept.pinned = kept.pinned || p.pinned; removed++; }
+    else seen.set(k, p);
+  }
+  if(!removed){ toast("重複はありません"); return; }
+  if(confirm(`${removed}件の重複を削除します (先に登録した方を残します)`)){
+    state.projects = [...seen.values()]; save(); renderProjects(); scheduleGasSync(); toast(`${removed}件を整理しました`);
+  }
+});
+$("#btnExport").addEventListener("click", ()=>{
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `yotei_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$("#btnImport").addEventListener("click", ()=>$("#importFile").click());
+$("#importFile").addEventListener("change", async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const d = JSON.parse(await f.text());
+    if(!Array.isArray(d.projects)) throw 0;
+    if(confirm(`${d.projects.length}件のプロジェクトを読み込み、現在のデータを置き換えます。よろしいですか?`)){
+      state = Object.assign(state, d); save(); loadSettingsUI(); renderProjects(); scheduleGasSync(); toast("インポートしました");
+    }
+  }catch(err){ toast("読み込めませんでした (JSON形式を確認してください)"); }
+  e.target.value = "";
+});
+/* ================= Gemini ================= */
+async function callGemini(userText, systemText, jsonMode){
+  const key = state.settings.key;
+  if(!key) throw new Error("APIキーが未設定です。設定タブでGemini APIキーを入力してください。");
+  const model = state.settings.model || "gemini-2.5-flash";
+  const genCfg = { temperature: jsonMode ? 0.15 : 0.4, maxOutputTokens: 4096 };
+  if(jsonMode) genCfg.responseMimeType = "application/json";
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemText }] },
+      contents: [{ role:"user", parts:[{ text: userText }] }],
+      generationConfig: genCfg,
+    }),
+  });
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err?.error?.message || `API error ${res.status}`);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join("") || "";
+  if(!text) throw new Error("応答が空でした (安全フィルタの可能性)");
+  return text;
+}
+
+const nowJa = () => new Date().toLocaleString("ja-JP");
+
+function projectContext(p){
+  return [
+    `プロジェクト名: ${p.name}`,
+    `チェーン/カテゴリ: ${p.chain || "不明"}`,
+    `期限: ${p.deadline ? fmtDeadline(p.deadline) : "未定"} (現在日時: ${nowJa()})`,
+    `状態: ${p.status==="done"?"完了":"未完了"}${p.pinned?" / ピン留め中":""}`,
+    `メモ・タスク: ${p.memo || "(なし)"}`,
+    `情報ソース:`,
+    ...(p.sources||[]).map((s,i)=>`  [${i+1}] ${s.title||""} ${s.url||""}`.trim()),
+    (p.sources||[]).length ? "" : "  (ソース未登録)",
+  ].join("\n");
+}
+
+const ANALYZE_SYS = `あなたは暗号資産のエアドロップ・キャンペーン管理を手伝う有能なAIです。
+与えられたプロジェクト情報を解析し、必ず次の3セクションで簡潔に出力してください。
+## 📌 優先タスク
+(期限と現在日時を踏まえ、今やるべき具体的行動を箇条書き2〜4個)
+## ⚠️ リスク・注意点
+(Sybilリスク、期限切れ、条件の見落とし等。箇条書き1〜3個)
+## 🔗 根拠
+(各提案の根拠を明示。ユーザー提供ソース[番号]を引用し、一般知識による推測は「推測:」と明記)
+装飾は最小限、日本語で、全体で400字以内を目安に。`;
+
+async function analyzeProject(p, btn){
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = `<span class="spin"></span> 解析中…`;
+  try{
+    const text = await callGemini(projectContext(p), ANALYZE_SYS);
+    p.ai = { text, model: state.settings.model, at: nowJa() };
+    save(); renderProjects(); toast("AI解析が完了しました");
+  }catch(err){
+    toast("AI解析エラー: " + err.message);
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+}
+
+/* ================= bulk register ================= */
+const BULK_SYS = () => `あなたは雑多なテキストから暗号資産プロジェクト/キャンペーン予定を抽出する専門家です。現在日時: ${nowJa()}
+入力テキストから予定を抽出し、次のスキーマのJSON配列のみを出力してください。
+[{"name":"プロジェクト名","chain":"チェーンやカテゴリ(不明なら\\"不明\\")","deadline":"YYYY-MM-DDTHH:MM形式。不明なら空文字。時刻不明なら23:59。「5/7まで」等の相対表現は現在日時から補完","memo":"やるべきタスク・条件の要約(日本語・簡潔)","sources":[{"url":"テキスト中のURL","title":"ソースの説明"}]}]
+ルール: 予定が1つでも配列で返す / URLが無ければsourcesは空配列 / 予定と判断できる情報が無ければ [] を返す / JSON以外の文章は一切出力しない`;
+
+let bulkItems = [];
+function renderBulkPreview(){
+  const box = $("#bulkPreview");
+  if(!bulkItems.length){ box.innerHTML = ""; $("#bulkAdd").disabled = true; return; }
+  const existing = new Set(state.projects.map(p=>p.name.trim().toLowerCase()));
+  box.innerHTML = `<label style="margin-bottom:6px">解析結果 (${bulkItems.length}件) — 登録するものを選択:</label>` +
+    bulkItems.map((it,i)=>{
+      const dup = existing.has((it.name||"").trim().toLowerCase());
+      return `<label class="check" style="align-items:flex-start; padding:8px 10px; border:1px solid var(--border); border-radius:10px; margin-bottom:6px">
+        <input type="checkbox" data-i="${i}" ${dup?"":"checked"} style="margin-top:4px">
+        <span><b>${esc(it.name||"(名称不明)")}</b>
+          ${it.chain?`<span class="badge chain">${esc(it.chain)}</span>`:""}
+          ${dup?`<span class="badge due-soon">⚠ 同名が登録済み</span>`:""}
+          <br><span style="font-size:12px; color:var(--muted)">期限: ${it.deadline?esc(fmtDeadline(it.deadline)):"未定"}${it.memo?` ／ ${esc(it.memo.slice(0,80))}`:""}${(it.sources||[]).length?` ／ 🔗${it.sources.length}件`:""}</span>
+        </span></label>`;
+    }).join("");
+  $("#bulkAdd").disabled = false;
+}
+$("#btnBulk").addEventListener("click", ()=>{
+  bulkItems = []; $("#bulkText").value = ""; $("#bulkStatus").textContent = "";
+  renderBulkPreview(); $("#bulkDialog").showModal();
+});
+$("#bulkCancel").addEventListener("click", ()=>$("#bulkDialog").close());
+$("#bulkParse").addEventListener("click", async e=>{
+  const text = $("#bulkText").value.trim();
+  if(!text){ toast("テキストを貼り付けてください"); return; }
+  const btn = e.target; btn.disabled = true;
+  $("#bulkStatus").innerHTML = `<span class="spin"></span> AIが解析中…`;
+  try{
+    const raw = await callGemini(text, BULK_SYS(), true);
+    let arr;
+    try{ arr = JSON.parse(raw); }
+    catch(_){ const m = raw.match(/\[[\s\S]*\]/); arr = m ? JSON.parse(m[0]) : []; }
+    if(!Array.isArray(arr)) arr = [];
+    bulkItems = arr.filter(x=>x && x.name).map(x=>({
+      name: String(x.name), chain: String(x.chain||""), deadline: String(x.deadline||""),
+      memo: String(x.memo||""),
+      sources: Array.isArray(x.sources) ? x.sources.filter(s=>s&&(s.url||s.title)).map(s=>({url:String(s.url||""), title:String(s.title||"")})) : [],
+    }));
+    $("#bulkStatus").textContent = bulkItems.length ? `✅ ${bulkItems.length}件を抽出しました` : "予定を抽出できませんでした";
+    renderBulkPreview();
+  }catch(err){
+    $("#bulkStatus").textContent = "❌ " + err.message;
+  }
+  btn.disabled = false;
+});
+$("#bulkAdd").addEventListener("click", ()=>{
+  const checked = $$("#bulkPreview input:checked").map(c=>bulkItems[+c.dataset.i]);
+  if(!checked.length){ toast("登録する項目を選択してください"); return; }
+  const added = checked.map(it => Object.assign({ id: uid(), status:"open", pinned:false, createdAt: new Date().toISOString() }, it));
+  state.projects.push(...added);
+  save(); renderProjects(); $("#bulkDialog").close();
+  toast(`${checked.length}件を登録しました`);
+  afterProjectsAdded(added);
+});
+
+/* ================= chat ================= */
+const CHAT_SYS = () => `あなたは「予定管理」というアプリのAIアシスタントです。ユーザーの暗号資産プロジェクト予定を把握し、日本語で簡潔・実用的に助言します。
+現在日時: ${nowJa()}
+登録プロジェクト一覧:
+${state.projects.map(p=>`- ${p.name} | ${p.chain||"不明"} | 期限:${p.deadline?fmtDeadline(p.deadline):"未定"} | ${p.status==="done"?"完了":"未完了"}${p.pinned?" | 📌":""}${p.memo?` | メモ:${p.memo.slice(0,120)}`:""}`).join("\n") || "(なし)"}
+回答の根拠(どのプロジェクト情報・一般知識か)を末尾に一言添えてください。`;
+
+function renderChat(){
+  const log = $("#chatLog");
+  log.innerHTML = state.chat.map(m =>
+    m.role==="user"
+      ? `<div class="msg user">${esc(m.text)}</div>`
+      : `<div class="msg ai"><div class="ai-content">${mdLite(m.text)}</div></div>`
+  ).join("");
+  log.scrollTop = log.scrollHeight;
+}
+async function sendChat(){
+  const ta = $("#chatText");
+  const text = ta.value.trim(); if(!text) return;
+  ta.value = "";
+  state.chat.push({role:"user", text}); renderChat();
+  const log = $("#chatLog");
+  log.insertAdjacentHTML("beforeend", `<div class="msg ai" id="chatWait"><span class="spin"></span> 考え中…</div>`);
+  log.scrollTop = log.scrollHeight;
+  try{
+    const history = state.chat.slice(-10).map(m=>`${m.role==="user"?"ユーザー":"AI"}: ${m.text}`).join("\n");
+    const reply = await callGemini(history, CHAT_SYS());
+    state.chat.push({role:"ai", text: reply});
+  }catch(err){
+    state.chat.push({role:"ai", text: "⚠️ " + err.message});
+  }
+  save(); renderChat();
+}
+$("#chatFab").addEventListener("click", ()=>{ $("#chatPanel").classList.add("open"); $("#chatFab").style.display="none"; renderChat(); $("#chatText").focus(); });
+$("#chatClose").addEventListener("click", ()=>{ $("#chatPanel").classList.remove("open"); $("#chatFab").style.display="flex"; });
+$("#chatClear").addEventListener("click", ()=>{ state.chat = []; save(); renderChat(); });
+$("#chatSend").addEventListener("click", sendChat);
+$("#chatText").addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendChat(); } });
+
+/* ================= Polymarket ================= */
+let polyCache = [], polyTgeCache = null, polyMode = "top";
+
+async function loadPoly(){
+  const box = $("#polyList");
+  box.innerHTML = `<div class="empty"><span class="spin"></span> 読み込み中…</div>`;
+  try{
+    const res = await fetch("https://gamma-api.polymarket.com/markets?closed=false&limit=100&order=volume24hr&ascending=false");
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    polyCache = await res.json();
+    renderPoly();
+  }catch(err){
+    box.innerHTML = `<div class="empty">取得に失敗しました: ${esc(err.message)}<br>時間をおいて「↻ 更新」を試してください。</div>`;
+  }
+}
+
+/* TGE・トークンローンチ系: 検索APIから収集 */
+async function loadPolyTge(){
+  const box = $("#polyList");
+  box.innerHTML = `<div class="empty"><span class="spin"></span> TGE関連マーケットを検索中…</div>`;
+  const queries = ["token launch", "token price", "TGE", "FDV", "market cap of"];
+  const seen = new Map();
+  for(const q of queries){
+    try{
+      const d = await fetchJson("https://gamma-api.polymarket.com/public-search?q=" + encodeURIComponent(q) + "&limit_per_type=20&events_status=active");
+      for(const ev of (d.events||[])){
+        for(const m of (ev.markets||[])){
+          if(m.closed || m.active===false || m.archived) continue;
+          if(m.endDate && new Date(m.endDate) < Date.now()) continue;
+          if(!seen.has(m.id)) seen.set(m.id, m);
+        }
+      }
+    }catch(e){}
+  }
+  polyTgeCache = [...seen.values()].sort((a,b)=>
+    (parseFloat(b.volume24hr ?? b.volumeNum ?? b.volume ?? 0)) - (parseFloat(a.volume24hr ?? a.volumeNum ?? a.volume ?? 0)));
+  renderPoly();
+}
+
+function renderPoly(){
+  const q = $("#polySearch").value.trim().toLowerCase();
+  const src = polyMode==="tge" ? (polyTgeCache||[]) : polyCache;
+  const list = src.filter(m => !q || (m.question||"").toLowerCase().includes(q)).slice(0, 30);
+  const box = $("#polyList");
+  if(!list.length){ box.innerHTML = `<div class="empty">該当するマーケットがありません</div>`; return; }
+  box.innerHTML = list.map(m=>{
+    let yes = null;
+    try{ yes = parseFloat(JSON.parse(m.outcomePrices||"[]")[0]); }catch(e){}
+    const pct = yes==null||isNaN(yes) ? "—" : Math.round(yes*100)+"%";
+    const cls = yes==null ? "" : yes>=0.6 ? "hi" : yes>=0.35 ? "mid" : "lo";
+    const volN = parseFloat(m.volume24hr ?? m.volumeNum ?? m.volume ?? NaN);
+    const vol = isNaN(volN) ? "—" : "$"+Math.round(volN).toLocaleString();
+    const end = m.endDateIso || (m.endDate||"").slice(0,10) || "—";
+    const url = "https://polymarket.com/market/" + (m.slug||"");
+    const title = m.question || "?";
+    return `
+    <div class="mcard">
+      <div class="prob ${cls}">${pct}<small>YES</small></div>
+      <div class="q">
+        <div class="title"><a href="${esc(url)}" target="_blank" rel="noopener">${esc(title)}</a></div>
+        <div class="sub">24h出来高 ${vol} ・ 終了 ${esc(end)}</div>
+      </div>
+      <button class="btn small" data-slug="${esc(m.slug||"")}" data-q="${esc(title)}" data-end="${esc(m.endDate||"")}">＋ 予定に追加</button>
+    </div>`;
+  }).join("");
+}
+$("#polyList").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-slug]"); if(!b) return;
+  const dl = b.dataset.end ? new Date(b.dataset.end) : null;
+  const added = {
+    id: uid(), name: b.dataset.q, chain: "Polymarket",
+    deadline: dl && !isNaN(dl) ? new Date(dl - dl.getTimezoneOffset()*60000).toISOString().slice(0,16) : "",
+    sources: [{url: "https://polymarket.com/market/"+b.dataset.slug, title: "Polymarket"}],
+    memo: "", pinned: false, status: "open", createdAt: new Date().toISOString(),
+  };
+  state.projects.push(added);
+  save(); renderProjects(); toast("予定に追加しました");
+  afterProjectsAdded([added]);
+});
+$("#polySearch").addEventListener("input", renderPoly);
+$("#polyChips").addEventListener("click", e=>{
+  const c = e.target.closest(".chip"); if(!c) return;
+  $$("#polyChips .chip").forEach(x=>x.classList.remove("active"));
+  c.classList.add("active");
+  if(c.dataset.mode==="tge"){
+    polyMode = "tge"; $("#polySearch").value = "";
+    polyTgeCache===null ? loadPolyTge() : renderPoly();
+  }else{
+    polyMode = "top"; $("#polySearch").value = c.dataset.q; renderPoly();
+  }
+});
+$("#polyReload").addEventListener("click", ()=>{ polyMode==="tge" ? loadPolyTge() : loadPoly(); });
+
+/* ================= BTC macro ================= */
+async function fetchJson(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+async function loadBtc(){
+  $("#btcUpdated").innerHTML = `<span class="spin"></span> 取得中…`;
+  /* price: CoinGecko → Binance fallback */
+  try{
+    let usd, jpy, chg;
+    try{
+      const d = await fetchJson("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,jpy&include_24hr_change=true");
+      usd = d.bitcoin.usd; jpy = d.bitcoin.jpy; chg = d.bitcoin.usd_24h_change;
+    }catch(e){
+      const t = await fetchJson("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT");
+      usd = parseFloat(t.lastPrice); chg = parseFloat(t.priceChangePercent);
+      jpy = null;
+    }
+    $("#kPrice").textContent = "$" + Math.round(usd).toLocaleString();
+    $("#kJpy").textContent = jpy ? "¥" + Math.round(jpy).toLocaleString() : "—";
+    const c = $("#kChange");
+    if(chg!=null && !isNaN(chg)){
+      c.textContent = (chg>=0?"▲ +":"▼ ") + chg.toFixed(2) + "% (24h)";
+      c.className = "k-sub " + (chg>=0?"k-up":"k-down");
+    }
+  }catch(err){ $("#kPrice").textContent = "取得失敗"; }
+  /* fear & greed */
+  try{
+    const f = await fetchJson("https://api.alternative.me/fng/?limit=1");
+    const v = parseInt(f.data[0].value);
+    $("#kFng").textContent = v;
+    const jp = {"Extreme Fear":"極度の恐怖","Fear":"恐怖","Neutral":"中立","Greed":"強欲","Extreme Greed":"極度の強欲"};
+    $("#kFngClass").textContent = jp[f.data[0].value_classification] || f.data[0].value_classification;
+    $("#fngCur").style.marginLeft = `calc(${v}% - 2px)`;
+  }catch(err){ $("#kFng").textContent = "—"; }
+  /* chart: CoinGecko → Binance klines fallback */
+  try{
+    let points;
+    try{
+      const d = await fetchJson("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=30&interval=daily");
+      points = d.prices.map(p=>({t:p[0], v:p[1]}));
+    }catch(e){
+      const k = await fetchJson("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=30");
+      points = k.map(r=>({t:r[0], v:parseFloat(r[4])}));
+    }
+    drawChart(points);
+  }catch(err){}
+  $("#btcUpdated").textContent = "最終更新: " + nowJa();
+}
+function drawChart(points){
+  const cv = $("#btcChart"), ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height, padL = 70, padB = 26, padT = 12, padR = 12;
+  ctx.clearRect(0,0,W,H);
+  if(!points || points.length < 2) return;
+  const vs = points.map(p=>p.v);
+  const min = Math.min(...vs)*0.995, max = Math.max(...vs)*1.005;
+  const x = i => padL + (W-padL-padR) * i/(points.length-1);
+  const y = v => padT + (H-padT-padB) * (1 - (v-min)/(max-min));
+  ctx.strokeStyle = "#26324e"; ctx.fillStyle = "#8d9ab9"; ctx.font = "12px sans-serif"; ctx.lineWidth = 1;
+  for(let i=0;i<=4;i++){
+    const v = min + (max-min)*i/4, yy = y(v);
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W-padR, yy); ctx.stroke();
+    ctx.fillText("$"+Math.round(v/1000)+"k", 8, yy+4);
+  }
+  for(let i=0;i<points.length;i+=Math.ceil(points.length/6)){
+    const d = new Date(points[i].t);
+    ctx.fillText(`${d.getMonth()+1}/${d.getDate()}`, x(i)-14, H-6);
+  }
+  const grad = ctx.createLinearGradient(0,padT,0,H-padB);
+  grad.addColorStop(0,"rgba(91,140,255,.35)"); grad.addColorStop(1,"rgba(91,140,255,0)");
+  ctx.beginPath(); ctx.moveTo(x(0), y(points[0].v));
+  points.forEach((p,i)=>ctx.lineTo(x(i), y(p.v)));
+  ctx.lineTo(x(points.length-1), H-padB); ctx.lineTo(x(0), H-padB); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x(0), y(points[0].v));
+  points.forEach((p,i)=>ctx.lineTo(x(i), y(p.v)));
+  ctx.strokeStyle = "#5b8cff"; ctx.lineWidth = 2.2; ctx.stroke();
+}
+$("#btcReload").addEventListener("click", loadBtc);
+
+/* ================= FRED macro ================= */
+/* CORS回避: 直接→各種プロキシの順で試行し、成功したルートを記憶して再利用 */
+let fredRoute = null;
+const FRED_ROUTES = [
+  u => u,
+  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  u => "https://api.allorigins.win/get?url=" + encodeURIComponent(u),
+  u => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
+  u => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+];
+async function viaProxies(url){
+  const idx = [...FRED_ROUTES.keys()];
+  const order = fredRoute==null ? idx : [fredRoute, ...idx.filter(i=>i!==fredRoute)];
+  let lastErr;
+  for(const i of order){
+    try{
+      const r = await fetch(FRED_ROUTES[i](url), { signal: AbortSignal.timeout(10000) });
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      let text = await r.text();
+      if(i===2){ /* allorigins /get はJSONラッパー形式 */
+        const w = JSON.parse(text);
+        if(w.status && w.status.http_code >= 400) throw new Error("HTTP " + w.status.http_code);
+        text = w.contents || "";
+        if(text.startsWith("data:")) text = atob(text.slice(text.indexOf(",")+1));
+      }
+      if(!text.trim()) throw new Error("空応答");
+      fredRoute = i;
+      return text;
+    }catch(e){ lastErr = e; }
+  }
+  throw lastErr || new Error("全ルート失敗");
+}
+async function fredSeries(id, limit){
+  const key = state.settings.fredKey;
+  /* 1) キーがあれば公式APIを優先 */
+  if(key){
+    try{
+      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${encodeURIComponent(key)}&file_type=json&sort_order=desc&limit=${limit}`;
+      const d = JSON.parse(await viaProxies(url));
+      if(d.observations) return d.observations.filter(o=>o.value!==".").map(o=>({date:o.date, v:parseFloat(o.value)})).reverse();
+    }catch(e){ /* CSV方式へフォールバック */ }
+  }
+  /* 2) fredgraph.csv (APIキー不要) */
+  const start = new Date(Date.now() - 450*86400000).toISOString().slice(0,10);
+  const csv = await viaProxies(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${id}&cosd=${start}`);
+  if(csv.trimStart().startsWith("<")) throw new Error(id+": 不正な応答 (HTML)");
+  const rows = csv.trim().split(/\r?\n/).slice(1)
+    .map(l=>l.split(","))
+    .filter(c=>c.length>=2 && c[1]!=="." && c[1].trim()!=="" && !isNaN(parseFloat(c[1])))
+    .map(c=>({date:c[0].replace(/"/g,""), v:parseFloat(c[1])}));
+  if(!rows.length) throw new Error(id+": データなし");
+  return rows.slice(-limit);
+}
+const last = a => a[a.length-1];
+const stdev = a => { const m = a.reduce((s,x)=>s+x,0)/a.length; return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/a.length); };
+const bp = x => (x>=0?"+":"") + (x*100).toFixed(1) + " bp";
+const pct = x => (x>=0?"+":"") + x.toFixed(2) + "%";
+
+function kpiCard(label, value, sub, cls){
+  return `<div class="kpi"><div class="k-label">${label}</div><div class="k-value" style="font-size:22px">${value}</div><div class="k-sub ${cls||""}">${sub||""}</div></div>`;
+}
+
+async function loadFred(){
+  const grid = $("#fredGrid"), st = $("#fredStatus");
+  state.settings.fredKey = $("#fredKey").value.trim();
+  save();
+  grid.innerHTML = "";
+  const defs = [
+    ["SOFR", 45], ["IORB", 5], ["DFEDTARU", 5],
+    ["RRPONTSYD", 45], ["WRESBAL", 10], ["WALCL", 10],
+    ["M2SL", 14], ["SP500", 45],
+  ];
+  /* プロキシのレート制限を避けるため直列で取得 */
+  const res = [];
+  for(let i=0; i<defs.length; i++){
+    st.innerHTML = `<span class="spin"></span> FREDから取得中… (${i+1}/${defs.length}: ${defs[i][0]})`;
+    try{ res.push({status:"fulfilled", value: await fredSeries(defs[i][0], defs[i][1])}); }
+    catch(e){ res.push({status:"rejected", reason:e}); }
+  }
+  const S = {};
+  defs.forEach((d,i)=>{ if(res[i].status==="fulfilled" && res[i].value.length) S[d[0]] = res[i].value; });
+  const cards = [];
+  /* --- 短期金融市場 --- */
+  if(S.SOFR){
+    const s = S.SOFR, cur = last(s).v, prev = s.length>1 ? s[s.length-2].v : cur;
+    cards.push(kpiCard("SOFR", cur.toFixed(2)+"%", "前日差 "+bp(cur-prev)+" ・ "+last(s).date));
+    if(S.IORB){
+      const sp = cur - last(S.IORB).v;
+      cards.push(kpiCard("SOFR − IORB スプレッド", bp(sp), sp>0 ? "⚠ プラス圏 = レポ市場逼迫シグナル" : "マイナス圏 = 平常", sp>0?"k-down":"k-up"));
+    }
+    if(S.DFEDTARU){
+      const ex = cur - last(S.DFEDTARU).v;
+      cards.push(kpiCard("SOFR − FF金利上限", bp(ex), ex>0 ? "⛔ 上限超過 = 資金供給不足" : "上限内 ("+last(S.DFEDTARU).v.toFixed(2)+"%)", ex>0?"k-down":"k-up"));
+    }
+    const vol = stdev(s.slice(-30).map(o=>o.v))*100;
+    cards.push(kpiCard("SOFR ボラティリティ (30日σ)", vol.toFixed(1)+" bp", vol>5 ? "⚠ 上昇 = レポ金利が不安定化" : "落ち着いた水準", vol>5?"k-down":""));
+  }
+  /* --- バランスシート・残高系 --- */
+  if(S.RRPONTSYD){
+    const r = S.RRPONTSYD, cur = last(r).v, ago = r[0].v;
+    cards.push(kpiCard("リバースレポ (RRP) 残高", "$"+cur.toFixed(0)+"B",
+      (cur<50 ? "⚠ 枯渇圏 = 過剰流動性バッファ消滅" : "30営業日前比 "+(cur-ago>=0?"+":"")+(cur-ago).toFixed(0)+"B"), cur<50?"k-down":""));
+  }
+  if(S.WRESBAL){
+    const w = S.WRESBAL, cur = last(w).v, prev = w.length>1 ? w[w.length-2].v : cur;
+    cards.push(kpiCard("準備預金 (Reserves)", "$"+(cur/1000).toFixed(2)+"T", "前週比 "+(cur-prev>=0?"+":"")+(cur-prev).toFixed(0)+"B", cur<prev?"k-down":"k-up"));
+  }
+  if(S.WALCL){
+    const w = S.WALCL, cur = last(w).v, m4 = w[Math.max(0,w.length-5)].v;
+    cards.push(kpiCard("Fed 総資産 (B/S)", "$"+(cur/1e6).toFixed(2)+"T", "4週前比 "+((cur-m4)/1000>=0?"+":"")+((cur-m4)/1000).toFixed(0)+"B", cur<m4?"k-down":"k-up"));
+  }
+  if(S.M2SL){
+    const m = S.M2SL, cur = last(m).v, yoyBase = m.length>=13 ? m[m.length-13].v : null;
+    cards.push(kpiCard("M2 マネーサプライ", "$"+(cur/1000).toFixed(1)+"T", yoyBase ? "前年比 "+pct((cur/yoyBase-1)*100) : last(m).date, yoyBase && cur<yoyBase?"k-down":"k-up"));
+  }
+  if(S.SP500){
+    const p = S.SP500, cur = last(p).v, prev = p.length>1 ? p[p.length-2].v : cur;
+    cards.push(kpiCard("S&P 500", cur.toLocaleString(undefined,{maximumFractionDigits:0}), "前日比 "+pct((cur/prev-1)*100), cur>=prev?"k-up":"k-down"));
+  }
+  const firstErr = res.find(r=>r.status==="rejected");
+  if(!cards.length){
+    st.textContent = "❌ 取得できませんでした: " + (firstErr ? firstErr.reason.message : "不明なエラー");
+    return;
+  }
+  grid.innerHTML = cards.join("");
+  const failed = defs.filter((d,i)=>res[i].status!=="fulfilled").map(d=>d[0]);
+  st.textContent = "最終更新: " + nowJa() + (failed.length ? ` ／ 取得失敗: ${failed.join(", ")} (${firstErr.reason.message})` : "");
+}
+$("#fredLoad").addEventListener("click", loadFred);
+$("#fredEye").addEventListener("click", ()=>{
+  const k = $("#fredKey"); k.type = k.type==="password" ? "text" : "password";
+});
+
+/* ================= Telegram 通知 ================= */
+async function tgApi(method, params){
+  const token = state.settings.tgToken;
+  if(!token) throw new Error("Bot Tokenが未設定です");
+  /* URLSearchParams で送ると content-type が form-urlencoded になり
+     CORSプリフライト(OPTIONS)が発生しない = file:// からでも通る */
+  const body = new URLSearchParams();
+  for(const [k,v] of Object.entries(params||{})) body.append(k, typeof v==="object" ? JSON.stringify(v) : String(v));
+  let r;
+  try{
+    r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method:"POST", body });
+  }catch(e){
+    throw new Error("ネットワークに接続できません (VPN/拡張機能/回線をご確認ください)");
+  }
+  let d;
+  try{ d = await r.json(); }catch(e){ throw new Error("応答を解析できません (HTTP " + r.status + ")"); }
+  if(!d.ok){
+    let msg = d.description || ("HTTP " + r.status);
+    if(r.status === 404) msg = "Bot Tokenが正しくありません";
+    else if(/chat not found/i.test(msg)) msg = "Chat IDが正しくありません (Botに一度メッセージを送ってから自動取得してください)";
+    throw new Error(msg);
+  }
+  return d.result;
+}
+async function tgSend(text){
+  if(!state.settings.tgToken || !state.settings.tgChat) throw new Error("Telegramの設定が未完了です");
+  return tgApi("sendMessage", { chat_id: state.settings.tgChat, text, parse_mode: "HTML", disable_web_page_preview: false });
+}
+function tgProjectMsg(p){
+  const lines = [
+    `🆕 <b>新しい案件を追加しました</b>`,
+    ``,
+    `<b>${esc(p.name)}</b>${p.chain?` (${esc(p.chain)})`:""}`,
+    `📅 期限: ${p.deadline ? fmtDeadline(p.deadline) : "未定"}${p.deadline&&daysLeft(p.deadline)!=null?` (あと${daysLeft(p.deadline)}日)`:""}`,
+  ];
+  if(p.memo) lines.push(``, `📝 ${esc(p.memo.slice(0,300))}`);
+  const urls = (p.sources||[]).filter(s=>s.url);
+  if(urls.length) lines.push(``, `🔗 ` + urls.map(s=>esc(s.url)).join("\n"));
+  if(p.pinned) lines.push(``, `📌 ピン留め (毎日のメール通知対象)`);
+  return lines.join("\n");
+}
+/* 新規追加の共通フック: 通知 + GAS同期 */
+function afterProjectsAdded(added){
+  if(state.settings.tgEnabled && state.settings.tgToken && state.settings.tgChat){
+    (async ()=>{
+      for(const p of added){
+        try{ await tgSend(tgProjectMsg(p)); }
+        catch(e){ toast("Telegram通知エラー: " + e.message); break; }
+      }
+    })();
+  }
+  scheduleGasSync();
+}
+$("#tgEye").addEventListener("click", ()=>{
+  const k = $("#tgToken"); k.type = k.type==="password" ? "text" : "password";
+});
+function saveTgSettings(){
+  state.settings.tgToken = $("#tgToken").value.trim();
+  state.settings.tgChat = $("#tgChat").value.trim();
+  state.settings.tgEnabled = $("#tgEnabled").checked;
+  save();
+}
+$("#tgSave").addEventListener("click", ()=>{
+  saveTgSettings();
+  const s = state.settings;
+  if(!s.tgToken) toast("Bot Tokenを入力してください");
+  else if(!s.tgChat) toast("Chat IDが未設定です (「自動取得」を押してください)");
+  else if(!s.tgEnabled) toast("保存しました (通知チェックがオフです)");
+  else toast("Telegram設定を保存しました");
+});
+/* 保存忘れ防止: 入力・チェック変更で即保存 */
+["tgToken","tgChat","tgEnabled"].forEach(id=>{
+  const el = $("#"+id);
+  el.addEventListener("change", saveTgSettings);
+  el.addEventListener("input", saveTgSettings);
+});
+["gasUrl","gasMail","gasAuto"].forEach(id=>{
+  const el = $("#"+id);
+  el.addEventListener("change", saveGasSettings);
+  el.addEventListener("input", saveGasSettings);
+});
+$("#tgGetChat").addEventListener("click", async ()=>{
+  saveTgSettings();
+  const r = $("#tgResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    const ups = await tgApi("getUpdates", {});
+    const ids = [...new Set(ups.map(u=>u.message?.chat?.id ?? u.channel_post?.chat?.id).filter(Boolean))];
+    if(!ids.length){ r.textContent = "❌ 未取得。Botに一度メッセージを送ってから再試行してください"; r.style.color="var(--danger)"; return; }
+    $("#tgChat").value = ids[ids.length-1];
+    saveTgSettings();
+    r.textContent = "✅ Chat IDを取得しました"; r.style.color = "var(--ok)";
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
+$("#tgTest").addEventListener("click", async ()=>{
+  saveTgSettings();
+  const r = $("#tgResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    await tgSend("✅ <b>予定管理</b> からのテスト通知です。\n新規案件を追加すると、この形式で通知が届きます。");
+    r.textContent = "✅ 送信しました"; r.style.color = "var(--ok)";
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
+
+/* ================= Google Apps Script 同期 ================= */
+/* CORSの影響を受けないフォーム送信 (hidden iframe 宛) */
+function gasFormPost(url, body){
+  return new Promise(resolve=>{
+    let frame = document.getElementById("gasFrame");
+    if(!frame){
+      frame = document.createElement("iframe");
+      frame.id = "gasFrame"; frame.name = "gasFrame"; frame.style.display = "none";
+      document.body.appendChild(frame);
+    }
+    const form = document.createElement("form");
+    form.method = "POST"; form.action = url; form.target = "gasFrame"; form.style.display = "none";
+    const input = document.createElement("input");
+    input.type = "hidden"; input.name = "payload"; input.value = body;
+    form.appendChild(input);
+    document.body.appendChild(form);
+    let done = false;
+    const finish = ()=>{ if(done) return; done = true; form.remove(); resolve(); };
+    frame.onload = ()=> setTimeout(finish, 300);
+    form.submit();
+    setTimeout(finish, 8000);
+  });
+}
+
+async function gasSync(){
+  const url = state.settings.gasUrl;
+  if(!url) throw new Error("ウェブアプリURLが未設定です");
+  const stamp = new Date().toISOString();
+  /* 全案件を送る (メール通知側でピン留め＆未完了を抽出) */
+  const payload = { email: state.settings.gasMail || "", syncedAt: stamp, all: state.projects };
+  const body = JSON.stringify(payload);
+  /* ① CORS対応のfetchを試す (成功すれば応答をそのまま使える) */
+  try{
+    const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body, redirect:"follow" });
+    const d = await r.json();
+    if(d.ok){ state.settings.gasSyncedAt = stamp; save({silent:true}); return { ok:true, count: state.projects.length }; }
+  }catch(e){ /* ② へ */ }
+  /* ② フォーム送信でリトライ */
+  await gasFormPost(url, body);
+  /* ③ Google側を読み直して本当に反映されたか検証 */
+  try{
+    const st = await gasCheck();
+    if(st && st.syncedAt === stamp){
+      state.settings.gasSyncedAt = stamp; save({silent:true});
+      return { ok:true, count: state.projects.length };
+    }
+    throw new Error("送信しましたがGoogle側に反映されていません。gas-daily-mail.gs を最新版に貼り替えて再デプロイしてください");
+  }catch(e){
+    if(/反映されていません/.test(e.message)) throw e;
+    throw new Error("送信しましたが結果を確認できません: " + e.message);
+  }
+}
+
+/* クラウドから案件データを取得して置き換える */
+async function gasLoad(){
+  const url = state.settings.gasUrl;
+  if(!url) throw new Error("ウェブアプリURLが未設定です");
+  const r = await fetch(url + (url.includes("?")?"&":"?") + "action=load&t=" + Date.now(), { redirect:"follow" });
+  const d = await r.json();
+  if(!d.ok) throw new Error(d.error || "読込に失敗しました");
+  if(!Array.isArray(d.projects)) throw new Error("クラウドにデータがありません (先に「⬆ クラウドへ保存」してください)");
+  state.projects = d.projects;
+  state.settings.gasSyncedAt = d.syncedAt || new Date().toISOString();
+  state.updatedAt = state.settings.gasSyncedAt;   /* 取得直後は同一とみなす */
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  renderProjects();
+  return d;
+}
+
+/* 起動時: クラウドとローカルの新しい方に合わせる */
+async function gasAutoResume(){
+  if(!state.settings.gasUrl) return;
+  try{
+    const st = await gasCheck();
+    if(!st || !st.ok) return;
+    const remote = st.syncedAt ? Date.parse(st.syncedAt) : 0;
+    const local = state.updatedAt ? Date.parse(state.updatedAt) : 0;
+    if(remote > local + 1000){
+      await gasLoad();
+      toast(`☁️ クラウドの新しいデータを読み込みました (${state.projects.length}件)`);
+    }else if(local > remote + 1000 && state.settings.gasAuto !== false){
+      await gasSync();
+    }
+    renderGasStatus();
+  }catch(e){ /* オフライン等は無視 */ }
+}
+let gasTimer = null;
+function scheduleGasSync(){
+  if(!state.settings.gasAuto || !state.settings.gasUrl) return;
+  clearTimeout(gasTimer);
+  gasTimer = setTimeout(()=>{
+    gasSync()
+      .then(()=>{ state.settings.gasError = ""; save({silent:true}); renderGasStatus(); })
+      .catch(e=>{ state.settings.gasError = e.message; save({silent:true}); renderGasStatus(); });
+  }, 3000);
+}
+function renderGasStatus(){
+  const el = $("#gasStatus"); if(!el) return;
+  const n = state.projects.filter(p=>p.pinned && p.status!=="done").length;
+  const at = state.settings.gasSyncedAt;
+  const dirty = at && state.updatedAt && Date.parse(state.updatedAt) > Date.parse(at) + 1000;
+  el.innerHTML = `全 <b style="color:var(--text)">${state.projects.length}件</b> ／ メール通知対象 <b style="color:var(--text)">${n}件</b> (📌ピン留め かつ 未完了)`
+    + `<br>` + (at
+        ? `最終保存: ${new Date(at).toLocaleString("ja-JP")}` + (dirty ? ` <span style="color:var(--warn)">(未保存の変更あり)</span>` : ` <span style="color:var(--ok)">✓ 同期済み</span>`)
+        : `<span style="color:var(--warn)">未同期</span>`)
+    + (state.settings.gasError ? `<br><span style="color:var(--danger)">⚠ 前回の自動保存に失敗: ${esc(state.settings.gasError)}</span>` : "");
+}
+/* Google側が保持している内容を確認 */
+async function gasCheck(){
+  const url = state.settings.gasUrl;
+  if(!url) throw new Error("ウェブアプリURLが未設定です");
+  const r = await fetch(url + (url.includes("?")?"&":"?") + "t=" + Date.now(), { redirect:"follow" });
+  return r.json();
+}
+$("#gasCheck").addEventListener("click", async ()=>{
+  saveGasSettings();
+  const r = $("#gasResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    const d = await gasCheck();
+    const at = d.syncedAt ? new Date(d.syncedAt).toLocaleString("ja-JP") : "なし";
+    r.innerHTML = `☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`;
+    r.style.color = "var(--muted)";
+  }catch(err){
+    r.textContent = "❌ 確認できません: " + err.message + " (デプロイの「アクセスできるユーザー」が全員か確認してください)";
+    r.style.color = "var(--danger)";
+  }
+});
+$("#gasLoad").addEventListener("click", async ()=>{
+  saveGasSettings();
+  const r = $("#gasResult");
+  if(state.projects.length && !confirm(`クラウドのデータでこの端末の${state.projects.length}件を置き換えます。よろしいですか?`)) return;
+  r.innerHTML = `<span class="spin"></span>`;
+  try{
+    const d = await gasLoad();
+    renderGasStatus();
+    r.textContent = `✅ ${d.projects.length}件を読み込みました`; r.style.color = "var(--ok)";
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
+function saveGasSettings(){
+  state.settings.gasUrl = $("#gasUrl").value.trim();
+  state.settings.gasMail = $("#gasMail").value.trim();
+  state.settings.gasAuto = $("#gasAuto").checked;
+  save();
+}
+$("#gasSave").addEventListener("click", ()=>{ saveGasSettings(); toast("メール通知設定を保存しました"); });
+$("#gasSync").addEventListener("click", async ()=>{
+  saveGasSettings();
+  const r = $("#gasResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    const d = await gasSync();
+    const n = d.count!=null ? d.count : state.projects.filter(p=>p.pinned&&p.status!=="done").length;
+    state.settings.gasError = ""; save({silent:true}); renderGasStatus();
+    r.textContent = `✅ ${n}件をクラウドに保存しました (反映を確認済み)`; r.style.color = "var(--ok)";
+  }catch(err){
+    state.settings.gasError = err.message; save({silent:true}); renderGasStatus();
+    r.textContent = "❌ " + err.message; r.style.color = "var(--danger)";
+  }
+});
+
+/* ================= settings ================= */
+function loadSettingsUI(){
+  $("#setKey").value = state.settings.key || "";
+  $("#setModel").value = state.settings.model || "gemini-2.5-flash";
+  $("#fredKey").value = state.settings.fredKey || "";
+  $("#tgToken").value = state.settings.tgToken || "";
+  $("#tgChat").value = state.settings.tgChat || "";
+  $("#tgEnabled").checked = !!state.settings.tgEnabled;
+  $("#gasUrl").value = state.settings.gasUrl || "";
+  $("#gasMail").value = state.settings.gasMail || "";
+  $("#gasAuto").checked = state.settings.gasAuto !== false;
+  renderGasStatus();
+}
+$("#keyEye").addEventListener("click", ()=>{
+  const k = $("#setKey"); k.type = k.type==="password" ? "text" : "password";
+});
+$("#btnSaveSet").addEventListener("click", ()=>{
+  state.settings.key = $("#setKey").value.trim();
+  state.settings.model = $("#setModel").value;
+  save(); toast("設定を保存しました");
+});
+$("#btnTestAI").addEventListener("click", async e=>{
+  state.settings.key = $("#setKey").value.trim();
+  state.settings.model = $("#setModel").value;
+  save();
+  const r = $("#testResult");
+  r.innerHTML = `<span class="spin"></span>`;
+  try{
+    await callGemini("OKとだけ返答してください。", "テスト");
+    r.textContent = "✅ 接続OK"; r.style.color = "var(--ok)";
+  }catch(err){
+    r.textContent = "❌ " + err.message; r.style.color = "var(--danger)";
+  }
+});
+
+/* ================= tabs & init ================= */
+const loaded = {};
+$$("nav.tabs button").forEach(b=>b.addEventListener("click", ()=>{
+  $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  $$("section.tab").forEach(s=>s.classList.remove("active"));
+  const t = b.dataset.tab;
+  $("#tab-"+t).classList.add("active");
+  if(t==="poly" && !loaded.poly){ loaded.poly=1; loadPoly(); }
+  if(t==="btc" && !loaded.btc){ loaded.btc=1; loadBtc(); loadFred(); }
+}));
+
+load();
+loadSettingsUI();
+renderProjects();
+gasAutoResume();
+</script>
+</body>
+</html>
