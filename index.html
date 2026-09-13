@@ -390,9 +390,11 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <button class="btn" id="btnExport">⬇ エクスポート (JSON)</button>
       <button class="btn" id="btnImport">⬆ インポート</button>
       <button class="btn" id="btnDedup">🧹 重複プロジェクト整理</button>
+      <button class="btn" id="btnRestore">↩ バックアップから復元</button>
       <input type="file" id="importFile" accept=".json" style="display:none">
     </div>
-    <p class="hint">データはすべてこの端末のブラウザ内に保存されます。定期的なエクスポートを推奨します。</p>
+    <div id="restoreBox" style="margin-top:12px"></div>
+    <p class="hint">データはこの端末のブラウザ内に保存されます。削除・読込・整理の直前に自動で10世代分バックアップされます。</p>
   </div>
 </section>
 
@@ -469,6 +471,36 @@ let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" }, ch
 
 function load(){
   try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); if(d) state = Object.assign(state, d); }catch(e){}
+  if(!Array.isArray(state.projects)) state.projects = [];
+  normalizeProjects();
+}
+/* 旧形式(id・status欠落)のデータを修復する。これが無いと操作不能な案件になる */
+function normalizeProjects(){
+  let fixed = 0;
+  for(const p of state.projects){
+    if(!p || typeof p !== "object") continue;
+    if(!p.id){ p.id = uid(); fixed++; }
+    if(!p.status) p.status = "open";
+    p.pinned = !!p.pinned;
+    if(!Array.isArray(p.sources)) p.sources = [];
+  }
+  state.projects = state.projects.filter(p=>p && typeof p==="object" && p.name);
+  if(fixed) localStorage.setItem(LS_KEY, JSON.stringify(state));
+  return fixed;
+}
+
+/* ---- 自動バックアップ (直近10世代) ---- */
+const LS_BACKUP = "sakiyomi_backups";
+function pushBackup(label){
+  try{
+    if(!state.projects.length) return;
+    const b = JSON.parse(localStorage.getItem(LS_BACKUP) || "[]");
+    b.unshift({ at: new Date().toISOString(), label: label||"", projects: state.projects });
+    localStorage.setItem(LS_BACKUP, JSON.stringify(b.slice(0,10)));
+  }catch(e){}
+}
+function getBackups(){
+  try{ return JSON.parse(localStorage.getItem(LS_BACKUP) || "[]"); }catch(e){ return []; }
 }
 function save(opts){
   if(!opts || !opts.silent) state.updatedAt = new Date().toISOString();
@@ -559,8 +591,17 @@ function renderProjects(){
   });
   list = sortProjects(list);
   const box = $("#projectList");
+  const hidden = state.projects.length - list.length;
   if(!list.length){
-    box.innerHTML = `<div class="empty">プロジェクトがありません。<br>「＋ 追加」から登録するか、Polymarketタブの「予定に追加」も使えます。</div>`;
+    box.innerHTML = state.projects.length
+      ? `<div class="empty">絞り込み条件に一致する案件がありません。<br>登録済みの ${state.projects.length}件 はフィルタ「すべて」で表示できます。<br><button class="btn small" id="showAllBtn" style="margin-top:12px">すべて表示</button></div>`
+      : `<div class="empty">プロジェクトがありません。<br>「＋ 追加」から登録するか、Polymarketタブの「予定に追加」も使えます。</div>`;
+    const b = $("#showAllBtn");
+    if(b) b.addEventListener("click", ()=>{
+      filter = "all"; $("#pSearch").value = "";
+      $$("#pFilters .chip").forEach(x=>x.classList.toggle("active", x.dataset.f==="all"));
+      renderProjects();
+    });
   }else{
     box.innerHTML = list.map(p=>{
       const srcs = (p.sources||[]).map(s=> s.url
@@ -596,6 +637,8 @@ function renderProjects(){
         </div>
       </div>`;
     }).join("");
+    if(hidden > 0) box.insertAdjacentHTML("beforeend",
+      `<div class="hint" style="text-align:center; padding:6px">絞り込みにより ${hidden}件 を非表示中 (登録は全${state.projects.length}件)</div>`);
   }
   const open = state.projects.filter(p=>p.status!=="done");
   $("#stOpen").textContent = open.length;
@@ -611,9 +654,17 @@ $("#projectList").addEventListener("click", e=>{
   const p = state.projects.find(x=>x.id===id); if(!p) return;
   const act = btn.dataset.act;
   if(act==="pin"){ p.pinned=!p.pinned; save(); renderProjects(); scheduleGasSync(); }
-  else if(act==="toggle"){ p.status = p.status==="done"?"open":"done"; save(); renderProjects(); scheduleGasSync(); }
+  else if(act==="toggle"){
+    p.status = p.status==="done"?"open":"done";
+    save(); renderProjects(); scheduleGasSync();
+    /* 絞り込み中は一覧から外れるため、消えたと誤解されないよう明示する */
+    const hiddenNow = (p.status==="done" && (filter==="open"||filter==="soon")) || (p.status==="open" && filter==="done");
+    toast(p.status==="done"
+      ? (hiddenNow ? "✅ 完了にしました (「すべて」タブで確認できます)" : "✅ 完了にしました")
+      : "↩ 未完了に戻しました");
+  }
   else if(act==="edit"){ openDialog(p); }
-  else if(act==="del"){ if(confirm(`「${p.name}」を削除しますか?`)){ state.projects = state.projects.filter(x=>x.id!==id); save(); renderProjects(); scheduleGasSync(); } }
+  else if(act==="del"){ if(confirm(`「${p.name}」を削除しますか?`)){ pushBackup("削除する前"); state.projects = state.projects.filter(x=>x.id!==id); save(); renderProjects(); scheduleGasSync(); } }
   else if(act==="ai"){ analyzeProject(p, btn); }
   else if(act==="aidel"){ delete p.ai; save(); renderProjects(); }
 });
@@ -663,8 +714,19 @@ $("#pSearch").addEventListener("input", renderProjects);
 $("#pFilters").addEventListener("click", e=>{
   const c = e.target.closest(".chip"); if(!c) return;
   $$("#pFilters .chip").forEach(x=>x.classList.remove("active"));
-  c.classList.add("active"); filter = c.dataset.f; renderProjects();
+  c.classList.add("active"); filter = c.dataset.f;
+  state.settings.filter = filter; save({silent:true});
+  renderProjects();
 });
+/* 再読み込みで表示条件が勝手に変わらないよう、選択を復元する */
+function restoreFilter(){
+  const f = state.settings.filter;
+  if(!f) return;
+  const chip = $$("#pFilters .chip").find(x=>x.dataset.f===f);
+  if(!chip) return;
+  $$("#pFilters .chip").forEach(x=>x.classList.remove("active"));
+  chip.classList.add("active"); filter = f;
+}
 
 /* ---- dedup / export / import ---- */
 $("#btnDedup").addEventListener("click", ()=>{
@@ -676,6 +738,7 @@ $("#btnDedup").addEventListener("click", ()=>{
   }
   if(!removed){ toast("重複はありません"); return; }
   if(confirm(`${removed}件の重複を削除します (先に登録した方を残します)`)){
+    pushBackup("重複整理する前");
     state.projects = [...seen.values()]; save(); renderProjects(); scheduleGasSync(); toast(`${removed}件を整理しました`);
   }
 });
@@ -686,6 +749,27 @@ $("#btnExport").addEventListener("click", ()=>{
   a.download = `yotei_backup_${new Date().toISOString().slice(0,10)}.json`;
   a.click(); URL.revokeObjectURL(a.href);
 });
+$("#btnRestore").addEventListener("click", ()=>{
+  const box = $("#restoreBox");
+  const list = getBackups();
+  if(!list.length){ box.innerHTML = `<span class="hint">バックアップはまだありません</span>`; return; }
+  box.innerHTML = list.map((b,i)=>
+    `<div class="row" style="margin-bottom:6px">
+      <span style="font-size:13px; color:var(--muted); flex:1">${new Date(b.at).toLocaleString("ja-JP")} — ${b.projects.length}件${b.label?` (${esc(b.label)})`:""}</span>
+      <button class="btn small" data-restore="${i}">この状態に戻す</button>
+    </div>`).join("");
+});
+$("#restoreBox").addEventListener("click", e=>{
+  const b = e.target.closest("[data-restore]"); if(!b) return;
+  const item = getBackups()[+b.dataset.restore]; if(!item) return;
+  if(!confirm(`${new Date(item.at).toLocaleString("ja-JP")} の状態 (${item.projects.length}件) に戻します。現在のデータもバックアップされます。よろしいですか?`)) return;
+  pushBackup("復元する前");
+  state.projects = item.projects;
+  normalizeProjects();
+  save(); renderProjects(); scheduleGasSync();
+  $("#restoreBox").innerHTML = "";
+  toast(`${item.projects.length}件を復元しました`);
+});
 $("#btnImport").addEventListener("click", ()=>$("#importFile").click());
 $("#importFile").addEventListener("change", async e=>{
   const f = e.target.files[0]; if(!f) return;
@@ -693,7 +777,9 @@ $("#importFile").addEventListener("change", async e=>{
     const d = JSON.parse(await f.text());
     if(!Array.isArray(d.projects)) throw 0;
     if(confirm(`${d.projects.length}件のプロジェクトを読み込み、現在のデータを置き換えます。よろしいですか?`)){
-      state = Object.assign(state, d); save(); loadSettingsUI(); renderProjects(); scheduleGasSync(); toast("インポートしました");
+      pushBackup("インポートする前");
+      state = Object.assign(state, d); normalizeProjects();
+      save(); loadSettingsUI(); renderProjects(); scheduleGasSync(); toast("インポートしました");
     }
   }catch(err){ toast("読み込めませんでした (JSON形式を確認してください)"); }
   e.target.value = "";
@@ -1230,7 +1316,7 @@ function saveTgSettings(){
   state.settings.tgToken = $("#tgToken").value.trim();
   state.settings.tgChat = $("#tgChat").value.trim();
   state.settings.tgEnabled = $("#tgEnabled").checked;
-  save();
+  save({silent:true});   /* 設定変更は案件データの更新ではない */
 }
 $("#tgSave").addEventListener("click", ()=>{
   saveTgSettings();
@@ -1296,9 +1382,16 @@ function gasFormPost(url, body){
   });
 }
 
-async function gasSync(){
+async function gasSync(force){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
+  /* 空の端末がクラウドのデータを消してしまう事故を防ぐ */
+  if(!state.projects.length && !force){
+    const st = await gasCheck().catch(()=>null);
+    if(st && st.count > 0){
+      throw new Error(`この端末は0件です。クラウドの${st.count}件を消さないため中止しました (「⬇ クラウドから読込」をお使いください)`);
+    }
+  }
   const stamp = new Date().toISOString();
   /* 全案件を送る (メール通知側でピン留め＆未完了を抽出) */
   const payload = { email: state.settings.gasMail || "", syncedAt: stamp, all: state.projects };
@@ -1333,7 +1426,9 @@ async function gasLoad(){
   const d = await r.json();
   if(!d.ok) throw new Error(d.error || "読込に失敗しました");
   if(!Array.isArray(d.projects)) throw new Error("クラウドにデータがありません (先に「⬆ クラウドへ保存」してください)");
+  pushBackup("クラウドから読込む前");
   state.projects = d.projects;
+  normalizeProjects();
   state.settings.gasSyncedAt = d.syncedAt || new Date().toISOString();
   state.updatedAt = state.settings.gasSyncedAt;   /* 取得直後は同一とみなす */
   localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -1414,7 +1509,7 @@ function saveGasSettings(){
   state.settings.gasUrl = $("#gasUrl").value.trim();
   state.settings.gasMail = $("#gasMail").value.trim();
   state.settings.gasAuto = $("#gasAuto").checked;
-  save();
+  save({silent:true});   /* 設定変更は案件データの更新ではない */
 }
 $("#gasSave").addEventListener("click", ()=>{ saveGasSettings(); toast("メール通知設定を保存しました"); });
 $("#gasSync").addEventListener("click", async ()=>{
@@ -1480,6 +1575,7 @@ $$("nav.tabs button").forEach(b=>b.addEventListener("click", ()=>{
 
 load();
 loadSettingsUI();
+restoreFilter();
 renderProjects();
 gasAutoResume();
 </script>
