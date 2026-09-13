@@ -364,6 +364,19 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <span id="tgResult" style="font-size:13px"></span>
     </div>
     <p class="hint">① Telegramで <b>@BotFather</b> に <code>/newbot</code> と送りBot Tokenを取得 → ② 作成したBotに何かメッセージを送る → ③ Tokenを入れて「自動取得」でChat IDが入ります。</p>
+
+    <div style="border-top:1px solid var(--border); margin-top:18px; padding-top:16px">
+      <h3 style="font-size:14px; margin-bottom:8px">📲 Telegramから案件を登録する</h3>
+      <p class="hint" style="margin-top:0">有効にすると、Botに情報を送る/転送するだけでAIが解析して案件を自動登録します。スマホからそのまま投げ込めます。<br>
+      <code>/list</code> 未完了一覧 ・ <code>/today</code> 期限間近 ・ <code>/done 3</code> 完了 ・ <code>/pin 3</code> ピン留め</p>
+      <div id="tgIngestStatus" style="font-size:12.5px; color:var(--muted); margin:10px 0"></div>
+      <div class="row" style="flex-wrap:wrap">
+        <button class="btn primary" id="tgIngestOn">📲 Telegram登録を有効化</button>
+        <button class="btn" id="tgIngestOff">無効化</button>
+      </div>
+      <div id="tgIngestResult" style="font-size:13px; margin-top:10px"></div>
+      <p class="hint">有効化するとBot TokenとGemini APIキーが<b>あなた自身のGoogleアカウント上のApps Script</b>に保存されます (Googleのサーバーが24時間Botを監視するために必要です)。先に「☁️ クラウド同期」のURL設定を済ませてください。</p>
+    </div>
   </div>
 
   <div class="set-card">
@@ -1358,6 +1371,56 @@ $("#tgTest").addEventListener("click", async ()=>{
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
 
+/* ---- Telegram登録 (Apps Scriptへの有効化) ---- */
+async function gasConfig(payloadObj){
+  const url = state.settings.gasUrl;
+  if(!url) throw new Error("先に「☁️ クラウド同期」のウェブアプリURLを設定してください");
+  const body = JSON.stringify(payloadObj);
+  try{
+    const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body, redirect:"follow" });
+    const d = await r.json();
+    if(d.ok) return d;
+  }catch(e){ /* フォームでリトライ */ }
+  await gasFormPost(url, body);
+  const st = await gasCheck();
+  return { ok:true, configured: !!(st && st.telegram) };
+}
+async function renderTgIngestStatus(){
+  const el = $("#tgIngestStatus"); if(!el) return;
+  if(!state.settings.gasUrl){ el.innerHTML = `<span style="color:var(--warn)">クラウド同期のURLが未設定です</span>`; return; }
+  try{
+    const st = await gasCheck();
+    el.innerHTML = st && st.telegram
+      ? `<span style="color:var(--ok)">✅ 有効 — Botに送った情報が自動で登録されます</span>`
+      : `<span style="color:var(--muted)">未設定 — 下のボタンで有効化できます</span>`;
+  }catch(e){ el.innerHTML = `<span style="color:var(--muted)">状態を確認できませんでした</span>`; }
+}
+$("#tgIngestOn").addEventListener("click", async ()=>{
+  saveTgSettings(); saveGasSettings();
+  const r = $("#tgIngestResult");
+  const s = state.settings;
+  if(!s.tgToken || !s.tgChat){ r.textContent = "❌ Bot TokenとChat IDを先に設定してください"; r.style.color = "var(--danger)"; return; }
+  if(!s.key && !confirm("Gemini APIキーが未設定です。AI解析なしの簡易登録になります (1行目が案件名、URLがソース)。続けますか?")) return;
+  r.innerHTML = `<span class="spin"></span> 有効化しています…`;
+  try{
+    await gasConfig({ action:"config", tgToken:s.tgToken, tgChat:s.tgChat, geminiKey:s.key||"", geminiModel:s.model||"gemini-2.5-flash" });
+    await renderTgIngestStatus();
+    r.innerHTML = `✅ 有効化しました。Telegramで <b>/help</b> と送ると使い方が表示されます`;
+    r.style.color = "var(--ok)";
+    try{ await tgSend("📲 <b>Telegram登録を有効化しました</b>\n情報をそのまま送る/転送すると案件を自動登録します。\n/help でコマンド一覧"); }catch(e){}
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
+$("#tgIngestOff").addEventListener("click", async ()=>{
+  const r = $("#tgIngestResult");
+  if(!confirm("Telegramからの登録を無効化し、Googleに保存したキーを削除します。よろしいですか?")) return;
+  r.innerHTML = `<span class="spin"></span>`;
+  try{
+    await gasConfig({ action:"config", tgToken:"", tgChat:"", geminiKey:"" });
+    await renderTgIngestStatus();
+    r.textContent = "無効化しました"; r.style.color = "var(--muted)";
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
+
 /* ================= Google Apps Script 同期 ================= */
 /* CORSの影響を受けないフォーム送信 (hidden iframe 宛) */
 function gasFormPost(url, body){
@@ -1392,6 +1455,8 @@ async function gasSync(force){
       throw new Error(`この端末は0件です。クラウドの${st.count}件を消さないため中止しました (「⬇ クラウドから読込」をお使いください)`);
     }
   }
+  /* 送信で相手を上書きするため、先に向こうで増えた分を取り込む */
+  if(state.projects.length) await mergeRemoteAdditions();
   const stamp = new Date().toISOString();
   /* 全案件を送る (メール通知側でピン留め＆未完了を抽出) */
   const payload = { email: state.settings.gasMail || "", syncedAt: stamp, all: state.projects };
@@ -1416,6 +1481,28 @@ async function gasSync(force){
     if(/反映されていません/.test(e.message)) throw e;
     throw new Error("送信しましたが結果を確認できません: " + e.message);
   }
+}
+
+/* Telegram等でクラウド側に増えた案件だけを取り込む (ローカルを消さない) */
+async function mergeRemoteAdditions(){
+  const url = state.settings.gasUrl;
+  if(!url) return 0;
+  try{
+    const r = await fetch(url + (url.includes("?")?"&":"?") + "action=load&t=" + Date.now(), { redirect:"follow" });
+    const d = await r.json();
+    if(!d.ok || !Array.isArray(d.projects)) return 0;
+    const have = new Set(state.projects.map(p=>p.id));
+    const since = state.settings.gasSyncedAt ? Date.parse(state.settings.gasSyncedAt) - 60000 : 0;
+    /* 前回同期より後に作られた未知の案件のみ = 他端末やTelegramからの新規追加 */
+    const add = d.projects.filter(p=>p && p.id && !have.has(p.id) && Date.parse(p.createdAt||0) > since);
+    if(add.length){
+      state.projects.push(...add);
+      normalizeProjects();
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      renderProjects();
+    }
+    return add.length;
+  }catch(e){ return 0; }
 }
 
 /* クラウドから案件データを取得して置き換える */
@@ -1448,8 +1535,12 @@ async function gasAutoResume(){
       await gasLoad();
       toast(`☁️ クラウドの新しいデータを読み込みました (${state.projects.length}件)`);
     }else if(local > remote + 1000 && state.settings.gasAuto !== false){
+      /* ローカルが新しくても、Telegram等で増えた分を先に取り込んでから送る */
+      const n = await mergeRemoteAdditions();
+      if(n) toast(`📲 Telegramなどから${n}件を取り込みました`);
       await gasSync();
     }
+    renderTgIngestStatus();
     renderGasStatus();
   }catch(e){ /* オフライン等は無視 */ }
 }
@@ -1569,6 +1660,7 @@ $$("nav.tabs button").forEach(b=>b.addEventListener("click", ()=>{
   $$("section.tab").forEach(s=>s.classList.remove("active"));
   const t = b.dataset.tab;
   $("#tab-"+t).classList.add("active");
+  if(t==="settings" && !loaded.settings){ loaded.settings=1; renderTgIngestStatus(); }
   if(t==="poly" && !loaded.poly){ loaded.poly=1; loadPoly(); }
   if(t==="btc" && !loaded.btc){ loaded.btc=1; loadBtc(); loadFred(); }
 }));
