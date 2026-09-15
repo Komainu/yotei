@@ -1463,10 +1463,14 @@ function gasFormPost(url, body){
 async function gasSync(force){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
-  /* 空の端末がクラウドのデータを消してしまう事故を防ぐ */
+  /* 空の端末がクラウドのデータを消してしまう事故を防ぐ
+     — 確認できない場合も中止する (通信失敗時にすり抜けるのを防ぐ) */
   if(!state.projects.length && !force){
     const st = await gasCheck().catch(()=>null);
-    if(st && st.count > 0){
+    if(!st || !st.ok){
+      throw new Error("この端末は0件です。クラウドの状態を確認できなかったため、安全のため保存を中止しました");
+    }
+    if(st.count > 0){
       throw new Error(`この端末は0件です。クラウドの${st.count}件を消さないため中止しました (「⬇ クラウドから読込」をお使いください)`);
     }
   }
@@ -1521,13 +1525,17 @@ async function mergeRemoteAdditions(){
 }
 
 /* クラウドから案件データを取得して置き換える */
-async function gasLoad(){
+async function gasLoad(force){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
   const r = await fetch(url + (url.includes("?")?"&":"?") + "action=load&t=" + Date.now(), { redirect:"follow" });
   const d = await r.json();
   if(!d.ok) throw new Error(d.error || "読込に失敗しました");
   if(!Array.isArray(d.projects)) throw new Error("クラウドにデータがありません (先に「⬆ クラウドへ保存」してください)");
+  /* 中身が空のクラウドで、手元のデータを消さない */
+  if(!d.projects.length && state.projects.length && !force){
+    throw new Error(`クラウドは0件です。この端末の${state.projects.length}件を消さないため中止しました`);
+  }
   pushBackup("クラウドから読込む前");
   state.projects = d.projects;
   normalizeProjects();
@@ -1606,7 +1614,7 @@ $("#gasLoad").addEventListener("click", async ()=>{
   if(state.projects.length && !confirm(`クラウドのデータでこの端末の${state.projects.length}件を置き換えます。よろしいですか?`)) return;
   r.innerHTML = `<span class="spin"></span>`;
   try{
-    const d = await gasLoad();
+    const d = await gasLoad(true);
     renderGasStatus();
     r.textContent = `✅ ${d.projects.length}件を読み込みました`; r.style.color = "var(--ok)";
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
