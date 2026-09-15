@@ -352,9 +352,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <input id="tgToken" type="password" placeholder="123456789:AAE...">
       <button class="btn small" id="tgEye">👁</button>
     </div>
-    <label>Chat ID</label>
+    <label>Chat ID <span style="color:var(--dim)">(複数アカウントはカンマ区切り)</span></label>
     <div class="row">
-      <input id="tgChat" placeholder="123456789">
+      <input id="tgChat" placeholder="123456789, 987654321">
       <button class="btn small" id="tgGetChat" style="white-space:nowrap">自動取得</button>
     </div>
     <label class="check" style="margin-top:12px"><input type="checkbox" id="tgEnabled">新規案件の追加時に通知する</label>
@@ -1293,9 +1293,19 @@ async function tgApi(method, params){
   }
   return d.result;
 }
+function tgChats(){
+  return String(state.settings.tgChat||"").split(",").map(s=>s.trim()).filter(Boolean);
+}
 async function tgSend(text){
-  if(!state.settings.tgToken || !state.settings.tgChat) throw new Error("Telegramの設定が未完了です");
-  return tgApi("sendMessage", { chat_id: state.settings.tgChat, text, parse_mode: "HTML", disable_web_page_preview: false });
+  const chats = tgChats();
+  if(!state.settings.tgToken || !chats.length) throw new Error("Telegramの設定が未完了です");
+  let lastErr = null, sent = 0;
+  for(const c of chats){
+    try{ await tgApi("sendMessage", { chat_id: c, text, parse_mode: "HTML", disable_web_page_preview: false }); sent++; }
+    catch(e){ lastErr = e; }
+  }
+  if(!sent && lastErr) throw lastErr;
+  return sent;
 }
 function tgProjectMsg(p){
   const lines = [
@@ -1355,11 +1365,16 @@ $("#tgGetChat").addEventListener("click", async ()=>{
   const r = $("#tgResult"); r.innerHTML = `<span class="spin"></span>`;
   try{
     const ups = await tgApi("getUpdates", {});
-    const ids = [...new Set(ups.map(u=>u.message?.chat?.id ?? u.channel_post?.chat?.id).filter(Boolean))];
+    const ids = [...new Set(ups.map(u=>u.message?.chat?.id ?? u.channel_post?.chat?.id).filter(Boolean))].map(String);
     if(!ids.length){ r.textContent = "❌ 未取得。Botに一度メッセージを送ってから再試行してください"; r.style.color="var(--danger)"; return; }
-    $("#tgChat").value = ids[ids.length-1];
+    /* 既存のIDは消さずに追加する (複数アカウント対応) */
+    const cur = tgChats();
+    const merged = [...new Set([...cur, ...ids])];
+    const added = merged.length - cur.length;
+    $("#tgChat").value = merged.join(", ");
     saveTgSettings();
-    r.textContent = "✅ Chat IDを取得しました"; r.style.color = "var(--ok)";
+    r.textContent = added ? `✅ Chat IDを${added}件追加しました (登録 ${merged.length}件)` : `✅ 取得済み (登録 ${merged.length}件)`;
+    r.style.color = "var(--ok)";
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
 $("#tgTest").addEventListener("click", async ()=>{
