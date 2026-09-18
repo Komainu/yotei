@@ -798,28 +798,45 @@ $("#importFile").addEventListener("change", async e=>{
   e.target.value = "";
 });
 /* ================= Gemini ================= */
-async function callGemini(userText, systemText, jsonMode){
+async function callGemini(userText, systemText, jsonMode, useSearch){
   const key = state.settings.key;
   if(!key) throw new Error("APIキーが未設定です。設定タブでGemini APIキーを入力してください。");
   const model = state.settings.model || "gemini-2.5-flash";
   const genCfg = { temperature: jsonMode ? 0.15 : 0.4, maxOutputTokens: 4096 };
   if(jsonMode) genCfg.responseMimeType = "application/json";
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemText }] },
-      contents: [{ role:"user", parts:[{ text: userText }] }],
-      generationConfig: genCfg,
-    }),
+  const body = {
+    system_instruction: { parts: [{ text: systemText }] },
+    contents: [{ role:"user", parts:[{ text: userText }] }],
+    generationConfig: genCfg,
+  };
+  /* Web検索を許可すると、URLしか無い案件でも実際の内容を調べられる */
+  if(useSearch) body.tools = [{ google_search: {} }];
+
+  const send = async b => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(b),
   });
+
+  let res = await send(body);
+  if(!res.ok && useSearch){
+    /* 検索非対応のモデルなら検索なしで再試行 */
+    delete body.tools;
+    res = await send(body);
+  }
   if(!res.ok){
     const err = await res.json().catch(()=>({}));
     throw new Error(err?.error?.message || `API error ${res.status}`);
   }
   const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join("") || "";
+  const cand = data?.candidates?.[0];
+  let text = cand?.content?.parts?.map(p=>p.text).filter(Boolean).join("") || "";
   if(!text) throw new Error("応答が空でした (安全フィルタの可能性)");
+  /* 検索で参照したページを根拠として添える */
+  const chunks = cand?.groundingMetadata?.groundingChunks || [];
+  const cites = chunks.map(c=>c.web).filter(w=>w && w.uri);
+  if(cites.length){
+    const uniq = [...new Map(cites.map(w=>[w.uri, w])).values()].slice(0,5);
+    text += "\n\n## 🌐 AIが参照したページ\n" + uniq.map(w=>`・${w.title || w.uri}`).join("\n");
+  }
   return text;
 }
 
@@ -839,20 +856,30 @@ function projectContext(p){
 }
 
 const ANALYZE_SYS = `あなたは暗号資産のエアドロップ・キャンペーン管理を手伝う有能なAIです。
-与えられたプロジェクト情報を解析し、必ず次の3セクションで簡潔に出力してください。
+
+【最重要】登録情報が乏しい場合は、まずWeb検索でそのプロジェクトの実態を調べてください。
+プロジェクト名・URL内のアカウント名やドメイン・メモの語句を手がかりに、
+「何のプロジェクトか」「参加条件」「締切」「公式サイト」を特定します。
+調べても分からない項目は、当て推量で埋めず「不明」と正直に書いてください。
+「投稿を確認する」「アカウントをフォローする」のような中身のない一般論は禁止です。
+
+出力は必ず次の3セクション:
 ## 📌 優先タスク
-(期限と現在日時を踏まえ、今やるべき具体的行動を箇条書き2〜4個)
+(判明した参加条件をもとに、今やるべき具体的行動を箇条書き2〜4個。
+ 期限と現在日時を踏まえる。条件が不明なら「何を確認すべきか」を具体的に書く)
 ## ⚠️ リスク・注意点
-(Sybilリスク、期限切れ、条件の見落とし等。箇条書き1〜3個)
+(Sybilリスク、有料パスの要否、詐欺・偽サイトの可能性、期限切れ等。箇条書き1〜3個)
 ## 🔗 根拠
-(各提案の根拠を明示。ユーザー提供ソース[番号]を引用し、一般知識による推測は「推測:」と明記)
-装飾は最小限、日本語で、全体で400字以内を目安に。`;
+(各提案の根拠を明示。ユーザー提供ソースは[番号]、検索で得た情報は「検索:」、
+ 一般知識による推測は「推測:」と明記して区別する)
+
+装飾は最小限、日本語で、全体で500字以内を目安に。`;
 
 async function analyzeProject(p, btn){
   const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = `<span class="spin"></span> 解析中…`;
   try{
-    const text = await callGemini(projectContext(p), ANALYZE_SYS);
+    const text = await callGemini(projectContext(p), ANALYZE_SYS, false, true);
     p.ai = { text, model: state.settings.model, at: nowJa() };
     save(); renderProjects(); toast("AI解析が完了しました");
   }catch(err){
@@ -949,7 +976,7 @@ async function sendChat(){
   log.scrollTop = log.scrollHeight;
   try{
     const history = state.chat.slice(-10).map(m=>`${m.role==="user"?"ユーザー":"AI"}: ${m.text}`).join("\n");
-    const reply = await callGemini(history, CHAT_SYS());
+    const reply = await callGemini(history, CHAT_SYS(), false, true);
     state.chat.push({role:"ai", text: reply});
   }catch(err){
     state.chat.push({role:"ai", text: "⚠️ " + err.message});
@@ -1365,7 +1392,12 @@ $("#tgGetChat").addEventListener("click", async ()=>{
   const r = $("#tgResult"); r.innerHTML = `<span class="spin"></span>`;
   try{
     const ups = await tgApi("getUpdates", {});
-    const ids = [...new Set(ups.map(u=>u.message?.chat?.id ?? u.channel_post?.chat?.id).filter(Boolean))].map(String);
+    let ids = [...new Set(ups.map(u=>u.message?.chat?.id ?? u.channel_post?.chat?.id).filter(Boolean))].map(String);
+    /* Google側が受信済みのメッセージはここに出ないため、控えられたIDも取り込む */
+    try{
+      const st = await gasCheck();
+      if(st && Array.isArray(st.pendingChats)) ids = [...new Set([...ids, ...st.pendingChats.map(String)])];
+    }catch(e){}
     if(!ids.length){ r.textContent = "❌ 未取得。Botに一度メッセージを送ってから再試行してください"; r.style.color="var(--danger)"; return; }
     /* 既存のIDは消さずに追加する (複数アカウント対応) */
     const cur = tgChats();
