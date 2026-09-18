@@ -343,7 +343,8 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <button class="btn" id="btnTestAI">接続テスト</button>
       <span id="testResult" style="font-size:13px"></span>
     </div>
-    <p class="hint">キーはこの端末のブラウザ (localStorage) にのみ保存され、Google以外へは送信されません。取得: <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a></p>
+    <p class="hint">キーはこの端末のブラウザ (localStorage) にのみ保存され、Google以外へは送信されません。取得: <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a><br>
+    無料枠には「1分あたりの回数」「1日あたりの回数」の上限があります。超えた場合は自動で待機・再試行し、それでも混雑する場合は軽量モデルに切り替えます。連続して解析したい時は <b>flash-lite</b> を選ぶと上限に余裕があります。</p>
   </div>
   <div class="set-card">
     <h3>✈️ Telegram通知 (新規案件を追加した時)</h3>
@@ -798,10 +799,42 @@ $("#importFile").addEventListener("change", async e=>{
   e.target.value = "";
 });
 /* ================= Gemini ================= */
-async function callGemini(userText, systemText, jsonMode, useSearch){
+/* ---- 無料枠(1分20回)対策: 直列キュー + 自動リトライ + 軽量モデルへの切替 ---- */
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
+let gemChain = Promise.resolve();
+let gemLastAt = 0;
+const GEM_MIN_GAP = 3500;   /* 連打を防ぐ最小間隔 */
+
+function gemQueue(fn){
+  const run = async ()=>{
+    const wait = Math.max(0, gemLastAt + GEM_MIN_GAP - Date.now());
+    if(wait > 0) await sleep(wait);
+    gemLastAt = Date.now();
+    return fn();
+  };
+  const p = gemChain.then(run, run);
+  gemChain = p.catch(()=>{});
+  return p;
+}
+
+/* エラーから「何秒待てばよいか」を読み取る */
+function retryAfterSec(errJson, msg){
+  try{
+    const info = (errJson?.error?.details||[]).find(d=>/RetryInfo/.test(d["@type"]||""));
+    if(info?.retryDelay) return Math.ceil(parseFloat(info.retryDelay)) || 0;
+  }catch(e){}
+  const m = /retry in ([\d.]+)/i.exec(msg||"");
+  return m ? Math.ceil(parseFloat(m[1])) : 0;
+}
+
+async function callGemini(userText, systemText, jsonMode, useSearch, onStatus){
+  return gemQueue(()=>callGeminiOnce(userText, systemText, jsonMode, useSearch, onStatus));
+}
+
+async function callGeminiOnce(userText, systemText, jsonMode, useSearch, onStatus){
   const key = state.settings.key;
   if(!key) throw new Error("APIキーが未設定です。設定タブでGemini APIキーを入力してください。");
-  const model = state.settings.model || "gemini-2.5-flash";
+  let model = state.settings.model || "gemini-2.5-flash";
   const genCfg = { temperature: jsonMode ? 0.15 : 0.4, maxOutputTokens: 4096 };
   if(jsonMode) genCfg.responseMimeType = "application/json";
   const body = {
@@ -817,6 +850,29 @@ async function callGemini(userText, systemText, jsonMode, useSearch){
   });
 
   let res = await send(body);
+
+  /* 429 (レート制限) は待って自動リトライ。最後は軽量モデルに切替える */
+  for(let attempt = 0; res.status === 429 && attempt < 3; attempt++){
+    const err = await res.clone().json().catch(()=>({}));
+    const msg = err?.error?.message || "";
+    if(attempt === 2 && model !== "gemini-2.5-flash-lite"){
+      model = "gemini-2.5-flash-lite";
+      if(onStatus) onStatus("混雑中 — 軽量モデルに切替えます…");
+      gemLastAt = Date.now();
+      res = await send(body);
+      break;
+    }
+    let wait = retryAfterSec(err, msg) || (12 * (attempt + 1));
+    wait = Math.min(wait + 1, 60);
+    for(let s = wait; s > 0; s--){
+      if(onStatus) onStatus(`混雑中 — ${s}秒後に自動で再試行します…`);
+      await sleep(1000);
+    }
+    if(onStatus) onStatus("再試行しています…");
+    gemLastAt = Date.now();
+    res = await send(body);
+  }
+
   if(!res.ok && useSearch){
     /* 検索非対応のモデルなら検索なしで再試行 */
     delete body.tools;
@@ -824,7 +880,9 @@ async function callGemini(userText, systemText, jsonMode, useSearch){
   }
   if(!res.ok){
     const err = await res.json().catch(()=>({}));
-    throw new Error(err?.error?.message || `API error ${res.status}`);
+    let m = err?.error?.message || `API error ${res.status}`;
+    if(res.status === 429) m = "無料枠の上限に達しました。しばらく時間をおいてからお試しください (1分あたり20回・1日あたりの上限があります)";
+    throw new Error(m);
   }
   const data = await res.json();
   const cand = data?.candidates?.[0];
@@ -878,8 +936,9 @@ const ANALYZE_SYS = `あなたは暗号資産のエアドロップ・キャン�
 async function analyzeProject(p, btn){
   const orig = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = `<span class="spin"></span> 解析中…`;
+  const status = s => { btn.innerHTML = `<span class="spin"></span> ${esc(s)}`; };
   try{
-    const text = await callGemini(projectContext(p), ANALYZE_SYS, false, true);
+    const text = await callGemini(projectContext(p), ANALYZE_SYS, false, true, status);
     p.ai = { text, model: state.settings.model, at: nowJa() };
     save(); renderProjects(); toast("AI解析が完了しました");
   }catch(err){
@@ -923,7 +982,8 @@ $("#bulkParse").addEventListener("click", async e=>{
   const btn = e.target; btn.disabled = true;
   $("#bulkStatus").innerHTML = `<span class="spin"></span> AIが解析中…`;
   try{
-    const raw = await callGemini(text, BULK_SYS(), true);
+    const raw = await callGemini(text, BULK_SYS(), true, false,
+      s => { $("#bulkStatus").innerHTML = `<span class="spin"></span> ${esc(s)}`; });
     let arr;
     try{ arr = JSON.parse(raw); }
     catch(_){ const m = raw.match(/\[[\s\S]*\]/); arr = m ? JSON.parse(m[0]) : []; }
@@ -976,7 +1036,8 @@ async function sendChat(){
   log.scrollTop = log.scrollHeight;
   try{
     const history = state.chat.slice(-10).map(m=>`${m.role==="user"?"ユーザー":"AI"}: ${m.text}`).join("\n");
-    const reply = await callGemini(history, CHAT_SYS(), false, true);
+    const reply = await callGemini(history, CHAT_SYS(), false, true,
+      s => { const w = $("#chatWait"); if(w) w.innerHTML = `<span class="spin"></span> ${esc(s)}`; });
     state.chat.push({role:"ai", text: reply});
   }catch(err){
     state.chat.push({role:"ai", text: "⚠️ " + err.message});
