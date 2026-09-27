@@ -160,16 +160,21 @@ canvas {
    実況欄が 250px → 102px に縮んだので、絵に返していた高さを戻す
    （「文字の枠が大きくなり過ぎて盤面が小さい」という報告への対応。
    数字は下の tools/worst 相当の実測で、はみ出し 0 になる上限）。 */
+/* ★ 2026-09-27: ①〜④の帯を実況から外して縦が空いた（実測、まとめ表示で
+   115px・依頼1件で 83px）。空いたぶんは文字ではなく絵に返す＝
+   「極力文字を使わない」の方針どおり、画面の主役を大きくする。
+   数字は下の tools/shot-plain.mjs（全コマ×3解像度×2モード）で
+   はみ出し 0 になる上限を実測して決めた。 */
 @media (max-height: 940px) {
   #scene[data-stage="city"] { width: min(1400px, 100%, 111vh); }
-  #scene[data-stage="room"] { width: min(1400px, 100%, 112vh); }
+  #scene[data-stage="room"] { width: min(1400px, 100%, 130vh); }
 }
 /* 縦 860px 以下（1280×800 のノートなど）は、いちばん背の高いコマ
    （依頼が切り替わる注記が出るコマ）で 68px はみ出す（実測）。
    ここだけは詰める＝大きい画面の読みやすさは犠牲にしない。 */
 @media (max-height: 860px) {
   #scene[data-stage="city"] { width: min(1400px, 100%, 100vh); }
-  #scene[data-stage="room"] { width: min(1400px, 100%, 110vh); }
+  #scene[data-stage="room"] { width: min(1400px, 100%, 114vh); }
   .win { padding: 5px 12px; line-height: 1.35; }
   .win .jobtitle { font-size: 1.05rem; }
   .win .progress { font-size: .68rem; }
@@ -1412,8 +1417,11 @@ canvas {
       'run.x402intro':  '入門：x402 で1回だけ買う',
       'agents.roleWhyHead': '①〜④の読み方',
       'agents.roleWhy':    '①〜④は「依頼1件が通る道すじ」です。出す係・やる係・見る係は分かれていることが多く、1体が4つ全部をやるとはかぎりません。',
-      'agents.summaryLine':'{who} の仕事ぶりのまとめです（依頼 {jobs} 件・書き込み {n} 件）。①〜④は件数、動いているのは各段階の1例です（全部は「詳細」に）',
-      'agents.summaryEnd': '{who} のまとめはここまでです（ほかのエージェントは右の一覧から）',
+      /* ★ 2026-09-27: ①〜④の帯を実況から外したので、その読み方の説明も
+         落とす。ただし「これは時系列の再生ではなくまとめだ」という断りは
+         残す（落とすと、まとめを実際の順番だと誤解させる＝嘘になる）。 */
+      'agents.summaryLine':'まとめ ／ {who} ・ 依頼 {jobs} 件 ・ 書き込み {n} 件',
+      'agents.summaryEnd': 'まとめはここまで ／ {who}',
       'agents.detailHead': 'このエージェントがやったこと（全部）',
       'agents.detailTitle':'{who} の記録（{n} 件）',
       'agents.ended':      'この依頼での {who} の出番はここまでです（ほかの依頼は右の一覧から）',
@@ -1424,7 +1432,7 @@ canvas {
       'ui.jobStat':      'この依頼のみ表示：{shown} コマ／全 {total} コマ',
       /* ★ 2026-09-12(3): 画面の下の行は1行の短い説明だけにする。
          コマ数・件数・関係者は「詳細」に譲る。 */
-      'ui.jobStatShort': 'この依頼だけを再生しています（くわしくは「詳細」）',
+      'ui.jobStatShort': 'この依頼だけを再生中',
       'ui.jobFind':      '依頼IDか題名の一部で探す',
       'ui.jobFindGo':    'この依頼を見る',
       'ui.jobNotFound':  'その依頼は見つかりません（IDか題名の一部で探せます）',
@@ -1647,7 +1655,9 @@ canvas {
          短い注記に置き換える。 */
       /* ★ 変更A: 「詳細」が引用文の右に常設ボタンとして見えるようになった
          ので、この注記からは「詳しくは『詳細』」の案内を落とす。 */
-      'raw.jobNote':    '（掲示板でのやり取り）',
+      /* 引用の出どころの注記。すぐ右に「詳細」ボタンが常設されたので、
+         文字での案内はやめて空にした（2026-09-27）。 */
+      'raw.jobNote':    '',
 
       /* 依頼の kind（自称・自由文字列）のうち、よく出る4つの単語訳。
          詳細パネルの「kind」欄に生の英単語（build 等）がそのまま出ていた
@@ -1830,8 +1840,8 @@ canvas {
       'run.x402intro':  'Intro: buy one thing with x402',
       'agents.roleWhyHead': 'How to read ①–④',
       'agents.roleWhy':    '①–④ are the path one job takes. Posting, doing and judging are usually different agents, so one agent rarely does all four.',
-      'agents.summaryLine':'A summary of what {who} does ({jobs} jobs, {n} entries). ①–④ are counts; the animation shows one example of each (everything is in “detail”)',
-      'agents.summaryEnd': 'That is the whole summary for {who} (pick another agent on the right)',
+      'agents.summaryLine':'summary / {who} - {jobs} jobs - {n} entries',
+      'agents.summaryEnd': 'end of summary / {who}',
       'agents.detailHead': 'everything this agent did',
       'agents.detailTitle':'{who} — {n} records',
       'agents.ended':      'That is all of {who}’s part in this job (their other jobs are in the list on the right)',
@@ -1840,7 +1850,7 @@ canvas {
       'ui.jobEnded':     'That is the end of this job’s record. Choose another job.',
       'ui.jobEndedRaw':  'Finished playing {shown} beats. Playback will not move on to another job.',
       'ui.jobStat':      'showing only this job: {shown} beats / {total} total',
-      'ui.jobStatShort': 'Playing this one job (details in “detail”)',
+      'ui.jobStatShort': 'playing this one job',
       'ui.jobFind':      'find by job id or part of the title',
       'ui.jobFindGo':    'show this job',
       'ui.jobNotFound':  'no such job (search by id or part of the title)',
@@ -1996,7 +2006,7 @@ canvas {
          cluttering the always-on line under the headline any more. */
       /* See the ja entry: DETAIL is now a permanent button next to the
          quote line, so this note drops the "see DETAIL" pointer. */
-      'raw.jobNote':    '(a job-board exchange)',
+      'raw.jobNote':    '',
 
       /* Full words for the handful of job kinds that show up often. Kinds
          are a free-text field (anyone can write anything), so anything
@@ -7843,28 +7853,15 @@ canvas {
        入りきらない画面では flex-wrap で折り返すので、狭くても壊れない。 */
     var line = '<div class="sayline">' + line1 + line2 + line3 + '</div>';
 
-    /* ---- 依頼の進み具合（task 3）。job のある beat にだけ出す。
-       jobLabel は「この行がどの依頼の話か」のキャプションに使う短い
-       文字列：題名が分かっていればそれ（長い題名は切り詰め）、
-       分からなければ依頼IDそのもの（短く切り詰め）。捏造しない。 */
-    if (step > 0) {
-      /* ★ 2026-09-13: ここも英語の題名をやめ、呼び名にする
-         （キャプションと切り替えの注記の両方で使われる）。 */
-      var jobLabel = nickJob(m.job) + t('nick.mark');
-      var sw   = ctx.agentStory ? { switched: false, prev: null }
-                                : computeJobSwitch(b.index, m.job, step, jobLabel);
-      /* ★ 2026-09-08: 依頼1件を追っているとき（ctx.jobRec）は、①を
-         誰が出したかは下の「出てくる面々」の行に必ず出るし、①の
-         コマ自体も再生に含まれる。だから注記が要るのは「①が取得範囲の
-         外で、ログのどこにも無い」ときだけ。 */
-      var note = ctx.agentStory ? null : ctx.jobRec
-        ? (ctx.jobRec.steps && ctx.jobRec.steps[1]
-             ? null
-             : { text: t('progress.step1Missing'), elsewhere: true })
-        : step1Note(step, m.job, actor, ctx.fullBeats);
-      line += progressRow(step, jobLabel, sw, note, ctx.agentStory || ctx.jobStory,
-                          { curActor: actor, poster: jobPosterOf(m.job, ctx.fullBeats) });
-    } else {
+    /* ---- 依頼の①〜④の帯は、2026-09-27 に実況から外した。
+       利用者の指摘「①②③④と説明がありますが、これも削除してみて下さい。
+       極力文字は使わない方向でシンプルに」。①〜④は
+         ・一覧の各行の丸（jobStepDots）＝文字を使わない形で残っている
+         ・「詳細」パネル（jobWhoBlock）＝誰がどの段階をやったかを正確に
+       の2か所に残るので、事実は失われない（＝正確さは「詳細」に譲る）。
+       progressRow() 自体は消していない（x402 の帯と対の作りで、戻すときに
+       1行で戻せるようにしてある）。 */
+    if (step === 0) {
       /* ★ 2026-09-13: x402（支払いのあるログ）の進み具合。
          依頼の①〜④とまったく同じ作りで、こちらは「1回の有料リクエストが
          通る道すじ」を5段階で出す。
@@ -8694,9 +8691,12 @@ canvas {
         } else if (xs2) {
           sideHtml = '<b>' + esc(X402_GLYPH[xs2 - 1] + ' ' + t(X402_KEYS[xs2 - 1])) + '</b>' +
                      esc(t(x402WhyKey(b, xs2)));
-        } else if (ctx.agentStory && ctx.agentStory.counts && prompt !== 'select') {
-          sideHtml = '<b>' + esc(t('agents.roleWhyHead')) + '</b>' + esc(t('agents.roleWhy'));
         }
+        /* ★ 2026-09-27: 「①〜④の読み方」のメモはここから外した
+           （利用者の指摘「右に余計な説明がありますが、それも削除して
+           ください」）。①〜④の帯そのものを実況から外したので、その
+           読み方を説明する相手がもう画面に無い。この欄に残るのは
+           x402 の「なぜ」だけ＝押したときにだけ文字が出る。 */
         el.sideNote.hidden = !sideHtml;
         el.sideNote.innerHTML = sideHtml;
       }
@@ -10520,11 +10520,15 @@ canvas {
     if (!el.hint) return;
     /* 入門は手で書いた作り話なので、そうと必ず書く（本物のログだと
        思われたら、このアプリがいちばん大事にしている約束が崩れる）。 */
+    /* ★ 2026-09-27: 部屋のときに出していた長い「この画面の見かた」
+       （ui.legend）は外した。掲示板・納品口・検品台という名前は絵の中に
+       描いてあるし、札が貼られて運ばれて置かれる流れは動きそのものが
+       見せている＝文章は同じことを二度言っているだけだった。
+       残すのは、見ただけでは分からない操作の1行だけ。
+       （ui.legend は辞書に残してある。戻すならここを1行変えるだけ。） */
     el.hint.textContent = isIntro
       ? AQ.i18n.t('x402.introFake')
-      : (AQ.stage.current === AQ.stage.ROOM)
-        ? AQ.i18n.t('ui.legend')
-        : AQ.i18n.t('ui.hint');
+      : AQ.i18n.t('ui.hint');
   }
 
   function rebuild(reset) {
