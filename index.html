@@ -505,6 +505,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
         <option value="merge">更新・追加のみ (アプリ側の他の案件はそのまま)</option>
         <option value="replace">全置き換え (AIの出力を正としてアプリを合わせる)</option>
       </select>
+      <p class="hint" style="margin-top:6px">JSONでも表(Markdown)でも読み取れます。表の場合は案件名で既存と照合するため、名前を変えた案件は新規として追加されます。</p>
       <div class="row" style="margin-top:12px">
         <button class="btn primary" id="aiParse">✨ 読み取る</button>
         <span id="aiParseStatus" style="font-size:13px; color:var(--muted)"></span>
@@ -1219,12 +1220,96 @@ function extractJsonArray(text){
   }
   return null;
 }
+
+/* 「2026/10/5」「10/5 23:59」「未定」などを解釈する */
+function parseDateLoose(s){
+  s = String(s||"").trim().replace(/\*\*/g,"");
+  if(!s || /未定|不明|なし|TBD|^[-–—]+$/i.test(s)) return "";
+  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return s.slice(0,16);
+  let y, mo, d;
+  let m = s.match(/(\d{4})[-\/年.](\d{1,2})[-\/月.](\d{1,2})/);
+  if(m){ y=+m[1]; mo=+m[2]; d=+m[3]; }
+  else{
+    m = s.match(/(\d{1,2})[-\/月.](\d{1,2})/);
+    if(!m) return "";
+    mo=+m[1]; d=+m[2]; y=new Date().getFullYear();
+  }
+  const tm = s.match(/(\d{1,2}):(\d{2})/);
+  const hh = tm ? +tm[1] : 23, mi = tm ? +tm[2] : 59;
+  const p = n=>String(n).padStart(2,"0");
+  let iso = `${y}-${p(mo)}-${p(d)}T${p(hh)}:${p(mi)}`;
+  /* 年が省略され、半年以上前になる場合は翌年とみなす */
+  if(!/\d{4}/.test(s) && (Date.now() - Date.parse(iso)) > 180*86400000){
+    iso = `${y+1}-${p(mo)}-${p(d)}T${p(hh)}:${p(mi)}`;
+  }
+  return iso;
+}
+
+/* Markdownの表を案件配列に変換する */
+function parseMarkdownTable(text){
+  const lines = String(text||"").split(/\r?\n/).map(l=>l.trim());
+  const isRow = l => /^\|.*\|$/.test(l);
+  const isSep = l => /^[\s|:\-–—]+$/.test(l);
+  let best = null, i = 0;
+  while(i < lines.length){
+    if(!isRow(lines[i])){ i++; continue; }
+    const block = [];
+    while(i < lines.length && isRow(lines[i])){ block.push(lines[i]); i++; }
+    if(block.length >= 3 && (!best || block.length > best.length)) best = block;
+  }
+  if(!best) return null;
+  const cut = l => l.replace(/^\||\|$/g,"").split("|").map(c=>c.trim().replace(/\*\*/g,""));
+  const header = cut(best[0]);
+  const rows = best.slice(1).filter(l=>!isSep(l)).map(cut);
+  if(!rows.length) return null;
+
+  const idx = {};
+  header.forEach((h,ci)=>{
+    if(idx.id===undefined && /^id$/i.test(h)) idx.id=ci;
+    else if(idx.name===undefined && /案件|プロジェクト|名称|タスク名|name|title/i.test(h)) idx.name=ci;
+    else if(idx.chain===undefined && /チェーン|chain|カテゴリ|ネットワーク/i.test(h)) idx.chain=ci;
+    else if(idx.deadline===undefined && /期限|締切|deadline|日付|date/i.test(h)) idx.deadline=ci;
+    else if(idx.status===undefined && /状態|ステータス|status|進捗/i.test(h)) idx.status=ci;
+    else if(idx.pinned===undefined && /優先|重要|priority|pin/i.test(h)) idx.pinned=ci;
+    else if(idx.memo===undefined && /やること|内容|メモ|詳細|条件|備考|アクション|memo|note|task/i.test(h)) idx.memo=ci;
+  });
+  if(idx.name===undefined) idx.name = 0;
+
+  const used = new Set(Object.values(idx));
+  const out = [];
+  for(const c of rows){
+    const name = (c[idx.name]||"").trim();
+    if(!name || /^[-–—]+$/.test(name)) continue;
+    const memo = idx.memo!==undefined
+      ? (c[idx.memo]||"")
+      : c.filter((_,ci)=>!used.has(ci)).filter(Boolean).join(" / ");
+    const stRaw = idx.status!==undefined ? (c[idx.status]||"") : "";
+    const pnRaw = idx.pinned!==undefined ? (c[idx.pinned]||"") : "";
+    out.push({
+      id: idx.id!==undefined ? (c[idx.id]||"").trim() : "",
+      name,
+      chain: idx.chain!==undefined ? (c[idx.chain]||"") : "",
+      deadline: idx.deadline!==undefined ? parseDateLoose(c[idx.deadline]) : "",
+      memo: memo.trim(),
+      /* 「未完了」に「完了」が含まれるため、否定表現を先に判定する */
+      status: /未完了|未着手|未対応|未実施|進行中|作業中|open|todo/i.test(stRaw) ? "open"
+            : (/完了|済|done|✅|✔/i.test(stRaw) ? "done" : "open"),
+      pinned: /高|high|重要|★|◎|最優先|true|✓|✅/i.test(pnRaw) || undefined,
+    });
+  }
+  return out.length ? out : null;
+}
+
 $("#aiParse").addEventListener("click", ()=>{
   const raw = $("#aiPaste").value.trim();
   const st = $("#aiParseStatus");
   if(!raw){ st.textContent = "回答を貼り付けてください"; return; }
-  const arr = extractJsonArray(raw);
-  if(!arr){ st.textContent = "❌ JSONが見つかりません (```json で囲まれた部分ごと貼り付けてください)"; st.style.color="var(--danger)"; return; }
+  let arr = extractJsonArray(raw), via = "JSON";
+  if(!arr){ arr = parseMarkdownTable(raw); via = "表"; }
+  if(!arr){
+    st.innerHTML = "❌ 読み取れませんでした。AIに「<b>アプリ用にJSONで出力して</b>」と頼むか、表そのものを貼り付けてください";
+    st.style.color="var(--danger)"; return;
+  }
   const byId = new Map(state.projects.map(p=>[p.id, p]));
   /* 名前でも照合する (AIがidを落とした場合の保険) */
   const byName = new Map(state.projects.map(p=>[p.name.trim().toLowerCase(), p]));
@@ -1249,7 +1334,7 @@ $("#aiParse").addEventListener("click", ()=>{
   const keep = new Set(aiItems.map(it=>it.target?.id).filter(Boolean));
   const dropped = mode==="replace" ? state.projects.filter(p=>!keep.has(p.id)) : [];
 
-  st.textContent = `✅ ${aiItems.length}件を読み取りました`; st.style.color = "var(--ok)";
+  st.textContent = `✅ ${aiItems.length}件を読み取りました (${via}形式)`; st.style.color = "var(--ok)";
   const box = $("#aiPreview");
   const rows = aiItems.map((it,i)=>{
     const isNew = !it.target;
