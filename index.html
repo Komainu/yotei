@@ -475,6 +475,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
         <option value="research">🔎 各案件を調べて参加条件・期限を埋める</option>
         <option value="priority">🎯 優先順位をつけて今日やることを出す</option>
         <option value="risk">⚠️ リスク(Sybil・詐欺・費用)を洗い出す</option>
+        <option value="handover">🔄 Web版AIに現状を引き継ぐ (台帳を預ける)</option>
         <option value="free">✍️ 自由入力</option>
       </select>
       <div id="aiFreeWrap" style="display:none">
@@ -486,17 +487,24 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <textarea id="aiPrompt" rows="10" style="font-family:ui-monospace,monospace; font-size:12px"></textarea>
       <div class="row" style="margin-top:12px; flex-wrap:wrap">
         <button class="btn primary" id="aiCopy">📋 コピー</button>
+        <button class="btn" id="aiCopySpec">📐 出力仕様だけコピー</button>
         <a class="btn" href="https://gemini.google.com/app" target="_blank">Gemini を開く</a>
         <a class="btn" href="https://chatgpt.com/" target="_blank">ChatGPT を開く</a>
         <a class="btn" href="https://claude.ai/new" target="_blank">Claude を開く</a>
       </div>
-      <p class="hint">コピーしてAIに貼り付けてください。Web版のAIは検索もでき、無料枠も緩く、結果も高品質です。</p>
+      <p class="hint">コピーしてAIに貼り付けてください。Web版のAIは検索もでき、無料枠も緩く、結果も高品質です。<br>
+      <b>「📐 出力仕様だけコピー」</b>は、Web版AIに一度だけ覚えさせる用の仕様書です。Geminiの Gem / ChatGPTのカスタム指示 / Claudeのプロジェクトに貼っておくと、以後「アプリ用に出力して」の一言で正しい形式が返ってきます。</p>
     </div>
 
     <!-- 取り込み -->
     <div id="aiIn" style="display:none">
       <label>AIの回答をここに貼り付け (JSON部分だけでも、回答全文でも構いません)</label>
       <textarea id="aiPaste" rows="10" style="font-family:ui-monospace,monospace; font-size:12px" placeholder='[{"name":"...","memo":"...","deadline":"2026-10-01T23:59"}]'></textarea>
+      <label>取り込み方法</label>
+      <select id="aiMode">
+        <option value="merge">更新・追加のみ (アプリ側の他の案件はそのまま)</option>
+        <option value="replace">全置き換え (AIの出力を正としてアプリを合わせる)</option>
+      </select>
       <div class="row" style="margin-top:12px">
         <button class="btn primary" id="aiParse">✨ 読み取る</button>
         <span id="aiParseStatus" style="font-size:13px; color:var(--muted)"></span>
@@ -1082,19 +1090,58 @@ const AI_PURPOSE = {
   research: "以下の案件について、それぞれWebで調べて次を明らかにしてください。\n・何のプロジェクトか (一言で)\n・エアドロップ/キャンペーンの参加条件 (具体的な手順)\n・締切や開催期間\n・公式サイトのURL\n分からない項目は推測せず「不明」と書いてください。",
   priority: "以下の案件に優先順位をつけ、「今日やるべきこと」を上位5件まで挙げてください。\n期限の近さ・作業量・得られるものの大きさを考慮し、それぞれ理由を一行で添えてください。",
   risk: "以下の案件のリスクを洗い出してください。\n・Sybil判定を受ける恐れのある行動\n・費用が発生する箇所 (ガス代・有料パス等)\n・詐欺や偽サイトの可能性\n・期限切れが迫っているもの\n案件ごとに簡潔にまとめてください。",
+  handover: "これが現在の私の案件一覧です。今後はあなたがこの予定表を管理してください。\n受け取ったら内容を表で整理して見せてください。\n以降、私が新しい情報を送ったらこの一覧に追加・更新し、\n「アプリ用に出力して」と言ったら末尾のJSON形式で全案件を出力してください。",
 };
+const AI_SCHEMA = `[{
+  "id": "元のID。新規案件は空文字 \\"\\"",
+  "name": "案件名",
+  "chain": "チェーン/カテゴリ (不明なら\\"不明\\")",
+  "deadline": "YYYY-MM-DDTHH:MM 形式。未定なら空文字。時刻が不明なら23:59",
+  "memo": "やること・参加条件の要約",
+  "pinned": true,
+  "status": "open",
+  "sources": [{"url":"参考URL","title":"説明"}]
+}]`;
+const AI_SCHEMA_RULES = `・pinned: true にすると毎朝のメール通知の対象になります (重要案件)
+・status: 未完了は "open"、完了済みは "done"
+・idは元の値を必ずそのまま使うこと。新規追加は空文字にする
+・変更が無い項目も、元の値をそのまま含めること
+・deadline を勝手に創作しないこと。不明なら空文字`;
 const AI_JSON_TAIL = `
 
 ---
 【最後に、以下の形式のJSONも出力してください】
 回答の一番最後に \`\`\`json で囲んだ配列を付けてください。アプリに取り込むために使います。
-[{"id":"元のID(変更しないこと)","name":"案件名","chain":"チェーン","deadline":"YYYY-MM-DDTHH:MM または空文字","memo":"やること・条件の要約","note":"調査で分かった補足"}]
-・idは必ず元のまま使うこと (新規に追加したい案件はidを空文字にする)
-・変更が無い項目も、元の値をそのまま入れること`;
+${AI_SCHEMA}
+${AI_SCHEMA_RULES}`;
+
+/* Web版AIに一度だけ覚えさせておく用の仕様書 */
+const AI_SPEC_DOC = `# 予定管理アプリ 連携フォーマット仕様
+
+あなたは私の暗号資産の案件(エアドロップ/キャンペーン)の予定表を管理します。
+予定表の本体はこのチャット上で維持し、私が「アプリ用に出力して」と言ったら、
+下記フォーマットのJSONを \`\`\`json で囲んで出力してください。
+
+## 出力フォーマット
+${AI_SCHEMA}
+
+## ルール
+${AI_SCHEMA_RULES}
+・私が既存の一覧を貼った場合は、そのidを維持したまま更新すること
+・完了した案件も status:"done" として残し、勝手に削除しないこと
+・出力は常に「現時点の全案件」を含めること (アプリ側で全置き換えできるようにするため)
+
+## 補足
+このJSONは予定管理アプリに取り込まれ、
+pinned:true かつ status:"open" の案件が毎朝メールとTelegramで通知されます。`;
 
 function aiProjectsForExport(){
   const sel = state.projects.filter(p=>selected.has(p.id));
-  return sel.length ? sel : state.projects.filter(p=>p.status!=="done");
+  if(sel.length) return sel;
+  /* 引き継ぎは完了済みも含めた全件を渡す */
+  return $("#aiPurpose").value==="handover"
+    ? state.projects
+    : state.projects.filter(p=>p.status!=="done");
 }
 function buildAiPrompt(){
   const list = aiProjectsForExport();
@@ -1108,12 +1155,15 @@ function buildAiPrompt(){
       `- id: ${p.id}`,
       `- チェーン: ${p.chain || "不明"}`,
       `- 期限: ${dl}`,
-      `- 状態: ${p.status==="done"?"完了":"未完了"}${p.pinned?" / 重要":""}`,
+      `- status: ${p.status==="done"?"done":"open"}`,
+      `- pinned: ${p.pinned?"true (重要・通知対象)":"false"}`,
       `- メモ: ${p.memo || "(なし)"}`,
       src ? `- ソース: ${src}` : "",
     ].filter(Boolean).join("\n");
   }).join("\n\n");
-  const tail = $("#aiWantJson").checked ? AI_JSON_TAIL : "";
+  const tail = purpose==="handover"
+    ? "\n\n---\n" + AI_SPEC_DOC
+    : ($("#aiWantJson").checked ? AI_JSON_TAIL : "");
   $("#aiCount").textContent = `(${list.length}件${selected.size?" / 選択中":" / 未完了すべて"})`;
   return `${head}\n\n現在日時: ${nowJa()}\n\n## 案件一覧\n\n${body}${tail}`;
 }
@@ -1143,11 +1193,17 @@ $("#aiPurpose").addEventListener("change", ()=>{
 $("#aiFree").addEventListener("input", refreshAiPrompt);
 $("#aiWantJson").addEventListener("change", refreshAiPrompt);
 $("#aiClose").addEventListener("click", ()=>$("#aiDialog").close());
-$("#aiCopy").addEventListener("click", async ()=>{
-  const t = $("#aiPrompt");
-  try{ await navigator.clipboard.writeText(t.value); toast("コピーしました。AIに貼り付けてください"); }
-  catch(e){ t.select(); document.execCommand("copy"); toast("コピーしました"); }
-});
+async function copyText(str, msg){
+  try{ await navigator.clipboard.writeText(str); toast(msg); }
+  catch(e){
+    const ta = document.createElement("textarea");
+    ta.value = str; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    toast(msg);
+  }
+}
+$("#aiCopy").addEventListener("click", ()=>copyText($("#aiPrompt").value, "コピーしました。AIに貼り付けてください"));
+$("#aiCopySpec").addEventListener("click", ()=>copyText(AI_SPEC_DOC, "出力仕様をコピーしました"));
 
 /* ---- AIの回答を取り込む ---- */
 let aiItems = [];
@@ -1170,53 +1226,89 @@ $("#aiParse").addEventListener("click", ()=>{
   const arr = extractJsonArray(raw);
   if(!arr){ st.textContent = "❌ JSONが見つかりません (```json で囲まれた部分ごと貼り付けてください)"; st.style.color="var(--danger)"; return; }
   const byId = new Map(state.projects.map(p=>[p.id, p]));
+  /* 名前でも照合する (AIがidを落とした場合の保険) */
+  const byName = new Map(state.projects.map(p=>[p.name.trim().toLowerCase(), p]));
   aiItems = arr.filter(x=>x && (x.name||x.id)).map(x=>{
-    const cur = x.id ? byId.get(String(x.id)) : null;
+    const cur = (x.id ? byId.get(String(x.id)) : null)
+             || (x.name ? byName.get(String(x.name).trim().toLowerCase()) : null) || null;
     const memo = [x.memo, x.note].filter(Boolean).join("\n").trim();
-    return { target: cur || null, raw: x,
+    const srcs = Array.isArray(x.sources)
+      ? x.sources.filter(s=>s && (s.url||s.title)).map(s=>({url:String(s.url||""), title:String(s.title||"")}))
+      : (cur?.sources || []);
+    return { target: cur, raw: x,
       name: String(x.name || cur?.name || ""),
       chain: String(x.chain ?? cur?.chain ?? ""),
       deadline: String(x.deadline ?? cur?.deadline ?? ""),
-      memo: memo || cur?.memo || "" };
+      memo: memo || cur?.memo || "",
+      pinned: x.pinned !== undefined ? !!x.pinned : !!cur?.pinned,
+      status: (x.status === "done" || x.status === "open") ? x.status : (cur?.status || "open"),
+      sources: srcs };
   }).filter(it=>it.name);
+
+  const mode = $("#aiMode").value;
+  const keep = new Set(aiItems.map(it=>it.target?.id).filter(Boolean));
+  const dropped = mode==="replace" ? state.projects.filter(p=>!keep.has(p.id)) : [];
+
   st.textContent = `✅ ${aiItems.length}件を読み取りました`; st.style.color = "var(--ok)";
   const box = $("#aiPreview");
-  box.innerHTML = aiItems.map((it,i)=>{
+  const rows = aiItems.map((it,i)=>{
     const isNew = !it.target;
     const changes = [];
     if(it.target){
       if(it.chain !== (it.target.chain||"")) changes.push(`チェーン: ${esc(it.target.chain||"なし")} → ${esc(it.chain||"なし")}`);
       if(it.deadline !== (it.target.deadline||"")) changes.push(`期限: ${it.target.deadline?esc(fmtDeadline(it.target.deadline)):"未定"} → ${it.deadline?esc(fmtDeadline(it.deadline)):"未定"}`);
-      if(it.memo !== (it.target.memo||"")) changes.push(`メモを更新`);
+      if(it.memo !== (it.target.memo||"")) changes.push("メモを更新");
+      if(it.pinned !== !!it.target.pinned) changes.push(it.pinned ? "📌 重要にする" : "📌 重要を解除");
+      if(it.status !== (it.target.status||"open")) changes.push(it.status==="done" ? "✅ 完了にする" : "↩ 未完了に戻す");
     }
     return `<label class="check" style="align-items:flex-start; padding:8px 10px; border:1px solid var(--border); border-radius:10px; margin-bottom:6px">
       <input type="checkbox" data-ai="${i}" checked style="margin-top:4px">
       <span><b>${esc(it.name)}</b> ${isNew?`<span class="badge due-soon">新規</span>`:(changes.length?`<span class="badge chain">更新</span>`:`<span class="badge">変更なし</span>`)}
+      ${it.pinned?`<span class="badge pin">📌</span>`:""}
       ${changes.length?`<br><span style="font-size:12px; color:var(--muted)">${changes.join(" ／ ")}</span>`:""}
       ${it.memo?`<br><span style="font-size:12px; color:var(--dim)">${esc(it.memo.slice(0,120))}</span>`:""}
       </span></label>`;
   }).join("");
+  const warn = dropped.length
+    ? `<div style="border:1px solid rgba(255,107,129,.4); border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:13px">
+        <b style="color:var(--danger)">⚠ 全置き換え: 次の${dropped.length}件はアプリから削除されます</b>
+        <div style="font-size:12px; color:var(--muted); margin-top:4px">${dropped.map(p=>esc(p.name)).join(" ／ ")}</div>
+        <div style="font-size:12px; color:var(--dim); margin-top:4px">反映前に自動バックアップされます</div>
+       </div>` : "";
+  box.innerHTML = warn + rows;
   $("#aiApply").disabled = !aiItems.length;
 });
+$("#aiMode").addEventListener("change", ()=>{ if(aiItems.length) $("#aiParse").click(); });
 $("#aiApply").addEventListener("click", ()=>{
   const picks = $$("#aiPreview input:checked").map(c=>aiItems[+c.dataset.ai]);
   if(!picks.length){ toast("反映する項目を選択してください"); return; }
+  const mode = $("#aiMode").value;
+  const keep = new Set(picks.map(it=>it.target?.id).filter(Boolean));
+  const dropped = mode==="replace" ? state.projects.filter(p=>!keep.has(p.id)) : [];
+  if(dropped.length && !confirm(`全置き換えにより${dropped.length}件がアプリから削除されます。よろしいですか?\n\n${dropped.map(p=>"・"+p.name).join("\n")}`)) return;
+
   pushBackup("AIの結果を反映する前");
   let upd = 0, add = 0;
   const news = [];
   for(const it of picks){
+    const data = { name: it.name, chain: it.chain, deadline: it.deadline,
+                   memo: it.memo, pinned: it.pinned, status: it.status };
     if(it.target){
-      Object.assign(it.target, { name: it.name, chain: it.chain, deadline: it.deadline, memo: it.memo });
+      Object.assign(it.target, data);
+      if(it.sources?.length) it.target.sources = it.sources;
       upd++;
     }else{
-      const p = { id: uid(), status:"open", pinned:false, createdAt:new Date().toISOString(),
-        name: it.name, chain: it.chain, deadline: it.deadline, memo: it.memo, sources: [] };
+      const p = Object.assign({ id: uid(), createdAt:new Date().toISOString(), sources: it.sources||[] }, data);
       state.projects.push(p); news.push(p); add++;
     }
   }
+  if(dropped.length){
+    const del = new Set(dropped.map(p=>p.id));
+    state.projects = state.projects.filter(p=>!del.has(p.id));
+  }
   normalizeProjects();
   save(); renderProjects(); $("#aiDialog").close();
-  toast(`${upd}件を更新、${add}件を追加しました`);
+  toast(`${upd}件を更新、${add}件を追加${dropped.length?`、${dropped.length}件を削除`:""}しました`);
   news.length ? afterProjectsAdded(news) : scheduleGasSync();
 });
 
