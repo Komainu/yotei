@@ -118,6 +118,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px s
 .hud i { font-style: normal; }
 .hud b { color: var(--screen-ink); font-weight: 400; }
 .hud .g b { color: var(--screen-gold); }
+/* 失敗の件数は、札に押される✗と同じ赤にする（緑＝合格・赤＝不合格を
+   絵の中と HUD で1つの決まりにする。2026-09-27）。 */
+.hud .bad b { color: var(--screen-red); }
+.hud .bad i { color: var(--screen-red); opacity: .8; }
 .hud .right { margin-left: auto; color: var(--screen-muted); text-transform: none; }
 
 canvas {
@@ -1244,7 +1248,11 @@ canvas {
       'ui.speed':      '速度',
       'ui.open':       'ログを開く',
       'ui.run':        'サンプル',
-      'ui.showing':    '{shown} コマ ／ ログ {total} 件',
+      /* ★ 2026-09-27: 以前は「{shown} コマ ／ ログ {total} 件」。操作欄の
+         「コマ {i} / {n}」と数字が2つずつ並んで見分けがつかない、という
+         指摘。ここはログに何件あるかという事実だけにして、いま何コマ目か
+         は再生バーのそばの1か所だけに置く。 */
+      'ui.showing':    'ログ {total} 件',
       'ui.beat':       'コマ {i} / {n}',
       'ui.lang':       'EN',
       'ui.langJa':     '日本語',
@@ -1713,7 +1721,7 @@ canvas {
       'ui.speed':      'SPEED',
       'ui.open':       'OPEN LOG',
       'ui.run':        'SAMPLE',
-      'ui.showing':    '{shown} beats / {total} log lines',
+      'ui.showing':    '{total} log lines',
       'ui.beat':       'step {i} / {n}',
       'ui.lang':       '日本語',
       'ui.langJa':     '日本語',
@@ -5226,7 +5234,14 @@ canvas {
      ファイルをまたいだ共有はしない＝1ファイルで完結させる） ---------- */
   function px(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, w, h); }
 
+  /* 検査用：この1フレームで描いた文字と、合否の印。
+     「OK」という英単語をやめて✓にした、といった約束は、絵を目で見ても
+     証明にならない。描いた側に数えさせる（2026-09-27）。 */
+  var lastLabelsDrawn = [];
+  var lastMarksDrawn = [];
+
   function label(s, x, y, color, size) {
+    lastLabelsDrawn.push(String(s == null ? '' : s));
     ctx.fillStyle = color;
     ctx.font = (size || 6) + 'px "Press Start 2P", monospace';
     ctx.textBaseline = 'top';
@@ -6238,6 +6253,11 @@ canvas {
      終わりでは必ず本来の状態に落ち着く）。 */
   var anim = null;   // { index, p, actor, back, trips } — render が毎フレーム更新する
   var lastWalkInfo = null;  // 検査用：いま動いている本人の歩き具合（下の lastWalk()）
+  /* 検査用：直近の1フレームで実際に描いたロボットの体数。
+     2026-09-27 の不具合「なぜか急にエージェントがわらわらと現れました」
+     を機械的に測るための覗き穴。選んでいないのに何体も描かれていないか
+     を、絵を見ずに数字で確かめられるようにする。 */
+  var lastRobotsDrawn = 0;
   var lastHeldDrawn = [];   // 直前のフレームで「手に持った札」として描いたもの（テスト用）
   /* 直前のフレームで描いた「書き込み」の絵の数（テスト用）。
      メモを持って歩いた／板に貼った、をそれぞれ数える。 */
@@ -6388,26 +6408,45 @@ canvas {
     return { text: text, size: size, labelRect: labelRect, badgeRect: badgeRect };
   }
 
+  /* ★ 2026-09-27: 合否の印は「形も色も1種類だけ」にする。
+     以前は同じ合否が、札の上ではスタンプ（✓/✗）、ロボットの吹き出しでは
+     英単語（OK / REJECTED）と、場所ごとに別の見た目で出ていた。
+     形が違うと、同じことを言っているのだと分からない。
+     ここに1つだけ描き方を置いて、札もロボットもこれを呼ぶ。
+     白い吹き出しの上では明るい緑・赤は読めないので、地の明暗で
+     2組の色を持つ（形はまったく同じ）。 */
+  var MARK_ON_DARK  = { ok: '#3ddc84', ng: '#ff6b57' };
+  var MARK_ON_LIGHT = { ok: '#1a7a4a', ng: '#c02b1c' };
+
+  /** 合否の印（✓ / ✗）を、与えられた正方形いっぱいに描く。 */
+  function drawMark(x, y, size, ok, color, weight) {
+    lastMarksDrawn.push({ ok: !!ok, color: color });
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, weight || U(1));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (ok) {
+      ctx.moveTo(x + size * 0.18, y + size * 0.55);
+      ctx.lineTo(x + size * 0.42, y + size * 0.82);
+      ctx.lineTo(x + size * 0.85, y + size * 0.20);
+    } else {
+      ctx.moveTo(x + size * 0.20, y + size * 0.20);
+      ctx.lineTo(x + size * 0.80, y + size * 0.80);
+      ctx.moveTo(x + size * 0.80, y + size * 0.20);
+      ctx.lineTo(x + size * 0.20, y + size * 0.80);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawVerdictBadge(rect, verdict) {
     if (!verdict) return;
     var v = cardVisual(rect, { kind: null, verdict: verdict });
     var b = v.badgeRect, ok = verdict === 'useful';
     px(b.x - U(1), b.y - U(1), b.w + U(2), b.h + U(2), '#14161f');
     px(b.x, b.y, b.w, b.h, ok ? '#173423' : '#3a1512');
-    ctx.strokeStyle = ok ? '#3ddc84' : '#ff6b57';
-    ctx.lineWidth = Math.max(2, U(1));
-    ctx.beginPath();
-    if (ok) {
-      ctx.moveTo(b.x + b.w * 0.18, b.y + b.h * 0.55);
-      ctx.lineTo(b.x + b.w * 0.42, b.y + b.h * 0.82);
-      ctx.lineTo(b.x + b.w * 0.85, b.y + b.h * 0.2);
-    } else {
-      ctx.moveTo(b.x + b.w * 0.2, b.y + b.h * 0.2);
-      ctx.lineTo(b.x + b.w * 0.8, b.y + b.h * 0.8);
-      ctx.moveTo(b.x + b.w * 0.8, b.y + b.h * 0.2);
-      ctx.lineTo(b.x + b.w * 0.2, b.y + b.h * 0.8);
-    }
-    ctx.stroke();
+    drawMark(b.x, b.y, b.w, ok, ok ? MARK_ON_DARK.ok : MARK_ON_DARK.ng, U(1));
   }
 
   /* theme を渡すと、板・納品口・検品台に「乗っている」ように見せる
@@ -6602,17 +6641,30 @@ canvas {
      繰り返すだけなので、素直に削除する（情報は減っていない＝板の
      カード・実況欄・生ログの3か所にちゃんと残っている）。 */
   var OVERLAY = {
+    /* ★ 2026-09-27: 「OK」「REJECTED」という英単語をやめ、札のスタンプと
+       まったく同じ ✓ / ✗ を出す（同じことは同じ形で言う）。
+       ただし数字のステータス（402 など）は文字のまま残す。402 は
+       このアプリが伝えたい事実そのもので、印に置き換えると消えてしまう。 */
     receive: function (hx, hy, b, p, now) {
       var lift = Math.round(Math.sin(Math.min(1, p * 1.4) * Math.PI / 2) * U(6));
-      bubble(hx - U(6), hy - U(16) - lift, U(22), U(11));
-      label('OK', hx - U(3), hy - U(14) - lift, '#1a7a4a', Math.max(6, U(6)));
+      var s = U(9);
+      bubble(hx - U(4), hy - U(16) - lift, U(13), U(13));
+      drawMark(hx - U(2), hy - U(14) - lift, s, true, MARK_ON_LIGHT.ok, U(1.4));
     },
     error: function (hx, hy, b, p, now) {
       var m = (b.lead && b.lead.meta) || {};
       if ((now % 700) > 480) return;
-      var txt = m.verdict === 'not' ? 'REJECTED' : String((b.lead && b.lead.status) || 'ERROR');
-      bubble(hx - U(20), hy - U(17), U(56), U(11));
-      label(txt, hx - U(18), hy - U(15), '#c02b1c', Math.max(6, U(6)));
+      var code = String((b.lead && b.lead.status) || '');
+      if (m.verdict === 'not' || !code) {
+        var s2 = U(9);
+        bubble(hx - U(4), hy - U(16), U(13), U(13));
+        drawMark(hx - U(2), hy - U(14), s2, false, MARK_ON_LIGHT.ng, U(1.4));
+        return;
+      }
+      var size = Math.max(6, U(6));
+      var w = textWidth(code, size) + U(6);
+      bubble(hx - U(2) - w / 2, hy - U(17), w, U(11));
+      label(code, hx + U(1) - w / 2, hy - U(15), MARK_ON_LIGHT.ng, size);
     },
     idle: function (hx, hy, b, p, now) {
       if ((now % 900) > 600) return;
@@ -6897,6 +6949,9 @@ canvas {
          検品台だけ絞って手持ちを素通ししていたので、依頼1件を選んでいる
          のに、その子が同時に抱えている別の依頼の札まで持って歩いていた
          （＝「1件だけ追っている」という約束と画面が食い違う）。 */
+      lastRobotsDrawn = 0;
+      lastLabelsDrawn = [];
+      lastMarksDrawn = [];
       lastHeldDrawn = [];
       lastMemoDrawn = 0; lastPinnedDrawn = 0;
       var cards = cardsForDisplay(index2).filter(function (c) {
@@ -6923,6 +6978,7 @@ canvas {
               ctx.restore();
             }
             ctx.globalAlpha = r.isActive ? 1 : 0.7;
+            lastRobotsDrawn++;   // 検査用：この1フレームで実際に描いた体数
             drawRobot(pl.hx, pl.hy, r.pos.dir, r.moving, now, pal, sm);
             drawTag(pl.tagText, { rect: pl.tagRect, leader: pl.tagLeader, anchor: pl.tagAnchor });
             /* 書き込みのコマ：行き（板へ向かう脚）だけメモを持つ。
@@ -7018,6 +7074,9 @@ canvas {
 
     /** テスト用: 直前のフレームで実際に手に持った札として描いたもの。 */
     lastHeldCards: function () { return lastHeldDrawn.slice(); },
+    lastRobotsDrawn: function () { return lastRobotsDrawn; },
+    lastLabels: function () { return lastLabelsDrawn.slice(); },
+    lastMarks: function () { return lastMarksDrawn.slice(); },
     /* 「書き込み」の絵を実際に描いたか（テスト用）。棒立ちに戻ったら 0 になる。 */
     lastWriteDraw: function () { return { memo: lastMemoDrawn, pinned: lastPinnedDrawn }; },
     /* 往復（2026-09-13）の検査用。件数→往復回数、歩き具合→片道の進み具合。 */
@@ -8764,6 +8823,12 @@ canvas {
         el.retries.textContent = t('hud.failed', { n: st.failed });
       } else {
         el.retries.textContent = DASH;
+      }
+      /* ★ 2026-09-27: 合否の色を画面の隅まで同じにする。失敗の件数は
+         札の✗と同じ赤にする（緑＝合格・赤＝不合格を、絵の中でも
+         HUD でも1つの決まりにする）。 */
+      if (el.hudRetries) {
+        el.hudRetries.className = (!st.hasRetries && st.failed > 0) ? 'bad' : '';
       }
 
       el.showing.textContent = t('ui.showing', { shown: stats.shown, total: stats.total });
@@ -10807,9 +10872,44 @@ canvas {
       var keep = Math.min(clock.index, playBeats.length - 1);
       clock.beats = playBeats;
       clock.index = keep < 0 ? 0 : keep;
+    } else {
+      releaseToChoose();
     }
     syncModeButtons();
     frame();
+  }
+
+  /* ---- 「誰も選んでいない」状態に戻す（2026-09-27 の不具合対応）-------
+     利用者の報告「なぜか急にエージェントがわらわらと現れました。
+     エージェントの名前はクリックしていません」。
+
+     再現：依頼またはエージェントを選んだあと、一覧の「依頼から」／
+     「エージェントから」や「◀ エージェント一覧へ戻る」を押すと、
+     絞り込み（agentFilter・focusJob）は外れるのに hasChosen は true の
+     まま残る。この「選んだことになっているが、実際には何も選んで
+     いない」状態で computePlayBeats() を呼ぶと、3つとも null なので
+     ログ全体（fullBeats）が返る。押した直後は clock.beats が古いままなので
+     画面は変わらないが、LIVE の新着が届いた次の rebuild(false) で
+     clock.beats がログ全体に差し替わり、その瞬間に全エージェントが
+     いっせいに動き出す（実測：2コマ → 126コマ）。
+
+     直し方：絞り込みが全部外れたなら、それは「まだ選んでいない」状態
+     そのもの＝このアプリの既定（選ぶまで何も動かない）へ素直に戻す。
+     「すべて表示」ボタン（focusShowAll → applyFocus(null)）は、利用者が
+     自分でログ全体を選んだ場合なので、こちらは今までどおり動く。 */
+  function releaseToChoose() {
+    if (focusJob != null || focusActor != null || agentFilter != null) return;
+    hasChosen = false;
+    jobStory = null;
+    agentStory = null;
+    if (AQ.hud.resetProgressTracking) AQ.hud.resetProgressTracking();
+    playBeats = computePlayBeats();
+    syncFocusPlan();
+    clock.pause();
+    userPaused = false;
+    clock.beats = playBeats;
+    clock.index = 0;
+    clock.elapsed = 0;
   }
 
   /** 一覧の切り替え（依頼から／エージェントから）。
@@ -10828,6 +10928,10 @@ canvas {
       var keep = Math.min(clock.index, playBeats.length - 1);
       clock.beats = playBeats;
       clock.index = keep < 0 ? 0 : keep;
+    } else {
+      /* 絞り込みが全部外れたなら「まだ選んでいない」状態へ戻す
+         （上の releaseToChoose のコメント参照）。 */
+      releaseToChoose();
     }
     syncModeButtons();
     frame();
