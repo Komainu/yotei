@@ -348,7 +348,8 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
     無料枠には「1分あたりの回数」「1日あたりの回数」の上限があります。超えた場合は自動で待機・再試行し、それでも混雑する場合は軽量モデルに切り替えます。連続して解析したい時は <b>flash-lite</b> を選ぶと上限に余裕があります。</p>
   </div>
   <div class="set-card">
-    <h3>✈️ Telegram通知 (新規案件を追加した時)</h3>
+    <h3>✈️ Telegram連携</h3>
+    <p class="hint" style="margin-top:0">⏰ <b>期限アラート</b>: 期限の3日前・前日・当日の朝9時に自動通知します (Googleのサーバーが送信するのでPCを閉じていてもOK)。同じ案件を何度も送らないよう送信済みを記録しています。</p>
     <label>Bot Token</label>
     <div class="row">
       <input id="tgToken" type="password" placeholder="123456789:AAE...">
@@ -359,7 +360,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <input id="tgChat" placeholder="123456789, 987654321">
       <button class="btn small" id="tgGetChat" style="white-space:nowrap">自動取得</button>
     </div>
-    <label class="check" style="margin-top:12px"><input type="checkbox" id="tgEnabled">新規案件の追加時に通知する</label>
+    <label class="check" style="margin-top:12px"><input type="checkbox" id="tgEnabled">Telegram連携を使う</label>
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="tgSave">保存</button>
       <button class="btn" id="tgTest">テスト送信</button>
@@ -1795,16 +1796,10 @@ function tgProjectMsg(p){
   if(p.pinned) lines.push(``, `📌 ピン留め (毎日のメール通知対象)`);
   return lines.join("\n");
 }
-/* 新規追加の共通フック: 通知 + GAS同期 */
+/* 新規追加の共通フック
+   以前は1件ごとにTelegram通知していたが、一括取り込みで大量に届くため廃止。
+   通知はGoogle側の「期限アラート」に一本化している。 */
 function afterProjectsAdded(added){
-  if(state.settings.tgEnabled && state.settings.tgToken && state.settings.tgChat){
-    (async ()=>{
-      for(const p of added){
-        try{ await tgSend(tgProjectMsg(p)); }
-        catch(e){ toast("Telegram通知エラー: " + e.message); break; }
-      }
-    })();
-  }
   scheduleGasSync();
 }
 $("#tgEye").addEventListener("click", ()=>{
