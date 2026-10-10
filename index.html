@@ -126,19 +126,6 @@ section.tab.active{display:block; animation:fadein .18s ease}
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;
 }
 .pmemo{margin-top:8px; font-size:13.5px; color:var(--muted); white-space:pre-wrap}
-.ai-box{
-  margin-top:12px; background:var(--panel); border:1px solid var(--border);
-  border-radius:10px; padding:12px 14px; font-size:13.5px;
-}
-.ai-box .ai-head{
-  display:flex; align-items:center; gap:8px; font-size:12px; color:var(--dim); margin-bottom:6px;
-}
-.ai-box .ai-head b{color:var(--accent); font-size:12.5px}
-.ai-content{color:#cdd7ec}
-.ai-content h4{color:var(--text); font-size:13.5px; margin:10px 0 4px}
-.ai-content h4:first-child{margin-top:0}
-.ai-content ul{padding-left:20px; margin:2px 0}
-.ai-content li{margin:2px 0}
 .pfoot{margin-top:12px; display:flex; gap:8px; flex-wrap:wrap}
 .empty{
   text-align:center; color:var(--dim); padding:60px 20px; border:1.5px dashed var(--border);
@@ -196,29 +183,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 .check{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text)}
 .check input{width:auto}
 
-/* ---------- chat ---------- */
-#chatFab{
-  position:fixed; right:22px; bottom:22px; z-index:80;
-  background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; color:#fff;
-  border-radius:999px; padding:13px 22px; font-size:15px; font-weight:700;
-  box-shadow:0 8px 30px rgba(56,217,192,.35); display:flex; gap:8px; align-items:center;
-}
-#chatPanel{
-  position:fixed; right:22px; bottom:22px; z-index:90; width:min(400px,92vw); height:min(560px,80vh);
-  background:var(--panel); border:1px solid var(--border); border-radius:18px;
-  display:none; flex-direction:column; overflow:hidden; box-shadow:0 24px 80px rgba(0,0,0,.55);
-}
-#chatPanel.open{display:flex}
-.chat-head{display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--border); background:var(--card)}
-.chat-head b{font-size:14.5px}
-.chat-head .icon-btn{margin-left:auto}
-#chatLog{flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px}
-.msg{max-width:86%; padding:9px 13px; border-radius:14px; font-size:13.5px; white-space:pre-wrap}
-.msg.user{align-self:flex-end; background:linear-gradient(135deg,var(--accent),#3f6fe0); border-bottom-right-radius:4px}
-.msg.ai{align-self:flex-start; background:var(--card2); border:1px solid var(--border); border-bottom-left-radius:4px}
-.msg.ai .ai-content{font-size:13.5px}
-.chat-input{display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); background:var(--card)}
-.chat-input textarea{resize:none; height:44px}
 .spin{display:inline-block; width:14px; height:14px; border:2px solid var(--dim); border-top-color:var(--accent); border-radius:50%; animation:sp .7s linear infinite; vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .toast{
@@ -270,7 +234,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <button class="chip" data-f="done">完了</button>
     </div>
     <button class="btn" id="btnAiExport">🤖 AIに渡す</button>
-    <button class="btn" id="btnBulk">📝 一括登録</button>
     <button class="btn primary" id="btnAdd">＋ 追加</button>
   </div>
   <div class="plist" id="projectList"></div>
@@ -327,27 +290,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 <!-- ============ settings ============ -->
 <section class="tab" id="tab-settings">
   <div class="set-card">
-    <h3>🤖 AI設定 (Gemini)</h3>
-    <label>Gemini API Key</label>
-    <div class="row">
-      <input id="setKey" type="password" placeholder="AIza...">
-      <button class="btn small" id="keyEye">👁</button>
-    </div>
-    <label>モデル</label>
-    <select id="setModel">
-      <option value="gemini-2.5-flash">gemini-2.5-flash (推奨・無料枠)</option>
-      <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (軽量・高速)</option>
-      <option value="gemini-2.5-pro">gemini-2.5-pro (高精度・枠小)</option>
-    </select>
-    <div class="row" style="margin-top:14px">
-      <button class="btn primary" id="btnSaveSet">保存</button>
-      <button class="btn" id="btnTestAI">接続テスト</button>
-      <span id="testResult" style="font-size:13px"></span>
-    </div>
-    <p class="hint">キーはこの端末のブラウザ (localStorage) にのみ保存され、Google以外へは送信されません。取得: <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a><br>
-    無料枠には「1分あたりの回数」「1日あたりの回数」の上限があります。超えた場合は自動で待機・再試行し、それでも混雑する場合は軽量モデルに切り替えます。連続して解析したい時は <b>flash-lite</b> を選ぶと上限に余裕があります。</p>
-  </div>
-  <div class="set-card">
     <h3>✈️ Telegram連携</h3>
     <p class="hint" style="margin-top:0">⏰ <b>期限アラート</b>: 期限の3日前・前日・当日の朝9時に自動通知します (Googleのサーバーが送信するのでPCを閉じていてもOK)。同じ案件を何度も送らないよう送信済みを記録しています。</p>
     <label>Bot Token</label>
@@ -372,6 +314,17 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <h3 style="font-size:14px; margin-bottom:8px">📲 Telegramから案件を登録する</h3>
       <p class="hint" style="margin-top:0">有効にすると、Botに情報を送る/転送するだけでAIが解析して案件を自動登録します。スマホからそのまま投げ込めます。<br>
       <code>/list</code> 未完了一覧 ・ <code>/today</code> 期限間近 ・ <code>/done 3</code> 完了 ・ <code>/pin 3</code> ピン留め</p>
+      <label>Gemini API Key <span style="color:var(--dim)">(任意: 送った文章をAIで整理する場合。無ければ1行目を案件名として簡易登録)</span></label>
+      <div class="row">
+        <input id="setKey" type="password" placeholder="AIza...">
+        <button class="btn small" id="keyEye">👁</button>
+      </div>
+      <label>モデル</label>
+      <select id="setModel">
+        <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (推奨・無料枠に余裕)</option>
+        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+      </select>
+      <p class="hint">キーを変えたら「📲 Telegram登録を有効化」をもう一度押すと反映されます。取得: <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a></p>
       <div id="tgIngestStatus" style="font-size:12.5px; color:var(--muted); margin:10px 0"></div>
       <div class="row" style="flex-wrap:wrap">
         <button class="btn primary" id="tgIngestOn">📲 Telegram登録を有効化</button>
@@ -442,23 +395,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 </dialog>
 
-<!-- ============ bulk dialog ============ -->
-<dialog id="bulkDialog">
-  <div class="dlg-head">📝 テキストから一括登録</div>
-  <div class="dlg-body">
-    <label>ここに情報を雑に貼り付けてください (X投稿、記事、Discordの告知など何でもOK)</label>
-    <textarea id="bulkText" rows="8" placeholder="例:&#10;Tempo Networkのテストネット開始。期限は5/7まで。ブリッジとスワップが条件 https://x.com/...&#10;CQBANKキャンペーン 5/22締切 50万円以上の残高維持…"></textarea>
-    <div class="row" style="margin-top:12px">
-      <button class="btn primary" id="bulkParse">✨ AIで解析する</button>
-      <span id="bulkStatus" style="font-size:13px; color:var(--muted)"></span>
-    </div>
-    <div id="bulkPreview" style="margin-top:14px"></div>
-  </div>
-  <div class="dlg-foot">
-    <button class="btn ghost" id="bulkCancel">閉じる</button>
-    <button class="btn primary" id="bulkAdd" disabled>登録</button>
-  </div>
-</dialog>
 
 <!-- ============ AI連携 dialog ============ -->
 <dialog id="aiDialog" style="width:min(720px,94vw)">
@@ -524,22 +460,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 </dialog>
 
-<!-- ============ chat ============ -->
-<button id="chatFab">💬 AI</button>
-<div id="chatPanel">
-  <div class="chat-head">
-    <div class="logo" style="width:30px;height:30px;font-size:15px">🔮</div>
-    <b>AI</b>
-    <button class="icon-btn" id="chatClear" title="履歴クリア">🧹</button>
-    <button class="icon-btn" id="chatClose">✕</button>
-  </div>
-  <div id="chatLog"></div>
-  <div class="chat-input">
-    <textarea id="chatText" placeholder="例: 今週やるべきことは?"></textarea>
-    <button class="btn primary" id="chatSend">送信</button>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
@@ -547,16 +467,17 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.10.10";
+const APP_VERSION = "2026.10.11";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.10.10";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" }, chat: [] };
+let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
 
 function load(){
   try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); if(d) state = Object.assign(state, d); }catch(e){}
   if(!Array.isArray(state.projects)) state.projects = [];
+  delete state.chat;   /* 廃止したAIチャットの履歴を片付ける */
   normalizeProjects();
 }
 /* 旧形式(id・status欠落)のデータを修復する。これが無いと操作不能な案件になる */
@@ -568,6 +489,7 @@ function normalizeProjects(){
     if(!p.status) p.status = "open";
     p.pinned = !!p.pinned;
     if(!Array.isArray(p.sources)) p.sources = [];
+    if(p.ai){ delete p.ai; fixed++; }   /* 廃止したアプリ内AI解析の結果を片付ける */
   }
   state.projects = state.projects.filter(p=>p && typeof p==="object" && p.name);
   if(fixed) localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -598,25 +520,6 @@ function toast(msg){
   clearTimeout(t._tm); t._tm = setTimeout(()=>t.classList.remove("show"), 2600);
 }
 function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-
-/* markdown-lite: headings / bold / bullets */
-function mdLite(src){
-  const lines = String(src||"").split(/\r?\n/);
-  let html = "", inUl = false;
-  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-  for(let ln of lines){
-    const l = ln.trim();
-    const bullet = l.match(/^([・\-\*•]|\d+[.)])\s*(.+)/);
-    if(bullet){ if(!inUl){ html += "<ul>"; inUl = true; } html += "<li>" + inline(bullet[2]) + "</li>"; continue; }
-    if(inUl){ html += "</ul>"; inUl = false; }
-    const h = l.match(/^#{1,4}\s*(.+)/);
-    if(h){ html += "<h4>" + inline(h[1]) + "</h4>"; continue; }
-    if(l === ""){ html += "<div style='height:6px'></div>"; continue; }
-    html += "<div>" + inline(l) + "</div>";
-  }
-  if(inUl) html += "</ul>";
-  return html;
-}
 
 /* ================= dates ================= */
 function daysLeft(iso){
@@ -694,11 +597,6 @@ function renderProjects(){
       const srcs = (p.sources||[]).map(s=> s.url
         ? `<a class="src-chip" href="${esc(s.url)}" target="_blank" rel="noopener">🔗 ${esc(srcLabel(s))}</a>`
         : `<span class="src-chip">📝 ${esc(s.title)}</span>`).join("");
-      const ai = p.ai ? `
-        <div class="ai-box">
-          <div class="ai-head"><b>✨ AI解析</b><span>${esc(p.ai.model)} ・ ${esc(p.ai.at)}</span></div>
-          <div class="ai-content">${mdLite(p.ai.text)}</div>
-        </div>` : "";
       return `
       <div class="pcard ${p.pinned?"pinned":""} ${p.status==="done"?"done":""}" data-id="${p.id}">
         <div class="pcard-top">
@@ -718,11 +616,8 @@ function renderProjects(){
         </div>
         ${srcs?`<div class="psources">${srcs}</div>`:""}
         ${p.memo?`<div class="pmemo">${esc(p.memo)}</div>`:""}
-        ${ai}
         <div class="pfoot">
           <button class="btn small" data-act="toggle">${p.status==="done"?"↩ 未完了に戻す":"✅ 完了にする"}</button>
-          <button class="btn small" data-act="ai">✨ AI解析${p.ai?"を更新":""}</button>
-          ${p.ai?`<button class="btn small ghost" data-act="aidel">解析を消す</button>`:""}
         </div>
       </div>`;
     }).join("");
@@ -767,8 +662,6 @@ $("#projectList").addEventListener("click", e=>{
   }
   else if(act==="edit"){ openDialog(p); }
   else if(act==="del"){ if(confirm(`「${p.name}」を削除しますか?`)){ pushBackup("削除する前"); state.projects = state.projects.filter(x=>x.id!==id); save(); renderProjects(); scheduleGasSync(); } }
-  else if(act==="ai"){ analyzeProject(p, btn); }
-  else if(act==="aidel"){ delete p.ai; save(); renderProjects(); }
 });
 
 /* ---- dialog ---- */
@@ -886,217 +779,8 @@ $("#importFile").addEventListener("change", async e=>{
   }catch(err){ toast("読み込めませんでした (JSON形式を確認してください)"); }
   e.target.value = "";
 });
-/* ================= Gemini ================= */
-/* ---- 無料枠(1分20回)対策: 直列キュー + 自動リトライ + 軽量モデルへの切替 ---- */
-const sleep = ms => new Promise(r=>setTimeout(r, ms));
-let gemChain = Promise.resolve();
-let gemLastAt = 0;
-const GEM_MIN_GAP = 3500;   /* 連打を防ぐ最小間隔 */
-
-function gemQueue(fn){
-  const run = async ()=>{
-    const wait = Math.max(0, gemLastAt + GEM_MIN_GAP - Date.now());
-    if(wait > 0) await sleep(wait);
-    gemLastAt = Date.now();
-    return fn();
-  };
-  const p = gemChain.then(run, run);
-  gemChain = p.catch(()=>{});
-  return p;
-}
-
-/* エラーから「何秒待てばよいか」を読み取る */
-function retryAfterSec(errJson, msg){
-  try{
-    const info = (errJson?.error?.details||[]).find(d=>/RetryInfo/.test(d["@type"]||""));
-    if(info?.retryDelay) return Math.ceil(parseFloat(info.retryDelay)) || 0;
-  }catch(e){}
-  const m = /retry in ([\d.]+)/i.exec(msg||"");
-  return m ? Math.ceil(parseFloat(m[1])) : 0;
-}
-
-async function callGemini(userText, systemText, jsonMode, useSearch, onStatus){
-  return gemQueue(()=>callGeminiOnce(userText, systemText, jsonMode, useSearch, onStatus));
-}
-
-async function callGeminiOnce(userText, systemText, jsonMode, useSearch, onStatus){
-  const key = state.settings.key;
-  if(!key) throw new Error("APIキーが未設定です。設定タブでGemini APIキーを入力してください。");
-  let model = state.settings.model || "gemini-2.5-flash";
-  const genCfg = { temperature: jsonMode ? 0.15 : 0.4, maxOutputTokens: 4096 };
-  if(jsonMode) genCfg.responseMimeType = "application/json";
-  const body = {
-    system_instruction: { parts: [{ text: systemText }] },
-    contents: [{ role:"user", parts:[{ text: userText }] }],
-    generationConfig: genCfg,
-  };
-  /* Web検索を許可すると、URLしか無い案件でも実際の内容を調べられる */
-  if(useSearch) body.tools = [{ google_search: {} }];
-
-  const send = async b => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
-    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(b),
-  });
-
-  let res = await send(body);
-
-  /* 429 (レート制限) は待って自動リトライ。最後は軽量モデルに切替える */
-  for(let attempt = 0; res.status === 429 && attempt < 3; attempt++){
-    const err = await res.clone().json().catch(()=>({}));
-    const msg = err?.error?.message || "";
-    if(attempt === 2 && model !== "gemini-2.5-flash-lite"){
-      model = "gemini-2.5-flash-lite";
-      if(onStatus) onStatus("混雑中 — 軽量モデルに切替えます…");
-      gemLastAt = Date.now();
-      res = await send(body);
-      break;
-    }
-    let wait = retryAfterSec(err, msg) || (12 * (attempt + 1));
-    wait = Math.min(wait + 1, 60);
-    for(let s = wait; s > 0; s--){
-      if(onStatus) onStatus(`混雑中 — ${s}秒後に自動で再試行します…`);
-      await sleep(1000);
-    }
-    if(onStatus) onStatus("再試行しています…");
-    gemLastAt = Date.now();
-    res = await send(body);
-  }
-
-  if(!res.ok && useSearch){
-    /* 検索非対応のモデルなら検索なしで再試行 */
-    delete body.tools;
-    res = await send(body);
-  }
-  if(!res.ok){
-    const err = await res.json().catch(()=>({}));
-    let m = err?.error?.message || `API error ${res.status}`;
-    if(res.status === 429) m = "無料枠の上限に達しました。しばらく時間をおいてからお試しください (1分あたり20回・1日あたりの上限があります)";
-    throw new Error(m);
-  }
-  const data = await res.json();
-  const cand = data?.candidates?.[0];
-  let text = cand?.content?.parts?.map(p=>p.text).filter(Boolean).join("") || "";
-  if(!text) throw new Error("応答が空でした (安全フィルタの可能性)");
-  /* 検索で参照したページを根拠として添える */
-  const chunks = cand?.groundingMetadata?.groundingChunks || [];
-  const cites = chunks.map(c=>c.web).filter(w=>w && w.uri);
-  if(cites.length){
-    const uniq = [...new Map(cites.map(w=>[w.uri, w])).values()].slice(0,5);
-    text += "\n\n## 🌐 AIが参照したページ\n" + uniq.map(w=>`・${w.title || w.uri}`).join("\n");
-  }
-  return text;
-}
-
+/* ================= 共通 ================= */
 const nowJa = () => new Date().toLocaleString("ja-JP");
-
-function projectContext(p){
-  return [
-    `プロジェクト名: ${p.name}`,
-    `チェーン/カテゴリ: ${p.chain || "不明"}`,
-    `期限: ${p.deadline ? fmtDeadline(p.deadline) : "未定"} (現在日時: ${nowJa()})`,
-    `状態: ${p.status==="done"?"完了":"未完了"}${p.pinned?" / ピン留め中":""}`,
-    `メモ・タスク: ${p.memo || "(なし)"}`,
-    `情報ソース:`,
-    ...(p.sources||[]).map((s,i)=>`  [${i+1}] ${s.title||""} ${s.url||""}`.trim()),
-    (p.sources||[]).length ? "" : "  (ソース未登録)",
-  ].join("\n");
-}
-
-const ANALYZE_SYS = `あなたは暗号資産のエアドロップ・キャンペーン管理を手伝う有能なAIです。
-
-【最重要】登録情報が乏しい場合は、まずWeb検索でそのプロジェクトの実態を調べてください。
-プロジェクト名・URL内のアカウント名やドメイン・メモの語句を手がかりに、
-「何のプロジェクトか」「参加条件」「締切」「公式サイト」を特定します。
-調べても分からない項目は、当て推量で埋めず「不明」と正直に書いてください。
-「投稿を確認する」「アカウントをフォローする」のような中身のない一般論は禁止です。
-
-出力は必ず次の3セクション:
-## 📌 優先タスク
-(判明した参加条件をもとに、今やるべき具体的行動を箇条書き2〜4個。
- 期限と現在日時を踏まえる。条件が不明なら「何を確認すべきか」を具体的に書く)
-## ⚠️ リスク・注意点
-(Sybilリスク、有料パスの要否、詐欺・偽サイトの可能性、期限切れ等。箇条書き1〜3個)
-## 🔗 根拠
-(各提案の根拠を明示。ユーザー提供ソースは[番号]、検索で得た情報は「検索:」、
- 一般知識による推測は「推測:」と明記して区別する)
-
-装飾は最小限、日本語で、全体で500字以内を目安に。`;
-
-async function analyzeProject(p, btn){
-  const orig = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = `<span class="spin"></span> 解析中…`;
-  const status = s => { btn.innerHTML = `<span class="spin"></span> ${esc(s)}`; };
-  try{
-    const text = await callGemini(projectContext(p), ANALYZE_SYS, false, true, status);
-    p.ai = { text, model: state.settings.model, at: nowJa() };
-    save(); renderProjects(); toast("AI解析が完了しました");
-  }catch(err){
-    toast("AI解析エラー: " + err.message);
-    btn.disabled = false; btn.innerHTML = orig;
-  }
-}
-
-/* ================= bulk register ================= */
-const BULK_SYS = () => `あなたは雑多なテキストから暗号資産プロジェクト/キャンペーン予定を抽出する専門家です。現在日時: ${nowJa()}
-入力テキストから予定を抽出し、次のスキーマのJSON配列のみを出力してください。
-[{"name":"プロジェクト名","chain":"チェーンやカテゴリ(不明なら\\"不明\\")","deadline":"YYYY-MM-DDTHH:MM形式。不明なら空文字。時刻不明なら23:59。「5/7まで」等の相対表現は現在日時から補完","memo":"やるべきタスク・条件の要約(日本語・簡潔)","sources":[{"url":"テキスト中のURL","title":"ソースの説明"}]}]
-ルール: 予定が1つでも配列で返す / URLが無ければsourcesは空配列 / 予定と判断できる情報が無ければ [] を返す / JSON以外の文章は一切出力しない`;
-
-let bulkItems = [];
-function renderBulkPreview(){
-  const box = $("#bulkPreview");
-  if(!bulkItems.length){ box.innerHTML = ""; $("#bulkAdd").disabled = true; return; }
-  const existing = new Set(state.projects.map(p=>p.name.trim().toLowerCase()));
-  box.innerHTML = `<label style="margin-bottom:6px">解析結果 (${bulkItems.length}件) — 登録するものを選択:</label>` +
-    bulkItems.map((it,i)=>{
-      const dup = existing.has((it.name||"").trim().toLowerCase());
-      return `<label class="check" style="align-items:flex-start; padding:8px 10px; border:1px solid var(--border); border-radius:10px; margin-bottom:6px">
-        <input type="checkbox" data-i="${i}" ${dup?"":"checked"} style="margin-top:4px">
-        <span><b>${esc(it.name||"(名称不明)")}</b>
-          ${it.chain?`<span class="badge chain">${esc(it.chain)}</span>`:""}
-          ${dup?`<span class="badge due-soon">⚠ 同名が登録済み</span>`:""}
-          <br><span style="font-size:12px; color:var(--muted)">期限: ${it.deadline?esc(fmtDeadline(it.deadline)):"未定"}${it.memo?` ／ ${esc(it.memo.slice(0,80))}`:""}${(it.sources||[]).length?` ／ 🔗${it.sources.length}件`:""}</span>
-        </span></label>`;
-    }).join("");
-  $("#bulkAdd").disabled = false;
-}
-$("#btnBulk").addEventListener("click", ()=>{
-  bulkItems = []; $("#bulkText").value = ""; $("#bulkStatus").textContent = "";
-  renderBulkPreview(); $("#bulkDialog").showModal();
-});
-$("#bulkCancel").addEventListener("click", ()=>$("#bulkDialog").close());
-$("#bulkParse").addEventListener("click", async e=>{
-  const text = $("#bulkText").value.trim();
-  if(!text){ toast("テキストを貼り付けてください"); return; }
-  const btn = e.target; btn.disabled = true;
-  $("#bulkStatus").innerHTML = `<span class="spin"></span> AIが解析中…`;
-  try{
-    const raw = await callGemini(text, BULK_SYS(), true, false,
-      s => { $("#bulkStatus").innerHTML = `<span class="spin"></span> ${esc(s)}`; });
-    let arr;
-    try{ arr = JSON.parse(raw); }
-    catch(_){ const m = raw.match(/\[[\s\S]*\]/); arr = m ? JSON.parse(m[0]) : []; }
-    if(!Array.isArray(arr)) arr = [];
-    bulkItems = arr.filter(x=>x && x.name).map(x=>({
-      name: String(x.name), chain: String(x.chain||""), deadline: String(x.deadline||""),
-      memo: String(x.memo||""),
-      sources: Array.isArray(x.sources) ? x.sources.filter(s=>s&&(s.url||s.title)).map(s=>({url:String(s.url||""), title:String(s.title||"")})) : [],
-    }));
-    $("#bulkStatus").textContent = bulkItems.length ? `✅ ${bulkItems.length}件を抽出しました` : "予定を抽出できませんでした";
-    renderBulkPreview();
-  }catch(err){
-    $("#bulkStatus").textContent = "❌ " + err.message;
-  }
-  btn.disabled = false;
-});
-$("#bulkAdd").addEventListener("click", ()=>{
-  const checked = $$("#bulkPreview input:checked").map(c=>bulkItems[+c.dataset.i]);
-  if(!checked.length){ toast("登録する項目を選択してください"); return; }
-  const added = checked.map(it => Object.assign({ id: uid(), status:"open", pinned:false, createdAt: new Date().toISOString() }, it));
-  state.projects.push(...added);
-  save(); renderProjects(); $("#bulkDialog").close();
-  toast(`${checked.length}件を登録しました`);
-  afterProjectsAdded(added);
-});
 
 /* ================= 外部AI連携 ================= */
 const AI_PURPOSE = {
@@ -1521,46 +1205,6 @@ $("#aiApply").addEventListener("click", ()=>{
         + (guarded ? ` (Telegramでの変更${guarded}件を保護)` : ""));
   news.length ? afterProjectsAdded(news) : scheduleGasSync();
 });
-
-/* ================= chat ================= */
-const CHAT_SYS = () => `あなたは「予定管理」というアプリのAIアシスタントです。ユーザーの暗号資産プロジェクト予定を把握し、日本語で簡潔・実用的に助言します。
-現在日時: ${nowJa()}
-登録プロジェクト一覧:
-${state.projects.map(p=>`- ${p.name} | ${p.chain||"不明"} | 期限:${p.deadline?fmtDeadline(p.deadline):"未定"} | ${p.status==="done"?"完了":"未完了"}${p.pinned?" | 📌":""}${p.memo?` | メモ:${p.memo.slice(0,120)}`:""}`).join("\n") || "(なし)"}
-回答の根拠(どのプロジェクト情報・一般知識か)を末尾に一言添えてください。`;
-
-function renderChat(){
-  const log = $("#chatLog");
-  log.innerHTML = state.chat.map(m =>
-    m.role==="user"
-      ? `<div class="msg user">${esc(m.text)}</div>`
-      : `<div class="msg ai"><div class="ai-content">${mdLite(m.text)}</div></div>`
-  ).join("");
-  log.scrollTop = log.scrollHeight;
-}
-async function sendChat(){
-  const ta = $("#chatText");
-  const text = ta.value.trim(); if(!text) return;
-  ta.value = "";
-  state.chat.push({role:"user", text}); renderChat();
-  const log = $("#chatLog");
-  log.insertAdjacentHTML("beforeend", `<div class="msg ai" id="chatWait"><span class="spin"></span> 考え中…</div>`);
-  log.scrollTop = log.scrollHeight;
-  try{
-    const history = state.chat.slice(-10).map(m=>`${m.role==="user"?"ユーザー":"AI"}: ${m.text}`).join("\n");
-    const reply = await callGemini(history, CHAT_SYS(), false, true,
-      s => { const w = $("#chatWait"); if(w) w.innerHTML = `<span class="spin"></span> ${esc(s)}`; });
-    state.chat.push({role:"ai", text: reply});
-  }catch(err){
-    state.chat.push({role:"ai", text: "⚠️ " + err.message});
-  }
-  save(); renderChat();
-}
-$("#chatFab").addEventListener("click", ()=>{ $("#chatPanel").classList.add("open"); $("#chatFab").style.display="none"; renderChat(); $("#chatText").focus(); });
-$("#chatClose").addEventListener("click", ()=>{ $("#chatPanel").classList.remove("open"); $("#chatFab").style.display="flex"; });
-$("#chatClear").addEventListener("click", ()=>{ state.chat = []; save(); renderChat(); });
-$("#chatSend").addEventListener("click", sendChat);
-$("#chatText").addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendChat(); } });
 
 /* ================= Polymarket ================= */
 let polyCache = [], polyTgeCache = null, polyMode = "top";
@@ -2250,7 +1894,8 @@ $("#gasSync").addEventListener("click", async ()=>{
 /* ================= settings ================= */
 function loadSettingsUI(){
   $("#setKey").value = state.settings.key || "";
-  $("#setModel").value = state.settings.model || "gemini-2.5-flash";
+  const models = $$("#setModel option").map(o=>o.value);
+  $("#setModel").value = models.includes(state.settings.model) ? state.settings.model : "gemini-2.5-flash-lite";
   $("#fredKey").value = state.settings.fredKey || "";
   $("#tgToken").value = state.settings.tgToken || "";
   $("#tgChat").value = state.settings.tgChat || "";
@@ -2263,23 +1908,11 @@ function loadSettingsUI(){
 $("#keyEye").addEventListener("click", ()=>{
   const k = $("#setKey"); k.type = k.type==="password" ? "text" : "password";
 });
-$("#btnSaveSet").addEventListener("click", ()=>{
-  state.settings.key = $("#setKey").value.trim();
-  state.settings.model = $("#setModel").value;
-  save(); toast("設定を保存しました");
-});
-$("#btnTestAI").addEventListener("click", async e=>{
-  state.settings.key = $("#setKey").value.trim();
-  state.settings.model = $("#setModel").value;
-  save();
-  const r = $("#testResult");
-  r.innerHTML = `<span class="spin"></span>`;
-  try{
-    await callGemini("OKとだけ返答してください。", "テスト");
-    r.textContent = "✅ 接続OK"; r.style.color = "var(--ok)";
-  }catch(err){
-    r.textContent = "❌ " + err.message; r.style.color = "var(--danger)";
-  }
+/* Gemini APIキー (Telegram登録の解析用) は入力した時点で保存 */
+["setKey","setModel"].forEach(id=>{
+  const el = $("#"+id); if(!el) return;
+  const fn = ()=>{ state.settings.key = $("#setKey").value.trim(); state.settings.model = $("#setModel").value; save({silent:true}); };
+  el.addEventListener("input", fn); el.addEventListener("change", fn);
 });
 
 /* ================= tabs & init ================= */
