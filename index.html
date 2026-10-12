@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>予定管理</title>
+<script>
+/* 読み込み直後に配色を決めて、一瞬だけ濃紺が見えるのを防ぐ */
+try{ const s = JSON.parse(localStorage.getItem("sakiyomi_v1") || "{}");
+     document.documentElement.dataset.theme = (s.settings && s.settings.theme) || "light"; }
+catch(e){ document.documentElement.dataset.theme = "light"; }
+</script>
 <style>
 :root{
   --bg:#0b0f1a; --panel:#121a2c; --card:#171f36; --card2:#1c2540;
@@ -11,9 +17,25 @@
   --accent:#5b8cff; --accent2:#38d9c0; --danger:#ff6b81; --warn:#ffb454;
   --ok:#3ecf8e; --pin:#ff7ab8;
   --radius:14px;
+  --hdr:rgba(11,15,26,.85); --hover:#35476f;
+  --tint-danger:rgba(255,107,129,.14); --tint-warn:rgba(255,180,84,.14);
+  --tint-ok:rgba(62,207,142,.14); --tint-pin:rgba(255,122,184,.14); --tint-accent:rgba(91,140,255,.14);
 }
+/* ---------- 明るい配色 ---------- */
+:root[data-theme="light"]{
+  --bg:#f3f5fa; --panel:#ffffff; --card:#ffffff; --card2:#eef1f7;
+  --border:#d8deea; --text:#1c2333; --muted:#566179; --dim:#8a93a8;
+  --accent:#3b67d9; --accent2:#0e8f7b; --danger:#d23c56; --warn:#b86e00;
+  --ok:#1b8f5a; --pin:#c83f7c;
+  --hdr:rgba(255,255,255,.92); --hover:#b8c3d9;
+  --tint-danger:#fdecef; --tint-warn:#fdf2e1; --tint-ok:#e6f5ec; --tint-pin:#fbe9f1; --tint-accent:#e9effc;
+}
+:root[data-theme="light"] body{ background:var(--bg); }
+:root[data-theme="light"] .fng-cursor{ background:var(--text); }
 *{box-sizing:border-box; margin:0; padding:0}
-html{scrollbar-color:#2b3a5e var(--bg)}
+html{scrollbar-color:var(--sb) var(--bg)}
+:root{--sb:#2b3a5e}
+:root[data-theme="light"]{--sb:#c3cbdb}
 body{
   background:radial-gradient(1200px 600px at 80% -10%, #16224a 0%, var(--bg) 55%);
   color:var(--text); min-height:100vh;
@@ -34,7 +56,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 /* ---------- header ---------- */
 header{
   position:sticky; top:0; z-index:50;
-  background:rgba(11,15,26,.85); backdrop-filter:blur(12px);
+  background:var(--hdr); backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);
 }
 .head-inner{
@@ -56,7 +78,8 @@ header{
 }
 .stat b{color:var(--text); margin-left:4px}
 .stat.alert b{color:var(--warn)}
-nav.tabs{display:flex; gap:4px; margin-top:12px; overflow-x:auto}
+nav.tabs{display:flex; gap:4px; margin-top:12px; overflow-x:auto; scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
 nav.tabs button{
   background:none; border:none; color:var(--muted); font-size:14.5px;
   padding:10px 16px 12px; border-bottom:2.5px solid transparent; white-space:nowrap;
@@ -84,7 +107,7 @@ section.tab.active{display:block; animation:fadein .18s ease}
   display:inline-flex; align-items:center; gap:7px; transition:filter .15s;
 }
 .btn:hover{filter:brightness(1.2)}
-.btn.primary{background:linear-gradient(135deg,var(--accent),#3f6fe0); border:none; font-weight:600}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#3f6fe0); border:none; font-weight:600; color:#fff}
 .btn.ghost{background:none}
 .btn.small{padding:5px 11px; font-size:12.5px; border-radius:8px}
 .btn.danger{color:var(--danger)}
@@ -96,9 +119,67 @@ section.tab.active{display:block; animation:fadein .18s ease}
   background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
   padding:16px 18px; transition:border-color .15s;
 }
-.pcard:hover{border-color:#35476f}
-.pcard.pinned{border-left:3.5px solid var(--pin)}
-.pcard.done{opacity:.55}
+.pcard:hover{border-color:var(--hover)}
+.pcard.done{opacity:.6}
+/* 急ぎ具合で左端を色分け */
+.pcard.g-red{border-left:5px solid var(--danger)}
+.pcard.g-amber{border-left:5px solid var(--warn)}
+.pcard.g-pin{border-left:5px solid var(--pin)}
+.pcard.g-gray{border-left:5px solid var(--border)}
+.grp-head{display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:var(--muted);
+  margin:18px 2px 8px; letter-spacing:.02em}
+.grp-head:first-child{margin-top:4px}
+.grp-head .cnt{font-weight:600; color:var(--dim)}
+.grp-head.red{color:var(--danger)} .grp-head.amber{color:var(--warn)} .grp-head.pin{color:var(--pin)}
+details.grp-done > summary{list-style:none; cursor:pointer}
+details.grp-done > summary::-webkit-details-marker{display:none}
+details.grp-done > summary::before{content:"▶"; font-size:10px; margin-right:2px; transition:transform .15s}
+details.grp-done[open] > summary::before{transform:rotate(90deg)}
+/* 1行表示 */
+.plist.compact .pcard{padding:9px 14px}
+.plist.compact .psources, .plist.compact .pmemo, .plist.compact .pfoot{display:none}
+.plist.compact .pname{font-size:15px}
+.act-done{display:none}
+.plist.compact .act-done{display:inline-block}
+.flash{animation:flash 1.4s ease}
+@keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+
+/* ---------- HOME ---------- */
+.home-grid{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:14px; margin-bottom:14px}
+.hcard{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px}
+.hlabel{font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:6px}
+.hello{display:flex; align-items:center; gap:14px; margin-bottom:14px}
+.hello .face{width:46px; height:46px; border-radius:50%; flex:none; display:grid; place-items:center; font-size:22px;
+  background:var(--tint-accent)}
+.hello .say{font-size:16.5px; font-weight:700; line-height:1.5}
+.hello .sub{font-size:12px; color:var(--muted)}
+.notice{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px dashed var(--border); cursor:pointer}
+.notice:first-of-type{border-top:none; padding-top:2px}
+.notice:hover .ntext{text-decoration:underline}
+.ntag{font-size:12px; font-weight:700; padding:3px 9px; border-radius:7px; white-space:nowrap; flex:none}
+.t-danger{background:var(--tint-danger); color:var(--danger)}
+.t-warn{background:var(--tint-warn); color:var(--warn)}
+.t-ok{background:var(--tint-ok); color:var(--ok)}
+.t-pin{background:var(--tint-pin); color:var(--pin)}
+.t-accent{background:var(--tint-accent); color:var(--accent)}
+.metrics{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.metric{border-radius:12px; padding:12px 14px; background:var(--card2); cursor:pointer}
+.metric .mlab{font-size:12px; font-weight:700; color:var(--muted)}
+.metric .mnum{font-size:30px; font-weight:800; line-height:1.2}
+.metric.t-danger .mlab, .metric.t-danger .mnum{color:var(--danger)}
+.metric.t-ok .mlab, .metric.t-ok .mnum{color:var(--ok)}
+.gauge{height:12px; border-radius:99px; background:var(--card2); overflow:hidden; margin-top:4px}
+.gauge > div{height:100%; border-radius:99px; transition:width .4s}
+.todo{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px dashed var(--border); cursor:pointer}
+.todo:first-of-type{border-top:none; padding-top:2px}
+.todo .tname{font-weight:700}
+.todo .tmemo{font-size:12.5px; color:var(--muted)}
+.home-menu{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px}
+.home-menu button{border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:12px;
+  padding:12px 10px; text-align:left; font-size:14px; font-weight:700}
+.home-menu button small{display:block; font-size:11.5px; font-weight:500; color:var(--muted)}
+.home-menu button:hover{border-color:var(--accent)}
+@media (max-width:760px){ .home-grid{grid-template-columns:1fr} .home-menu{grid-template-columns:1fr 1fr} }
 .pcard-top{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap}
 .pname{font-size:16.5px; font-weight:700}
 .pname .strike{text-decoration:line-through}
@@ -207,23 +288,57 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <h1>予定管理<small id="appVer"></small></h1>
       <div class="stats">
         <span class="stat">未完了<b id="stOpen">-</b></span>
-        <span class="stat alert">期限7日以内<b id="stSoon">-</b></span>
+        <span class="stat alert">7日以内・超過<b id="stSoon">-</b></span>
         <span class="stat">ピン<b id="stPin">-</b></span>
       </div>
     </div>
     <nav class="tabs">
-      <button data-tab="projects" class="active">📋 よてい</button>
+      <button data-tab="home" class="active">🏠 HOME</button>
+      <button data-tab="projects">📋 よてい</button>
       <button data-tab="poly">📊 Polymarket</button>
       <button data-tab="btc">₿ BTCマクロ</button>
       <button data-tab="settings">⚙️ 設定</button>
+      <button id="themeBtn" title="配色を切り替え" style="margin-left:auto">🌙</button>
     </nav>
   </div>
 </header>
 
 <main>
 
+<!-- ============ HOME ============ -->
+<section class="tab active" id="tab-home">
+  <div class="hcard hello">
+    <div class="face">🔮</div>
+    <div><div class="sub" id="hDate"></div><div class="say" id="hSay"></div></div>
+  </div>
+  <div class="home-grid">
+    <div class="hcard">
+      <div class="hlabel">🔔 おしらせ</div>
+      <div id="hNotice"></div>
+    </div>
+    <div class="metrics" id="hMetrics"></div>
+  </div>
+  <div class="hcard" style="margin-bottom:14px">
+    <div class="hlabel" style="justify-content:space-between; margin-bottom:4px">
+      <span>📅 期限が入っている案件</span><span id="hGaugeTxt" style="color:var(--text)"></span>
+    </div>
+    <div class="gauge"><div id="hGauge"></div></div>
+    <div class="hint" id="hGaugeHint" style="margin-top:6px"></div>
+  </div>
+  <div class="hcard" style="margin-bottom:14px">
+    <div class="hlabel">✅ 今日やること</div>
+    <div id="hTodo"></div>
+  </div>
+  <div class="home-menu">
+    <button data-go="ai">🤖 AIに渡す<small>Web版AIへコピー</small></button>
+    <button data-go="import">📥 結果を取り込む<small>AIの回答を貼る</small></button>
+    <button data-go="list">📋 一覧を見る<small>全案件</small></button>
+    <button data-go="settings">⚙️ 設定<small>通知・同期</small></button>
+  </div>
+</section>
+
 <!-- ============ projects ============ -->
-<section class="tab active" id="tab-projects">
+<section class="tab" id="tab-projects">
   <div class="toolbar">
     <input class="search" id="pSearch" placeholder="🔍 プロジェクト検索…">
     <div class="chips" id="pFilters">
@@ -233,6 +348,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <button class="chip" data-f="soon">⏰ 期限間近</button>
       <button class="chip" data-f="done">完了</button>
     </div>
+    <button class="chip" id="compactBtn" title="1件を1行で表示">☰ 1行表示</button>
     <button class="btn" id="btnAiExport">🤖 AIに渡す</button>
     <button class="btn primary" id="btnAdd">＋ 追加</button>
   </div>
@@ -467,9 +583,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.10.11";
+const APP_VERSION = "2026.10.12";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.10.10";
+const MIN_GAS_VERSION = "2026.10.12";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -489,6 +605,11 @@ function normalizeProjects(){
     if(!p.status) p.status = "open";
     p.pinned = !!p.pinned;
     if(!Array.isArray(p.sources)) p.sources = [];
+    /* 危険なリンク (javascript: など) を除く。http/https 以外のURLは文字だけ残す */
+    p.sources = p.sources.filter(x=>x && (x.url || x.title)).map(x=>{
+      const url = String(x.url||"").trim();
+      return /^https?:\/\//i.test(url) ? { url, title:String(x.title||"") } : { url:"", title:String(x.title || url) };
+    });
     if(p.ai){ delete p.ai; fixed++; }   /* 廃止したアプリ内AI解析の結果を片付ける */
   }
   state.projects = state.projects.filter(p=>p && typeof p==="object" && p.name);
@@ -522,9 +643,15 @@ function toast(msg){
 function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 /* ================= dates ================= */
+/* 残り日数をカレンダーの日付で数える (0=今日, 1=明日, -1=昨日)。
+   時間で割ると「明日9時締切」が今日の10時に「本日まで」になってしまうため */
 function daysLeft(iso){
   if(!iso) return null;
-  return Math.floor((new Date(iso) - Date.now()) / 86400000);
+  const d = new Date(iso); if(isNaN(d)) return null;
+  const n = new Date();
+  const a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const b = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  return Math.round((a - b) / 86400000);
 }
 function fmtDeadline(iso){
   if(!iso) return "未定";
@@ -536,7 +663,9 @@ function dueBadge(p){
   if(p.status === "done") return "";
   if(!p.deadline) return `<span class="badge">期限未定</span>`;
   const dl = daysLeft(p.deadline);
-  if(dl < 0)  return `<span class="badge due-over">⛔ 期限切れ (${fmtDeadline(p.deadline)})</span>`;
+  if(dl < 0)  return `<span class="badge due-over">⛔ ${-dl}日超過 (${fmtDeadline(p.deadline)})</span>`;
+  if(dl === 0) return `<span class="badge due-over">🚨 本日まで (${fmtDeadline(p.deadline)})</span>`;
+  if(dl === 1) return `<span class="badge due-over">⚠️ 明日まで (${fmtDeadline(p.deadline)})</span>`;
   if(dl <= 7) return `<span class="badge due-soon">⏰ あと${dl}日 (${fmtDeadline(p.deadline)})</span>`;
   return `<span class="badge due-ok">📅 あと${dl}日 (${fmtDeadline(p.deadline)})</span>`;
 }
@@ -562,10 +691,11 @@ function srcLabel(s){
 function sortProjects(list){
   return list.slice().sort((a,b)=>{
     if(a.status!==b.status) return a.status==="done" ? 1 : -1;
-    if(a.pinned!==b.pinned) return a.pinned ? -1 : 1;
     const ad = a.deadline ? +new Date(a.deadline) : Infinity;
     const bd = b.deadline ? +new Date(b.deadline) : Infinity;
-    return ad - bd;
+    if(ad !== bd) return ad - bd;
+    if(a.pinned!==b.pinned) return a.pinned ? -1 : 1;
+    return 0;
   });
 }
 
@@ -593,12 +723,12 @@ function renderProjects(){
       renderProjects();
     });
   }else{
-    box.innerHTML = list.map(p=>{
+    const card = (p, g) => {
       const srcs = (p.sources||[]).map(s=> s.url
         ? `<a class="src-chip" href="${esc(s.url)}" target="_blank" rel="noopener">🔗 ${esc(srcLabel(s))}</a>`
         : `<span class="src-chip">📝 ${esc(s.title)}</span>`).join("");
       return `
-      <div class="pcard ${p.pinned?"pinned":""} ${p.status==="done"?"done":""}" data-id="${p.id}">
+      <div class="pcard g-${g} ${p.status==="done"?"done":""}" data-id="${p.id}">
         <div class="pcard-top">
           <input type="checkbox" class="psel" data-sel="${p.id}" title="AIに渡す対象として選択"
             style="width:auto; margin-top:5px; flex:none" ${selected.has(p.id)?"checked":""}>
@@ -609,6 +739,7 @@ function renderProjects(){
             ${p.status==="done"?`<span class="badge due-ok">✅ 完了</span>`:dueBadge(p)}
           </div>
           <div class="pactions">
+            <button class="icon-btn act-done" data-act="toggle" title="${p.status==="done"?"未完了に戻す":"完了にする"}">${p.status==="done"?"↩":"✅"}</button>
             <button class="icon-btn ${p.pinned?"on":""}" data-act="pin" title="ピン留め">📌</button>
             <button class="icon-btn" data-act="edit" title="編集">✏️</button>
             <button class="icon-btn" data-act="del" title="削除">🗑</button>
@@ -620,7 +751,24 @@ function renderProjects(){
           <button class="btn small" data-act="toggle">${p.status==="done"?"↩ 未完了に戻す":"✅ 完了にする"}</button>
         </div>
       </div>`;
-    }).join("");
+    };
+    /* 急ぎ具合でグループに分ける */
+    const groups = { red:[], amber:[], pin:[], gray:[], done:[] };
+    for(const p of list) groups[urgency(p)].push(p);
+    const head = (cls, label, n) => `<div class="grp-head ${cls}">${label}<span class="cnt">(${n})</span></div>`;
+    let html = "";
+    if(groups.red.length)   html += head("red",   "⚠ 期限切れ・3日以内", groups.red.length)   + groups.red.map(p=>card(p,"red")).join("");
+    if(groups.amber.length) html += head("amber", "⏰ 7日以内",          groups.amber.length) + groups.amber.map(p=>card(p,"amber")).join("");
+    if(groups.pin.length)   html += head("pin",   "📌 重要",             groups.pin.length)   + groups.pin.map(p=>card(p,"pin")).join("");
+    if(groups.gray.length)  html += head("",      "● その他",            groups.gray.length)  + groups.gray.map(p=>card(p,"gray")).join("");
+    if(groups.done.length){
+      const openAttr = (doneOpen || filter==="done") ? "open" : "";
+      html += `<details class="grp-done" ${openAttr}><summary class="grp-head">✓ 完了<span class="cnt">(${groups.done.length})</span></summary>`
+           +  groups.done.map(p=>card(p,"gray")).join("") + `</details>`;
+    }
+    box.innerHTML = html;
+    const det = box.querySelector("details.grp-done");
+    if(det) det.addEventListener("toggle", ()=>{ doneOpen = det.open; });
     if(hidden > 0) box.insertAdjacentHTML("beforeend",
       `<div class="hint" style="text-align:center; padding:6px">絞り込みにより ${hidden}件 を非表示中 (登録は全${state.projects.length}件)</div>`);
   }
@@ -628,9 +776,147 @@ function renderProjects(){
   $("#stOpen").textContent = open.length;
   $("#stSoon").textContent = open.filter(p=>{const d=daysLeft(p.deadline); return p.deadline&&d!==null&&d<=7;}).length;
   $("#stPin").textContent = state.projects.filter(p=>p.pinned).length;
+  $("#projectList").classList.toggle("compact", !!state.settings.compact);
+  /* 削除・全置き換えで消えた案件を選択状態から外す (件数表示のずれ防止) */
+  const live = new Set(state.projects.map(p=>p.id));
+  [...selected].forEach(id=>{ if(!live.has(id)) selected.delete(id); });
   updateAiBtn();
   renderGasStatus();
+  renderHome();
 }
+
+/* 案件の急ぎ具合: red=期限切れ・3日以内 / amber=7日以内 / pin=重要 / gray=その他 / done=完了 */
+function urgency(p){
+  if(p.status==="done") return "done";
+  const d = p.deadline ? daysLeft(p.deadline) : null;
+  if(d !== null && d <= 3) return "red";
+  if(d !== null && d <= 7) return "amber";
+  if(p.pinned) return "pin";
+  return "gray";
+}
+let doneOpen = false;
+
+/* ================= HOME ================= */
+function renderHome(){
+  if(!$("#hSay")) return;
+  const now = new Date();
+  const open = state.projects.filter(p=>p.status!=="done");
+  const withD = open.filter(p=>p.deadline).map(p=>({ p, d: daysLeft(p.deadline) }));
+  const overdue  = withD.filter(x=>x.d < 0).sort((a,b)=>a.d-b.d);
+  const today    = withD.filter(x=>x.d === 0);
+  const tomorrow = withD.filter(x=>x.d === 1);
+  const soon3    = withD.filter(x=>x.d >= 2 && x.d <= 3);
+  const within7  = withD.filter(x=>x.d <= 7).length;
+  const pinned   = open.filter(p=>p.pinned);
+  const weekAgo  = Date.now() - 7*86400000;
+  const doneWeek = state.projects.filter(p=>p.status==="done" && p.doneAt && Date.parse(p.doneAt) >= weekAgo).length;
+
+  /* ひとこと */
+  $("#hDate").textContent = `${now.getMonth()+1}/${now.getDate()} (${"日月火水木金土"[now.getDay()]})`;
+  const h = now.getHours();
+  const greet = h < 5 ? "こんばんは" : h < 11 ? "おはようございます" : h < 18 ? "こんにちは" : "こんばんは";
+  let say;
+  if(today.length)         say = `今日が締切の案件が${today.length}件あります。まずは「${today[0].p.name}」から片付けましょう`;
+  else if(overdue.length)  say = `期限を過ぎた案件が${overdue.length}件あります。「${overdue[0].p.name}」を確認しましょう`;
+  else if(tomorrow.length) say = `明日が締切の案件が${tomorrow.length}件あります。「${tomorrow[0].p.name}」は今日のうちに`;
+  else if(tgInbox.length)  say = `Telegramでの変更が${tgInbox.length}件たまっています。Web版AIに渡しておきましょう`;
+  else if(pinned.length)   say = `急ぎの締切はありません。重要案件の「${pinned[0].name}」から進めましょう`;
+  else if(open.length)     say = `急ぎの案件はありません。期限を入れると通知が届くようになります`;
+  else                     say = `登録されている案件はありません。Web版AIから取り込んでみましょう`;
+  $("#hSay").textContent = `${greet}。${say}`;
+
+  /* おしらせ */
+  const N = [];
+  const nItem = (cls, tag, text, attr) => `<div class="notice" ${attr}><span class="ntag ${cls}">${tag}</span><span class="ntext">${esc(text)}</span></div>`;
+  today.forEach(x   => N.push(nItem("t-danger", "本日まで", x.p.name, `data-pid="${x.p.id}"`)));
+  tomorrow.forEach(x=> N.push(nItem("t-danger", "明日まで", x.p.name, `data-pid="${x.p.id}"`)));
+  overdue.forEach(x => N.push(nItem("t-danger", `${-x.d}日超過`, x.p.name, `data-pid="${x.p.id}"`)));
+  soon3.forEach(x   => N.push(nItem("t-warn", `あと${x.d}日`, x.p.name, `data-pid="${x.p.id}"`)));
+  if(tgInbox.length) N.push(nItem("t-warn", `受信箱 ${tgInbox.length}件`, "Telegramでの変更をWeb版AIへ", `data-go="ai"`));
+  if(state.settings.gasError) N.push(nItem("t-danger", "同期エラー", state.settings.gasError.slice(0,60), `data-go="settings"`));
+  const sv = state.settings.gasVersion || "";
+  if(state.settings.gasUrl && sv && sv < MIN_GAS_VERSION) N.push(nItem("t-warn", "要更新", "サーバー(Apps Script)が古い版です", `data-go="settings"`));
+  $("#hNotice").innerHTML = N.length
+    ? N.slice(0,7).join("") + (N.length > 7 ? `<div class="hint">ほか ${N.length-7}件</div>` : "")
+    : nItem("t-ok", "問題なし", "急ぎのおしらせはありません", "");
+
+  /* 数字 */
+  const m = (cls, lab, num, go) => `<div class="metric ${cls}" data-go="${go}"><div class="mlab">${lab}</div><div class="mnum">${num}</div></div>`;
+  $("#hMetrics").innerHTML =
+      m("", "未完了", open.length, "f:open")
+    + m(within7 ? "t-danger" : "", "7日以内・超過", within7, "f:soon")
+    + m("", "期限未設定", open.length - withD.length, "f:open")
+    + m("t-ok", "7日間で完了", doneWeek, "f:done");
+
+  /* 期限の充実度 */
+  const pct = open.length ? Math.round(withD.length / open.length * 100) : 0;
+  $("#hGaugeTxt").textContent = `${withD.length} / ${open.length} 件 (${pct}%)`;
+  const g = $("#hGauge");
+  g.style.width = pct + "%";
+  g.style.background = pct >= 70 ? "var(--ok)" : pct >= 40 ? "var(--warn)" : "var(--danger)";
+  $("#hGaugeHint").textContent = pct >= 70
+    ? "十分です。期限が近づくとTelegramとメールでお知らせします"
+    : "期限が入ると通知が届くようになります。Web版AIに「期限を調べて」と頼むのがおすすめです";
+
+  /* 今日やること */
+  const seen = new Set(), todo = [];
+  const pushT = (p, why, cls) => { if(seen.has(p.id)) return; seen.add(p.id); todo.push({ p, why, cls }); };
+  today.forEach(x   => pushT(x.p, "本日まで", "t-danger"));
+  overdue.forEach(x => pushT(x.p, `${-x.d}日超過`, "t-danger"));
+  tomorrow.forEach(x=> pushT(x.p, "明日まで", "t-danger"));
+  pinned.forEach(p  => pushT(p, "重要", "t-pin"));
+  $("#hTodo").innerHTML = todo.length
+    ? todo.slice(0,6).map(t=>`<div class="todo" data-pid="${t.p.id}"><span class="ntag ${t.cls}">${t.why}</span>
+        <div><div class="tname">${esc(t.p.name)}</div>${t.p.memo?`<div class="tmemo">${esc(t.p.memo.slice(0,90))}</div>`:""}</div></div>`).join("")
+      + (todo.length > 6 ? `<div class="hint">ほか ${todo.length-6}件</div>` : "")
+    : `<div class="hint">今日やることはありません。案件をピン留めすると、ここに表示されます。</div>`;
+}
+
+/* HOMEのクリック: 案件へ移動 / 画面切替 / 絞り込み */
+function jumpToProject(id){
+  const p = state.projects.find(x=>x.id===id); if(!p) return;
+  filter = "all"; $("#pSearch").value = "";
+  $$("#pFilters .chip").forEach(x=>x.classList.toggle("active", x.dataset.f==="all"));
+  if(p.status==="done") doneOpen = true;
+  switchTab("projects"); renderProjects();
+  const c = $(`.pcard[data-id="${id}"]`);
+  if(c){ c.scrollIntoView({ behavior:"smooth", block:"center" }); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); }
+}
+$("#tab-home").addEventListener("click", e=>{
+  const pid = e.target.closest("[data-pid]");
+  if(pid){ jumpToProject(pid.dataset.pid); return; }
+  const go = e.target.closest("[data-go]"); if(!go) return;
+  const g = go.dataset.go;
+  if(g==="ai") $("#btnAiExport").click();
+  else if(g==="import"){ $("#btnAiExport").click(); const c = $('#aiDialog [data-ai-tab="in"]'); if(c) c.click(); }
+  else if(g==="list") switchTab("projects");
+  else if(g==="settings") switchTab("settings");
+  else if(g.startsWith("f:")){
+    filter = g.slice(2); $("#pSearch").value = "";
+    $$("#pFilters .chip").forEach(x=>x.classList.toggle("active", x.dataset.f===filter));
+    if(filter==="done") doneOpen = true;
+    switchTab("projects"); renderProjects();
+  }
+});
+
+/* ================= 配色・1行表示 ================= */
+function applyTheme(){
+  const t = state.settings.theme || "light";
+  document.documentElement.dataset.theme = t;
+  const b = $("#themeBtn");
+  if(b){ b.textContent = t==="light" ? "🌙" : "☀️"; b.title = t==="light" ? "濃紺の配色にする" : "明るい配色にする"; }
+}
+$("#themeBtn").addEventListener("click", ()=>{
+  state.settings.theme = (state.settings.theme || "light")==="light" ? "dark" : "light";
+  save({silent:true}); applyTheme();
+});
+function applyCompact(){
+  $("#compactBtn").classList.toggle("active", !!state.settings.compact);
+  $("#projectList").classList.toggle("compact", !!state.settings.compact);
+}
+$("#compactBtn").addEventListener("click", ()=>{
+  state.settings.compact = !state.settings.compact; save({silent:true}); applyCompact();
+});
 
 /* ---- card actions (delegate) ---- */
 $("#projectList").addEventListener("change", e=>{
@@ -653,6 +939,7 @@ $("#projectList").addEventListener("click", e=>{
   if(act==="pin"){ p.pinned=!p.pinned; save(); renderProjects(); scheduleGasSync(); }
   else if(act==="toggle"){
     p.status = p.status==="done"?"open":"done";
+    if(p.status==="done") p.doneAt = new Date().toISOString(); else delete p.doneAt;
     save(); renderProjects(); scheduleGasSync();
     /* 絞り込み中は一覧から外れるため、消えたと誤解されないよう明示する */
     const hiddenNow = (p.status==="done" && (filter==="open"||filter==="soon")) || (p.status==="open" && filter==="done");
@@ -737,8 +1024,13 @@ $("#btnDedup").addEventListener("click", ()=>{
     state.projects = [...seen.values()]; save(); renderProjects(); scheduleGasSync(); toast(`${removed}件を整理しました`);
   }
 });
+/* APIキー・Botトークン・クラウドURLはファイルに書き出さない (人に渡すと漏れるため) */
+const SECRET_KEYS = ["key","tgToken","tgChat","gasUrl","fredKey"];
 $("#btnExport").addEventListener("click", ()=>{
-  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const settings = Object.assign({}, state.settings);
+  SECRET_KEYS.forEach(k=>delete settings[k]);
+  const out = Object.assign({}, state, { settings });
+  const blob = new Blob([JSON.stringify(out, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `yotei_backup_${new Date().toISOString().slice(0,10)}.json`;
@@ -773,7 +1065,11 @@ $("#importFile").addEventListener("change", async e=>{
     if(!Array.isArray(d.projects)) throw 0;
     if(confirm(`${d.projects.length}件のプロジェクトを読み込み、現在のデータを置き換えます。よろしいですか?`)){
       pushBackup("インポートする前");
-      state = Object.assign(state, d); normalizeProjects();
+      const keepSecrets = {};
+      SECRET_KEYS.forEach(k=>{ if(state.settings[k]) keepSecrets[k] = state.settings[k]; });
+      state = Object.assign(state, d);
+      state.settings = Object.assign({}, d.settings || {}, keepSecrets);   /* 手元のキー類は残す */
+      normalizeProjects();
       save(); loadSettingsUI(); renderProjects(); scheduleGasSync(); toast("インポートしました");
     }
   }catch(err){ toast("読み込めませんでした (JSON形式を確認してください)"); }
@@ -883,7 +1179,7 @@ async function refreshInbox(){
       if(st.version !== state.settings.gasVersion){ state.settings.gasVersion = st.version || ""; save({silent:true}); }
     }
   }catch(e){}
-  updateAiBtn(); renderVersion();
+  updateAiBtn(); renderVersion(); renderHome();
   return tgInbox;
 }
 function inboxSection(){
@@ -1164,7 +1460,8 @@ $("#aiApply").addEventListener("click", ()=>{
   if(!picks.length){ toast("反映する項目を選択してください"); return; }
   const mode = $("#aiMode").value;
   const prot = inboxProtections(aiItems);
-  const keep = new Set([...picks.map(it=>it.target?.id).filter(Boolean), ...prot.keepAdds.map(p=>p.id)]);
+  /* チェックを外した既存案件は「更新しない」だけで、削除はしない */
+  const keep = new Set([...aiItems.map(it=>it.target?.id).filter(Boolean), ...prot.keepAdds.map(p=>p.id)]);
   const dropped = mode==="replace" ? state.projects.filter(p=>!keep.has(p.id)) : [];
   if(dropped.length && !confirm(`全置き換えにより${dropped.length}件がアプリから削除されます。よろしいですか?\n\n${dropped.map(p=>"・"+p.name).join("\n")}`)) return;
 
@@ -1175,6 +1472,7 @@ $("#aiApply").addEventListener("click", ()=>{
     const data = { name: it.name, chain: it.chain, deadline: it.deadline,
                    memo: it.memo, pinned: it.pinned, status: it.status };
     if(it.target){
+      if(data.status==="done" && it.target.status!=="done") data.doneAt = new Date().toISOString();
       Object.assign(it.target, data);
       if(it.sources?.length) it.target.sources = it.sources;
       upd++;
@@ -1196,7 +1494,7 @@ $("#aiApply").addEventListener("click", ()=>{
     const t = state.projects.find(x=>x.id===f.id)
            || state.projects.find(x=>x.name.trim().toLowerCase()===String(f.name||"").trim().toLowerCase());
     if(!t) continue;
-    if(f.status && t.status !== f.status){ t.status = f.status; guarded++; }
+    if(f.status && t.status !== f.status){ t.status = f.status; if(f.status==="done" && !t.doneAt) t.doneAt = new Date().toISOString(); guarded++; }
     if(f.pinned !== undefined && t.pinned !== f.pinned){ t.pinned = f.pinned; guarded++; }
   }
   normalizeProjects();
@@ -1358,7 +1656,10 @@ function drawChart(points){
   const min = Math.min(...vs)*0.995, max = Math.max(...vs)*1.005;
   const x = i => padL + (W-padL-padR) * i/(points.length-1);
   const y = v => padT + (H-padT-padB) * (1 - (v-min)/(max-min));
-  ctx.strokeStyle = "#26324e"; ctx.fillStyle = "#8d9ab9"; ctx.font = "12px sans-serif"; ctx.lineWidth = 1;
+  const css = getComputedStyle(document.documentElement);
+  ctx.strokeStyle = css.getPropertyValue("--border").trim() || "#26324e";
+  ctx.fillStyle = css.getPropertyValue("--muted").trim() || "#8d9ab9";
+  ctx.font = "12px sans-serif"; ctx.lineWidth = 1;
   for(let i=0;i<=4;i++){
     const v = min + (max-min)*i/4, yy = y(v);
     ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W-padR, yy); ctx.stroke();
@@ -1376,7 +1677,7 @@ function drawChart(points){
   ctx.fillStyle = grad; ctx.fill();
   ctx.beginPath(); ctx.moveTo(x(0), y(points[0].v));
   points.forEach((p,i)=>ctx.lineTo(x(i), y(p.v)));
-  ctx.strokeStyle = "#5b8cff"; ctx.lineWidth = 2.2; ctx.stroke();
+  ctx.strokeStyle = css.getPropertyValue("--accent").trim() || "#5b8cff"; ctx.lineWidth = 2.2; ctx.stroke();
 }
 $("#btcReload").addEventListener("click", loadBtc);
 
@@ -1445,7 +1746,7 @@ function kpiCard(label, value, sub, cls){
 async function loadFred(){
   const grid = $("#fredGrid"), st = $("#fredStatus");
   state.settings.fredKey = $("#fredKey").value.trim();
-  save();
+  save({silent:true});
   grid.innerHTML = "";
   const defs = [
     ["SOFR", 45], ["IORB", 5], ["DFEDTARU", 5],
@@ -1917,20 +2218,24 @@ $("#keyEye").addEventListener("click", ()=>{
 
 /* ================= tabs & init ================= */
 const loaded = {};
-$$("nav.tabs button").forEach(b=>b.addEventListener("click", ()=>{
-  $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
-  b.classList.add("active");
+function switchTab(t){
+  $$("nav.tabs button[data-tab]").forEach(x=>x.classList.toggle("active", x.dataset.tab===t));
   $$("section.tab").forEach(s=>s.classList.remove("active"));
-  const t = b.dataset.tab;
-  $("#tab-"+t).classList.add("active");
+  const sec = $("#tab-"+t); if(!sec) return;
+  sec.classList.add("active");
+  window.scrollTo({ top:0 });
+  if(t==="home") renderHome();
   if(t==="settings" && !loaded.settings){ loaded.settings=1; renderTgIngestStatus(); }
   if(t==="poly" && !loaded.poly){ loaded.poly=1; loadPoly(); }
   if(t==="btc" && !loaded.btc){ loaded.btc=1; loadBtc(); loadFred(); }
-}));
+}
+$$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
 
 load();
+applyTheme();
 loadSettingsUI();
 restoreFilter();
+applyCompact();
 renderProjects();
 renderVersion();
 gasAutoResume().finally(()=>refreshInbox());
