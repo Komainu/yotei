@@ -407,7 +407,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 <section class="tab" id="tab-settings">
   <div class="set-card">
     <h3>✈️ Telegram連携</h3>
-    <p class="hint" style="margin-top:0">⏰ <b>期限アラート</b>: 期限の3日前・前日・当日の朝9時に自動通知します (Googleのサーバーが送信するのでPCを閉じていてもOK)。同じ案件を何度も送らないよう送信済みを記録しています。</p>
+    <p class="hint" style="margin-top:0">⏰ <b>毎朝9時のまとめ通知</b>: 期限が7日以内・期限切れの案件と、📌ピン留め案件の一覧を送ります (Googleのサーバーが送信するのでPCを閉じていてもOK)。Botに <code>/alert</code> と送ればいつでも同じ内容を呼び出せます。<br>通知先はこのChat IDではなく、下の「📲 Telegram登録を有効化」でGoogle側に登録したものです。</p>
     <label>Bot Token</label>
     <div class="row">
       <input id="tgToken" type="password" placeholder="123456789:AAE...">
@@ -418,7 +418,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <input id="tgChat" placeholder="123456789, 987654321">
       <button class="btn small" id="tgGetChat" style="white-space:nowrap">自動取得</button>
     </div>
-    <label class="check" style="margin-top:12px"><input type="checkbox" id="tgEnabled">Telegram連携を使う</label>
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="tgSave">保存</button>
       <button class="btn" id="tgTest">テスト送信</button>
@@ -429,7 +428,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
     <div style="border-top:1px solid var(--border); margin-top:18px; padding-top:16px">
       <h3 style="font-size:14px; margin-bottom:8px">📲 Telegramから案件を登録する</h3>
       <p class="hint" style="margin-top:0">有効にすると、Botに情報を送る/転送するだけでAIが解析して案件を自動登録します。スマホからそのまま投げ込めます。<br>
-      <code>/list</code> 未完了一覧 ・ <code>/today</code> 期限間近 ・ <code>/done 3</code> 完了 ・ <code>/pin 3</code> ピン留め</p>
+      <code>/alert</code> 今日のまとめ ・ <code>/list</code> 未完了一覧 ・ <code>/today</code> 期限間近 ・ <code>/done 3</code> 完了 ・ <code>/pin 3</code> ピン留め</p>
       <label>Gemini API Key <span style="color:var(--dim)">(任意: 送った文章をAIで整理する場合。無ければ1行目を案件名として簡易登録)</span></label>
       <div class="row">
         <input id="setKey" type="password" placeholder="AIza...">
@@ -467,7 +466,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <button class="btn" id="gasCheck">状況を確認</button>
     </div>
     <div id="gasResult" style="font-size:13px; margin-top:10px"></div>
-    <p class="hint">同じURLを他のPCの設定に入れれば、案件データを共有できます (APIキー類は端末ごとに入力してください)。アプリを開いた時に新しい方のデータが自動で反映されます。セットアップ手順は同梱の <b>gas-daily-mail.gs</b> を参照。</p>
+    <p class="hint">同じURLを他のPCの設定に入れれば、案件データを共有できます (APIキー類は端末ごとに入力してください)。アプリを開いた時・画面に戻った時に、他の端末やTelegramでの変更を案件ごとに合体して反映します。セットアップ手順は同梱の <b>gas-daily-mail.gs</b> を参照。</p>
   </div>
 
   <div class="set-card">
@@ -583,9 +582,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.10.12";
+const APP_VERSION = "2026.10.19";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.10.12";
+const MIN_GAS_VERSION = "2026.10.19";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -594,7 +593,10 @@ function load(){
   try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); if(d) state = Object.assign(state, d); }catch(e){}
   if(!Array.isArray(state.projects)) state.projects = [];
   delete state.chat;   /* 廃止したAIチャットの履歴を片付ける */
+  delete state.settings.tgEnabled;   /* 使われていない旧設定 */
+  if(!state.deleted || typeof state.deleted !== "object") state.deleted = {};
   normalizeProjects();
+  takeSnap();
 }
 /* 旧形式(id・status欠落)のデータを修復する。これが無いと操作不能な案件になる */
 function normalizeProjects(){
@@ -630,9 +632,64 @@ function pushBackup(label){
 function getBackups(){
   try{ return JSON.parse(localStorage.getItem(LS_BACKUP) || "[]"); }catch(e){ return []; }
 }
+/* ---- 案件ごとの更新時刻と削除記録 ----
+   複数端末・Telegramで同時に触っても、案件ごとに「新しい方」を採用して合体できるようにする */
+let snap = new Map();
+function sig(p){ const { updatedAt, ...rest } = p; return JSON.stringify(rest); }
+function takeSnap(){ snap = new Map(state.projects.map(p=>[p.id, sig(p)])); }
+const TOMB_DAYS = 90;
+function pruneTombs(t){
+  const lim = Date.now() - TOMB_DAYS*86400000, out = {};
+  for(const [id, at] of Object.entries(t||{})) if(Date.parse(at) > lim) out[id] = at;
+  return out;
+}
+function unionTombs(a, b){
+  const out = Object.assign({}, a||{});
+  for(const [id, at] of Object.entries(b||{})) if(!out[id] || at > out[id]) out[id] = at;
+  return pruneTombs(out);
+}
+/* a を優先側として a と b を案件ごとに合体する (同時刻なら a)。
+   base = a 側が前回同期した時刻 (旧データの削除判定に使う) */
+function mergeProjects(a, b, tombs, base){
+  const T = tombs || {}, baseT = base ? Date.parse(base) - 60000 : 0;
+  const ts = p => Date.parse(p.updatedAt || p.createdAt || 0) || 0;
+  const bm = new Map((b||[]).filter(p=>p && p.id).map(p=>[p.id, p]));
+  const out = [], seen = new Set();
+  for(const p of a||[]){
+    if(!p || !p.id || seen.has(p.id)) continue;
+    seen.add(p.id);
+    const q = bm.get(p.id);
+    const w = q && ts(q) > ts(p) ? q : p;
+    if(T[p.id] && Date.parse(T[p.id]) >= ts(w)) continue;
+    out.push(w);
+  }
+  for(const q of b||[]){
+    if(!q || !q.id || seen.has(q.id)) continue;
+    seen.add(q.id);
+    if(T[q.id] && Date.parse(T[q.id]) >= ts(q)) continue;
+    /* 更新時刻の無い旧データで、前回同期の時点で既にあったもの = a 側で削除済み */
+    if(!q.updatedAt && baseT && ts(q) <= baseT) continue;
+    out.push(q);
+  }
+  return out;
+}
 function save(opts){
-  if(!opts || !opts.silent) state.updatedAt = new Date().toISOString();
-  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  if(!opts || !opts.silent){
+    const now = new Date().toISOString();
+    state.updatedAt = now;
+    if(!state.deleted) state.deleted = {};
+    const cur = new Set();
+    for(const p of state.projects){
+      cur.add(p.id);
+      if(snap.get(p.id) !== sig(p)) p.updatedAt = now;   /* 追加・変更した案件だけ時刻を付ける */
+      delete state.deleted[p.id];
+    }
+    for(const id of snap.keys()) if(!cur.has(id)) state.deleted[id] = now;   /* 削除の記録 */
+    state.deleted = pruneTombs(state.deleted);
+    takeSnap();
+  }
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  catch(e){ toast("⚠️ 保存できませんでした (ブラウザの保存容量がいっぱいです)"); }
 }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
@@ -1067,8 +1124,12 @@ $("#importFile").addEventListener("change", async e=>{
       pushBackup("インポートする前");
       const keepSecrets = {};
       SECRET_KEYS.forEach(k=>{ if(state.settings[k]) keepSecrets[k] = state.settings[k]; });
+      const keepDeleted = state.deleted || {};
+      const keepSync = state.settings.gasSyncedAt;
       state = Object.assign(state, d);
       state.settings = Object.assign({}, d.settings || {}, keepSecrets);   /* 手元のキー類は残す */
+      if(keepSync) state.settings.gasSyncedAt = keepSync; else delete state.settings.gasSyncedAt;
+      state.deleted = unionTombs(keepDeleted, d.deleted);
       normalizeProjects();
       save(); loadSettingsUI(); renderProjects(); scheduleGasSync(); toast("インポートしました");
     }
@@ -1852,19 +1913,6 @@ async function tgSend(text){
   if(!sent && lastErr) throw lastErr;
   return sent;
 }
-function tgProjectMsg(p){
-  const lines = [
-    `🆕 <b>新しい案件を追加しました</b>`,
-    ``,
-    `<b>${esc(p.name)}</b>${p.chain?` (${esc(p.chain)})`:""}`,
-    `📅 期限: ${p.deadline ? fmtDeadline(p.deadline) : "未定"}${p.deadline&&daysLeft(p.deadline)!=null?` (あと${daysLeft(p.deadline)}日)`:""}`,
-  ];
-  if(p.memo) lines.push(``, `📝 ${esc(p.memo.slice(0,300))}`);
-  const urls = (p.sources||[]).filter(s=>s.url);
-  if(urls.length) lines.push(``, `🔗 ` + urls.map(s=>esc(s.url)).join("\n"));
-  if(p.pinned) lines.push(``, `📌 ピン留め (毎日のメール通知対象)`);
-  return lines.join("\n");
-}
 /* 新規追加の共通フック
    以前は1件ごとにTelegram通知していたが、一括取り込みで大量に届くため廃止。
    通知はGoogle側の「期限アラート」に一本化している。 */
@@ -1877,7 +1925,6 @@ $("#tgEye").addEventListener("click", ()=>{
 function saveTgSettings(){
   state.settings.tgToken = $("#tgToken").value.trim();
   state.settings.tgChat = $("#tgChat").value.trim();
-  state.settings.tgEnabled = $("#tgEnabled").checked;
   save({silent:true});   /* 設定変更は案件データの更新ではない */
 }
 $("#tgSave").addEventListener("click", ()=>{
@@ -1885,11 +1932,10 @@ $("#tgSave").addEventListener("click", ()=>{
   const s = state.settings;
   if(!s.tgToken) toast("Bot Tokenを入力してください");
   else if(!s.tgChat) toast("Chat IDが未設定です (「自動取得」を押してください)");
-  else if(!s.tgEnabled) toast("保存しました (通知チェックがオフです)");
   else toast("Telegram設定を保存しました");
 });
 /* 保存忘れ防止: 入力・チェック変更で即保存 */
-["tgToken","tgChat","tgEnabled"].forEach(id=>{
+["tgToken","tgChat"].forEach(id=>{
   const el = $("#"+id);
   el.addEventListener("change", saveTgSettings);
   el.addEventListener("input", saveTgSettings);
@@ -1919,13 +1965,23 @@ $("#tgGetChat").addEventListener("click", async ()=>{
     saveTgSettings();
     r.textContent = added ? `✅ Chat IDを${added}件追加しました (登録 ${merged.length}件)` : `✅ 取得済み (登録 ${merged.length}件)`;
     r.style.color = "var(--ok)";
+    /* Google側(毎朝の通知先)にも追加する。既存の通知先は消さない */
+    if(added && state.settings.gasUrl){
+      try{
+        const st = await gasCheck();
+        if(st && st.telegram){
+          await gasConfig({ action:"config", tgChat: merged.join(",") });
+          r.textContent += " ・毎朝の通知先にも追加しました";
+        }
+      }catch(e){}
+    }
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
 $("#tgTest").addEventListener("click", async ()=>{
   saveTgSettings();
   const r = $("#tgResult"); r.innerHTML = `<span class="spin"></span>`;
   try{
-    await tgSend("✅ <b>予定管理</b> からのテスト通知です。\n新規案件を追加すると、この形式で通知が届きます。");
+    await tgSend("✅ <b>予定管理</b> からのテスト通知です。\n毎朝9時のまとめはこのBotから届きます (/alert で今すぐ確認できます)。");
     r.textContent = "✅ 送信しました"; r.style.color = "var(--ok)";
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
@@ -1959,7 +2015,7 @@ $("#tgIngestOn").addEventListener("click", async ()=>{
   const r = $("#tgIngestResult");
   const s = state.settings;
   if(!s.tgToken || !s.tgChat){ r.textContent = "❌ Bot TokenとChat IDを先に設定してください"; r.style.color = "var(--danger)"; return; }
-  if(!s.key && !confirm("Gemini APIキーが未設定です。AI解析なしの簡易登録になります (1行目が案件名、URLがソース)。続けますか?")) return;
+  if(!s.key && !confirm("この端末にGemini APIキーが未設定です。Google側に保存済みのキーがあればそれを使い、無ければAI解析なしの簡易登録になります。続けますか?")) return;
   r.innerHTML = `<span class="spin"></span> 有効化しています…`;
   try{
     await gasConfig({ action:"config", tgToken:s.tgToken, tgChat:s.tgChat, geminiKey:s.key||"", geminiModel:s.model||"gemini-2.5-flash" });
@@ -1974,7 +2030,7 @@ $("#tgIngestOff").addEventListener("click", async ()=>{
   if(!confirm("Telegramからの登録を無効化し、Googleに保存したキーを削除します。よろしいですか?")) return;
   r.innerHTML = `<span class="spin"></span>`;
   try{
-    await gasConfig({ action:"config", tgToken:"", tgChat:"", geminiKey:"" });
+    await gasConfig({ action:"config", clear:true, tgToken:"", tgChat:"", geminiKey:"" });
     await renderTgIngestStatus();
     r.textContent = "無効化しました"; r.style.color = "var(--muted)";
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
@@ -2004,7 +2060,45 @@ function gasFormPost(url, body){
   });
 }
 
-async function gasSync(force){
+/* 同期は1本ずつ順番に実行する (自動保存と起動時同期が重なって上書きし合わないように) */
+let gasChain = Promise.resolve();
+function gasSync(force){
+  const run = gasChain.then(()=>gasSyncInner(force));
+  gasChain = run.catch(()=>{});
+  return run;
+}
+async function gasFetchAll(){
+  const url = state.settings.gasUrl;
+  const r = await fetch(url + (url.includes("?")?"&":"?") + "action=load&t=" + Date.now(), { redirect:"follow" });
+  const d = await r.json();
+  if(!d.ok || !Array.isArray(d.projects)) throw new Error(d.error || "クラウドのデータを読めません");
+  return d;
+}
+/* クラウドの内容を手元に合体する (案件ごとに新しい方を採用)。変化があれば true */
+function applyRemote(d){
+  const before = JSON.stringify(state.projects);
+  const T = unionTombs(state.deleted, d.deleted);
+  state.projects = mergeProjects(state.projects, d.projects, T, state.settings.gasSyncedAt);
+  state.deleted = T;
+  normalizeProjects();
+  takeSnap();
+  const changed = JSON.stringify(state.projects) !== before;
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+  if(changed) renderProjects();
+  return changed;
+}
+/* サーバーが合体した結果をそのまま採用する */
+function adoptServer(d){
+  if(!d || !Array.isArray(d.projects)) return;
+  state.projects = d.projects;
+  if(d.deleted) state.deleted = unionTombs(state.deleted, d.deleted);
+  normalizeProjects();
+  takeSnap();
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+  renderProjects();
+}
+
+async function gasSyncInner(force){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
   /* 空の端末がクラウドのデータを消してしまう事故を防ぐ
@@ -2018,57 +2112,44 @@ async function gasSync(force){
       throw new Error(`この端末は0件です。クラウドの${st.count}件を消さないため中止しました (「⬇ クラウドから読込」をお使いください)`);
     }
   }
-  /* 送信で相手を上書きするため、先に向こうで増えた分を取り込む */
-  if(state.projects.length) await mergeRemoteAdditions();
+  /* ① 先に向こうの変更(他の端末・Telegram)を合体してから送る */
+  let pulled = false;
+  if(state.projects.length){
+    try{ pulled = applyRemote(await gasFetchAll()); }catch(e){ /* 読めなくても送信はする(サーバー側でも合体する) */ }
+  }
   const stamp = new Date().toISOString();
-  /* 全案件を送る (メール通知側でピン留め＆未完了を抽出) */
-  const payload = { email: state.settings.gasMail || "", syncedAt: stamp, all: state.projects };
+  /* 全案件 + 削除記録を送る。サーバー側でも案件ごとに新しい方を採用して合体する */
+  const payload = { email: state.settings.gasMail || "", syncedAt: stamp, base: state.settings.gasSyncedAt || "",
+                    all: state.projects, deleted: state.deleted || {} };
   const body = JSON.stringify(payload);
-  /* ① CORS対応のfetchを試す (成功すれば応答をそのまま使える) */
+  /* ② CORS対応のfetchを試す (成功すれば応答をそのまま使える) */
   try{
     const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body, redirect:"follow" });
     const d = await r.json();
-    if(d.ok){ state.settings.gasSyncedAt = stamp; save({silent:true}); return { ok:true, count: state.projects.length }; }
-  }catch(e){ /* ② へ */ }
-  /* ② フォーム送信でリトライ */
+    if(d.ok){
+      state.settings.gasSyncedAt = stamp;
+      adoptServer(d);
+      save({silent:true});
+      return { ok:true, count: state.projects.length, pulled };
+    }
+    if(d.error) throw new Error(d.error);
+  }catch(e){ if(/拒否/.test(e.message)) throw e; /* ③ へ */ }
+  /* ③ フォーム送信でリトライ */
   await gasFormPost(url, body);
-  /* ③ Google側を読み直して本当に反映されたか検証 */
-  try{
-    const st = await gasCheck();
-    if(st && st.syncedAt === stamp){
-      state.settings.gasSyncedAt = stamp; save({silent:true});
-      return { ok:true, count: state.projects.length };
-    }
+  /* ④ Google側を読み直して本当に反映されたか検証 */
+  let st;
+  try{ st = await gasCheck(); }
+  catch(e){ throw new Error("送信しましたが結果を確認できません: " + e.message); }
+  if(!st || st.syncedAt !== stamp){
     throw new Error("送信しましたがGoogle側に反映されていません。gas-daily-mail.gs を最新版に貼り替えて再デプロイしてください");
-  }catch(e){
-    if(/反映されていません/.test(e.message)) throw e;
-    throw new Error("送信しましたが結果を確認できません: " + e.message);
   }
+  state.settings.gasSyncedAt = stamp;
+  try{ adoptServer(await gasFetchAll()); }catch(e){}
+  save({silent:true});
+  return { ok:true, count: state.projects.length, pulled };
 }
 
-/* Telegram等でクラウド側に増えた案件だけを取り込む (ローカルを消さない) */
-async function mergeRemoteAdditions(){
-  const url = state.settings.gasUrl;
-  if(!url) return 0;
-  try{
-    const r = await fetch(url + (url.includes("?")?"&":"?") + "action=load&t=" + Date.now(), { redirect:"follow" });
-    const d = await r.json();
-    if(!d.ok || !Array.isArray(d.projects)) return 0;
-    const have = new Set(state.projects.map(p=>p.id));
-    const since = state.settings.gasSyncedAt ? Date.parse(state.settings.gasSyncedAt) - 60000 : 0;
-    /* 前回同期より後に作られた未知の案件のみ = 他端末やTelegramからの新規追加 */
-    const add = d.projects.filter(p=>p && p.id && !have.has(p.id) && Date.parse(p.createdAt||0) > since);
-    if(add.length){
-      state.projects.push(...add);
-      normalizeProjects();
-      localStorage.setItem(LS_KEY, JSON.stringify(state));
-      renderProjects();
-    }
-    return add.length;
-  }catch(e){ return 0; }
-}
-
-/* クラウドから案件データを取得して置き換える */
+/* クラウドから案件データを取得して置き換える (設定の「⬇ クラウドから読込」) */
 async function gasLoad(force){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
@@ -2082,7 +2163,9 @@ async function gasLoad(force){
   }
   pushBackup("クラウドから読込む前");
   state.projects = d.projects;
+  state.deleted = unionTombs(state.deleted, d.deleted);
   normalizeProjects();
+  takeSnap();
   state.settings.gasSyncedAt = d.syncedAt || new Date().toISOString();
   state.updatedAt = state.settings.gasSyncedAt;   /* 取得直後は同一とみなす */
   localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -2090,27 +2173,38 @@ async function gasLoad(force){
   return d;
 }
 
-/* 起動時: クラウドとローカルの新しい方に合わせる */
+/* 起動時・画面に戻った時: クラウドと手元を合体する */
 async function gasAutoResume(){
   if(!state.settings.gasUrl) return;
   try{
     const st = await gasCheck();
     if(!st || !st.ok) return;
-    const remote = st.syncedAt ? Date.parse(st.syncedAt) : 0;
-    const local = state.updatedAt ? Date.parse(state.updatedAt) : 0;
-    if(remote > local + 1000){
+    const dirty = state.updatedAt && (!state.settings.gasSyncedAt || Date.parse(state.updatedAt) > Date.parse(state.settings.gasSyncedAt) + 1000);
+    const remoteChanged = st.syncedAt && st.syncedAt !== state.settings.gasSyncedAt;
+    if(!state.projects.length && st.count > 0){
       await gasLoad();
-      toast(`☁️ クラウドの新しいデータを読み込みました (${state.projects.length}件)`);
-    }else if(local > remote + 1000 && state.settings.gasAuto !== false){
-      /* ローカルが新しくても、Telegram等で増えた分を先に取り込んでから送る */
-      const n = await mergeRemoteAdditions();
-      if(n) toast(`📲 Telegramなどから${n}件を取り込みました`);
-      await gasSync();
+      toast(`☁️ クラウドのデータを読み込みました (${state.projects.length}件)`);
+    }else if(remoteChanged || dirty){
+      if(state.settings.gasAuto !== false){
+        const res = await gasSync();
+        if(res && res.pulled) toast("☁️ 他の端末・Telegramでの変更を反映しました");
+      }else if(remoteChanged){
+        if(applyRemote(await gasFetchAll())) toast("☁️ 他の端末・Telegramでの変更を反映しました");
+      }
     }
     renderTgIngestStatus();
     renderGasStatus();
   }catch(e){ /* オフライン等は無視 */ }
 }
+/* 開きっぱなしの画面に戻った時も最新にする (30秒に1回まで) */
+let lastResume = Date.now();
+function resumeIfStale(){
+  if(document.visibilityState !== "visible" || Date.now() - lastResume < 30000) return;
+  lastResume = Date.now();
+  gasAutoResume().finally(()=>refreshInbox());
+}
+document.addEventListener("visibilitychange", resumeIfStale);
+window.addEventListener("focus", resumeIfStale);
 let gasTimer = null;
 function scheduleGasSync(){
   if(!state.settings.gasAuto || !state.settings.gasUrl) return;
@@ -2200,7 +2294,6 @@ function loadSettingsUI(){
   $("#fredKey").value = state.settings.fredKey || "";
   $("#tgToken").value = state.settings.tgToken || "";
   $("#tgChat").value = state.settings.tgChat || "";
-  $("#tgEnabled").checked = !!state.settings.tgEnabled;
   $("#gasUrl").value = state.settings.gasUrl || "";
   $("#gasMail").value = state.settings.gasMail || "";
   $("#gasAuto").checked = state.settings.gasAuto !== false;
