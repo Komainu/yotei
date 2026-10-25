@@ -23,7 +23,7 @@ catch(e){ document.documentElement.dataset.theme = "light"; }
 }
 /* ---------- 明るい配色 ---------- */
 :root[data-theme="light"]{
-  --bg:#f3f5fa; --panel:#ffffff; --card:#ffffff; --card2:#eef1f7;
+  --bg:#ffffff; --panel:#ffffff; --card:#ffffff; --card2:#f4f6f9;
   --border:#d8deea; --text:#1c2333; --muted:#566179; --dim:#8a93a8;
   --accent:#3b67d9; --accent2:#0e8f7b; --danger:#d23c56; --warn:#b86e00;
   --ok:#1b8f5a; --pin:#c83f7c;
@@ -144,7 +144,44 @@ details.grp-done[open] > summary::before{transform:rotate(90deg)}
 .flash{animation:flash 1.4s ease}
 @keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
 
+/* ---------- 部屋の背景 (手帳の線画) ---------- */
+#roomBg{position:fixed; inset:0; z-index:0; pointer-events:none}
+#roomBg svg{display:block}
+#roomBg .rbox, #roomBg .revent{pointer-events:auto; cursor:pointer}
+#roomBg .rnew{animation:rdraw 1.4s ease both}
+@keyframes rdraw{0%{opacity:0; transform:translateY(-14px)}100%{opacity:1; transform:none}}
+body.room-on{background:transparent}
+body.room-on main{position:relative; z-index:1}
+:root[data-theme="light"] body.room-on{--card:rgba(255,255,255,.84); --card2:rgba(245,247,250,.86); --hdr:rgba(255,255,255,.88); --border:rgba(30,40,60,.10); --dlg-bg:#ffffff}
+:root:not([data-theme="light"]) body.room-on{--card:rgba(24,29,42,.78); --card2:rgba(34,40,56,.80); --hdr:rgba(30,36,51,.82); --border:rgba(232,225,208,.18); --dlg-bg:#1e2433}
+body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .metric, body.room-on .chip, body.room-on .home-menu button{backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px)}
+
+/* ---------- ものがたり ---------- */
+.story-line a{color:var(--accent); font-weight:700}
+.story-line span{color:var(--muted)}
+.story-ep{padding:12px 0; border-top:1px dashed var(--border)}
+.story-ep:first-of-type{border-top:none}
+.story-t{font-weight:700; margin-bottom:4px}
+.story-b{line-height:1.9; color:var(--text)}
+.story-ep:not(.cur) .story-b{color:var(--muted)}
+
 /* ---------- HOME ---------- */
+.game{display:flex; align-items:center; gap:16px; margin-bottom:14px; flex-wrap:wrap}
+.game .lv{width:62px; height:62px; border-radius:16px; flex:none; display:grid; place-items:center; text-align:center;
+  background:linear-gradient(135deg,var(--accent),#38d9c0); color:#fff; font-weight:800; line-height:1.05}
+.game .lv small{display:block; font-size:10.5px; font-weight:700; opacity:.9}
+.game .lv b{font-size:24px}
+.game .gmain{flex:1; min-width:200px}
+.game .gtitle{font-weight:800; font-size:15.5px}
+.game .xpbar{height:10px; border-radius:99px; background:var(--card2); overflow:hidden; margin:7px 0 5px}
+.game .xpbar > div{height:100%; border-radius:99px; background:linear-gradient(90deg,var(--accent),#38d9c0); transition:width .5s}
+.game .gsub{font-size:12px; color:var(--muted)}
+.game .streak{text-align:center; flex:none; min-width:84px}
+.game .streak b{display:block; font-size:28px; line-height:1.1}
+.game .streak span{font-size:11.5px; color:var(--muted); font-weight:700}
+.game .week{display:flex; gap:4px; align-items:flex-end; height:34px; flex:none}
+.game .week i{display:block; width:9px; border-radius:3px; background:var(--accent); opacity:.85; min-height:3px}
+.game .week i.zero{background:var(--border); opacity:1}
 .home-grid{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:14px; margin-bottom:14px}
 .hcard{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px}
 .hlabel{font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:6px}
@@ -253,7 +290,7 @@ canvas{width:100%; height:auto; display:block}
 
 /* ---------- dialog ---------- */
 dialog{
-  background:var(--card); color:var(--text); border:1px solid var(--border);
+  background:var(--dlg-bg, var(--card)); color:var(--text); border:1px solid var(--border);
   border-radius:16px; padding:0; width:min(560px,92vw); box-shadow:0 24px 80px rgba(0,0,0,.5);
 }
 dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
@@ -280,6 +317,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 </style>
 </head>
 <body>
+<div id="roomBg" aria-hidden="true"></div>
 
 <header>
   <div class="head-inner">
@@ -309,8 +347,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 <section class="tab active" id="tab-home">
   <div class="hcard hello">
     <div class="face">🔮</div>
-    <div><div class="sub" id="hDate"></div><div class="say" id="hSay"></div></div>
+    <div><div class="sub" id="hDate"></div><div class="say" id="hSay"></div><div class="sub" id="hEvent" style="margin-top:4px"></div><div class="sub story-line" id="hStory" style="margin-top:2px"></div></div>
   </div>
+  <div class="hcard game" id="hGame" style="display:none"></div>
   <div class="home-grid">
     <div class="hcard">
       <div class="hlabel">🔔 おしらせ</div>
@@ -405,6 +444,12 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 
 <!-- ============ settings ============ -->
 <section class="tab" id="tab-settings">
+  <div class="set-card">
+    <h3>🏠 部屋</h3>
+    <label class="check"><input type="checkbox" id="roomOn" style="width:auto">部屋を背景に表示する</label>
+    <p class="hint">予定をこなすと家具が届き、部屋が豪華になります。期限切れの予定は床の段ボール箱として現れ、片付けると消えます。窓の外の景色は連続記録で変わり、3日続くと猫が遊びに来ます。手帳に描いたような線画の部屋です。</p>
+  </div>
+
   <div class="set-card">
     <h3>✈️ Telegram連携</h3>
     <p class="hint" style="margin-top:0">⏰ <b>毎朝9時のまとめ通知</b>: 期限が7日以内・期限切れの案件と、📌ピン留め案件の一覧を送ります (Googleのサーバーが送信するのでPCを閉じていてもOK)。Botに <code>/alert</code> と送ればいつでも同じ内容を呼び出せます。<br>通知先はこのChat IDではなく、下の「📲 Telegram登録を有効化」でGoogle側に登録したものです。</p>
@@ -575,6 +620,11 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 </dialog>
 
+<dialog id="storyDlg">
+  <div class="dlg-head">📖 ものがたり ― 手帳の部屋とモカ</div>
+  <div class="dlg-body" id="storyBody" style="max-height:60vh; overflow:auto"></div>
+  <div class="dlg-foot"><button class="btn" id="storyClose">閉じる</button></div>
+</dialog>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -582,9 +632,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.10.19";
+const APP_VERSION = "2026.10.26";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.10.19";
+const MIN_GAS_VERSION = "2026.10.26";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -854,8 +904,45 @@ function urgency(p){
 let doneOpen = false;
 
 /* ================= HOME ================= */
+/* レベル・XP・連続記録 (サーバー側で計算した値を表示) */
+function setGame(gm){
+  if(!gm) return;
+  const prev = state.settings.game;
+  state.settings.game = gm; save({silent:true});
+  if(prev && gm.lv > prev.lv) toast(`🎉 レベルアップ！ Lv.${gm.lv} ${gm.title}`);
+  else if(prev && gm.xp > prev.xp) toast(`✨ +${gm.xp - prev.xp}XP`);
+  renderGame();
+  renderRoom();
+}
+function renderGame(){
+  const el = $("#hGame"); if(!el) return;
+  const gm = state.settings.game;
+  if(!gm || !state.settings.gasUrl){ el.style.display = "none"; return; }
+  el.style.display = "";
+  const pct = gm.need ? Math.round(gm.cur / gm.need * 100) : 0;
+  const max = Math.max(1, ...(gm.week||[]));
+  const days = "日月火水木金土";
+  const week = (gm.week||[]).map((v,i)=>{
+    const d = new Date(Date.now() - (6-i)*86400000);
+    return `<i class="${v?"":"zero"}" style="height:${v ? Math.max(6, Math.round(v/max*34)) : 3}px" title="${days[d.getDay()]} ${v}XP"></i>`;
+  }).join("");
+  const q = gm.quest;
+  const qtxt = q && q.total ? (q.bonus ? `今日のクエスト 🏆達成` : `今日のクエスト ${q.cleared}/${q.total}`) : "今日のクエストはTelegramに届きます";
+  el.innerHTML = `
+    <div class="lv"><div><small>Lv.</small><b>${gm.lv}</b></div></div>
+    <div class="gmain">
+      <div class="gtitle">${esc(gm.title)}</div>
+      <div class="xpbar"><div style="width:${pct}%"></div></div>
+      <div class="gsub">次のレベルまで ${gm.need - gm.cur}XP ・ 累計 ${gm.xp}XP ・ ${qtxt}</div>
+    </div>
+    <div class="streak"><b>🔥${gm.streak}</b><span>${gm.todayDone ? "日連続 ✔︎" : "日連続 (今日まだ)"}</span><span style="display:block; font-weight:500">最高 ${gm.best}日</span></div>
+    <div class="week" title="直近7日のXP">${week}</div>`;
+}
+
 function renderHome(){
   if(!$("#hSay")) return;
+  renderGame();
+  if(typeof ROOM_ITEMS !== "undefined") renderRoom();
   const now = new Date();
   const open = state.projects.filter(p=>p.status!=="done");
   const withD = open.filter(p=>p.deadline).map(p=>({ p, d: daysLeft(p.deadline) }));
@@ -962,6 +1049,7 @@ function applyTheme(){
   document.documentElement.dataset.theme = t;
   const b = $("#themeBtn");
   if(b){ b.textContent = t==="light" ? "🌙" : "☀️"; b.title = t==="light" ? "濃紺の配色にする" : "明るい配色にする"; }
+  if(typeof ROOM_ITEMS !== "undefined") renderRoom();
 }
 $("#themeBtn").addEventListener("click", ()=>{
   state.settings.theme = (state.settings.theme || "light")==="light" ? "dark" : "light";
@@ -2005,9 +2093,21 @@ async function renderTgIngestStatus(){
   if(!state.settings.gasUrl){ el.innerHTML = `<span style="color:var(--warn)">クラウド同期のURLが未設定です</span>`; return; }
   try{
     const st = await gasCheck();
-    el.innerHTML = st && st.telegram
+    let h = st && st.telegram
       ? `<span style="color:var(--ok)">✅ 有効 — Botに送った情報が自動で登録されます</span>`
       : `<span style="color:var(--muted)">未設定 — 下のボタンで有効化できます</span>`;
+    /* 毎朝の通知が実際に届いているかを表示する */
+    if(st && st.telegram && st.tgChats != null){
+      h += `<br>毎朝の通知先: <b>${st.tgChats}件</b>`;
+      const ls = st.tgLastSend;
+      if(ls && ls.at){
+        const at = new Date(ls.at).toLocaleString("ja-JP");
+        h += ls.ok ? ` ／ 最後の送信: ${at} <span style="color:var(--ok)">成功</span>`
+                   : ` ／ 最後の送信: ${at} <span style="color:var(--danger)">失敗 (${esc(ls.error||"")})</span>`;
+      }
+      if(st.alertLastOk) h += `<br>最後のまとめ通知: ${new Date(st.alertLastOk).toLocaleString("ja-JP")}`;
+    }
+    el.innerHTML = h;
   }catch(e){ el.innerHTML = `<span style="color:var(--muted)">状態を確認できませんでした</span>`; }
 }
 $("#tgIngestOn").addEventListener("click", async ()=>{
@@ -2129,6 +2229,7 @@ async function gasSyncInner(force){
     if(d.ok){
       state.settings.gasSyncedAt = stamp;
       adoptServer(d);
+      if(d.game) setGame(d.game);
       save({silent:true});
       return { ok:true, count: state.projects.length, pulled };
     }
@@ -2239,7 +2340,9 @@ async function gasCheck(){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
   const r = await fetch(url + (url.includes("?")?"&":"?") + "t=" + Date.now(), { redirect:"follow" });
-  return r.json();
+  const d = await r.json();
+  if(d && d.game) setGame(d.game);
+  return d;
 }
 $("#gasCheck").addEventListener("click", async ()=>{
   saveGasSettings();
@@ -2297,6 +2400,7 @@ function loadSettingsUI(){
   $("#gasUrl").value = state.settings.gasUrl || "";
   $("#gasMail").value = state.settings.gasMail || "";
   $("#gasAuto").checked = state.settings.gasAuto !== false;
+  $("#roomOn").checked = state.settings.roomBg !== false;
   renderGasStatus();
 }
 $("#keyEye").addEventListener("click", ()=>{
@@ -2308,6 +2412,400 @@ $("#keyEye").addEventListener("click", ()=>{
   const fn = ()=>{ state.settings.key = $("#setKey").value.trim(); state.settings.model = $("#setModel").value; save({silent:true}); };
   el.addEventListener("input", fn); el.addEventListener("change", fn);
 });
+
+/* ================= 部屋 (背景・手帳の線画) ================= */
+/* 予定をこなすと家具が届き、期限切れは床の段ボールになる。絵はすべてここで描く (外部画像なし) */
+const ROOM_ITEMS = [
+  { id:"futon",     at:0,    name:"布団" },
+  { id:"lamp",      at:10,   name:"スタンドライト" },
+  { id:"rug",       at:30,   name:"ラグ" },
+  { id:"desk",      at:60,   name:"机とノートパソコン" },
+  { id:"plant",     at:100,  name:"観葉植物" },
+  { id:"picture",   at:150,  name:"壁の絵" },
+  { id:"shelf",     at:210,  name:"本棚" },
+  { id:"curtain",   at:280,  name:"カーテン" },
+  { id:"sofa",      at:360,  name:"ソファ" },
+  { id:"poster",    at:450,  name:"ポスター" },
+  { id:"bed",       at:560,  name:"ベッド" },
+  { id:"tv",        at:680,  name:"テレビ" },
+  { id:"clock",     at:820,  name:"壁時計" },
+  { id:"plant2",    at:980,  name:"大きな観葉植物" },
+];
+function roomPoints(){
+  const gm = state.settings.game;
+  if(gm && typeof gm.xp === "number") return gm.xp;
+  /* サーバー未接続の時は、完了した数から概算する */
+  return state.projects.filter(p=>p.status==="done").length * 10;
+}
+function roomStreak(){ const gm = state.settings.game; return gm ? (gm.streak||0) : 0; }
+
+/* 高さ640固定、幅Wは画面の縦横比に合わせる。線は毎回同じ揺れになるよう乱数の種を固定 */
+function drawRoom(opts){
+  const { night, points, streak, clutter } = opts;
+  const ev = opts.event || "", month = opts.month || 1;
+  const W = opts.W || 360, H = 640, C = W/2, FL = 440;
+  const wide = W >= 620;
+  const have = new Set(ROOM_ITEMS.filter(i=>points >= i.at).map(i=>i.id));
+  let seed = 20261025;
+  const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const U = (a,b) => a + (b-a)*rnd();
+  const ink = night ? "#E8E1D0" : "#3C3F45";
+  const out = [];
+  const jit = (pts, amp=1.6) => {
+    const o = [];
+    for(let i=0;i<pts.length-1;i++){
+      const [x1,y1]=pts[i], [x2,y2]=pts[i+1], n=Math.max(2, Math.floor(Math.hypot(x2-x1,y2-y1)/14));
+      for(let k=0;k<n;k++){ const t=k/n; o.push([x1+(x2-x1)*t+U(-amp,amp), y1+(y2-y1)*t+U(-amp,amp)]); }
+    }
+    o.push(pts[pts.length-1]);
+    return "M" + o.map(p=>p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" L");
+  };
+  const L = (pts, w=2.2, c=ink, close=false) => { if(close) pts = pts.concat([pts[0]]); out.push(`<path d="${jit(pts)}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`); };
+  const wash = (cx,cy,rx,ry,c,op) => {
+    const pts = []; for(let i=0;i<18;i++){ const a=i*Math.PI/9; pts.push((cx+rx*Math.cos(a)*U(.85,1.1)).toFixed(1)+","+(cy+ry*Math.sin(a)*U(.85,1.1)).toFixed(1)); }
+    out.push(`<polygon points="${pts.join(" ")}" fill="${c}" opacity="${op ?? (night ? .28 : .32)}"/>`);
+  };
+  const circ = (x,y,r,w=1.8) => out.push(`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${ink}" stroke-width="${w}"/>`);
+  const g = (id, fn) => { const s = out.length; fn(); const inner = out.splice(s).join(""); out.push(`<g class="ritem" data-item="${id}">${inner}</g>`); };
+
+  /* 紙 */
+  out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="${night?"#1E2433":"#FFFFFF"}"/>`);
+  for(let y=20;y<H;y+=24) out.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="${night?"#2A3245":"#EEF1F5"}" stroke-width="1"/>`);
+  out.push(`<line x1="22" y1="0" x2="22" y2="${H}" stroke="${night?"#5A3A4A":"#F6D5D2"}" stroke-width="1.2"/>`);
+
+  /* 窓 (連続記録で景色が変わる) */
+  const ww = Math.min(240, Math.max(140, W*0.38)), wx = C - ww/2, wy = 70, wh = 180;
+  if(night){
+    wash(C, wy+wh/2, ww/2, wh/2, streak>=7 ? "#5B4F9C" : "#3B4F8C", .45);
+    const stars = streak>=3 ? 14 : streak>=1 ? 6 : 0;
+    for(let i=0;i<stars;i++) out.push(`<circle cx="${U(wx+8,wx+ww-8).toFixed(0)}" cy="${U(wy+8,wy+wh*0.55).toFixed(0)}" r="${U(1,2).toFixed(1)}" fill="#FFF3C4"/>`);
+    if(streak>=3 && ev!=="rain"){ circ(wx+ww-36, wy+36, 15); wash(wx+ww-36, wy+36, 14, 14, "#FFF3C4", .5); }
+    if(streak>=7){ let x=wx+4; while(x<wx+ww-12){ const w=U(16,30), h=U(30,70); L([[x,wy+wh],[x,wy+wh-h],[x+w,wy+wh-h],[x+w,wy+wh]],1.6);
+        for(let yy=wy+wh-h+8; yy<wy+wh-6; yy+=12) if(rnd()<.6) out.push(`<rect x="${(x+U(3,w-8)).toFixed(0)}" y="${yy.toFixed(0)}" width="4" height="5" fill="#FFD27A"/>`); x+=w+2; } }
+    if(streak>=14) L([[wx+20,wy+20],[wx+70,wy+50]],1.4,"#FFF3C4");
+  }else{
+    wash(C, wy+wh/2, ww/2, wh/2, streak>=7 && streak<14 ? "#F4B183" : "#9CC9E6");
+    if(streak===0){ [[wx+40,wy+50],[wx+ww-50,wy+80]].forEach(([x,y])=>{ out.push(`<path d="M${x-26} ${y} q8 -16 22 -8 q10 -16 26 -2 q16 -2 12 12 z" fill="none" stroke="${ink}" stroke-width="1.6"/>`); }); }
+    if(streak>=1) out.push(`<path d="${jit([[wx+6,wy+wh-30],[wx+ww*0.25,wy+wh-52],[wx+ww*0.45,wy+wh-36],[wx+ww*0.7,wy+wh-60],[wx+ww-6,wy+wh-40]],1)}" fill="none" stroke="${ink}" stroke-width="1.6"/>`);
+    if(streak>=1) wash(C, wy+wh-20, ww/2-6, 22, "#B8D8B0");
+    if(streak>=3 && ev!=="rain"){ circ(wx+ww-40, wy+40, 16); wash(wx+ww-40, wy+40, 15, 15, "#FFE9A0", .7); }
+    if(streak>=14) ["#E97B7B","#F2C14E","#81B29A","#7FA7D9"].forEach((c,i)=>out.push(`<path d="M${wx+20+i*6} ${wy+wh-20} A${ww/2-30-i*6} ${wh/2-10-i*6} 0 0 1 ${wx+ww-20-i*6} ${wy+wh-20}" fill="none" stroke="${c}" stroke-width="3" opacity=".7"/>`));
+  }
+  /* --- ゆるいイベント (窓の中) --- */
+  if(ev==="rain"){ wash(C, wy+wh/2, ww/2, wh/2, night?"#46506A":"#B8C2CC", .45);
+    for(let i=0;i<26;i++){ const x=U(wx+6,wx+ww-10), y=U(wy+6,wy+wh-16); out.push(`<line x1="${x.toFixed(0)}" y1="${y.toFixed(0)}" x2="${(x-4).toFixed(0)}" y2="${(y+12).toFixed(0)}" stroke="${night?"#9FB4D8":"#6F8FB0"}" stroke-width="1.4"/>`); } }
+  if(ev==="balloon"){ const bx=wx+ww*0.3, by=wy+50; wash(bx,by,14,17,"#F28B82",.8); out.push(`<ellipse cx="${bx}" cy="${by}" rx="13" ry="16" fill="none" stroke="${ink}" stroke-width="1.8"/>`); L([[bx,by+16],[bx-4,by+40],[bx+3,by+64]],1.2); }
+  /* 季節 (窓の外) */
+  if(month===12 || month<=2){ for(let i=0;i<22;i++) out.push(`<circle cx="${U(wx+6,wx+ww-6).toFixed(0)}" cy="${U(wy+6,wy+wh-6).toFixed(0)}" r="${U(1.5,3).toFixed(1)}" fill="${night?"#E8EEF8":"#FFFFFF"}" stroke="${night?"none":"#C9D3DE"}" stroke-width=".8"/>`); }
+  L([[wx,wy],[wx+ww,wy],[wx+ww,wy+wh],[wx,wy+wh]],2.4,ink,true);
+  L([[C,wy],[C,wy+wh]]); L([[wx,wy+wh/2],[wx+ww,wy+wh/2]]);
+  L([[wx-10,wy-8],[wx+ww+10,wy-8]],2.8); L([[wx-6,wy+wh+6],[wx+ww+6,wy+wh+6]],2.6);
+  if(have.has("curtain")) g("curtain", ()=>{
+    wash(wx-6, wy+90, 14, 100, "#F2A7A0"); wash(wx+ww+6, wy+90, 14, 100, "#F2A7A0");
+    [[wx-18,wx+4],[wx+ww-4,wx+ww+18]].forEach(([a,b])=>{ L([[a,wy-6],[a-3,wy+60],[a+2,wy+120],[a-2,wy+190]],1.8); L([[b,wy-6],[b-6,wy+90],[b-2,wy+190]],1.8); L([[a,wy+190],[b-2,wy+190]],1.6); });
+  });
+  /* 床 */
+  L([[0,FL],[W,FL]],2.6);
+  /* 季節の小物 */
+  if(month>=9 && month<=11){ for(let i=0;i<7;i++){ const x=U(40,W-40), y=U(FL+14,H-20), c=["#E8925A","#D9A441","#C8553D"][i%3]; wash(x,y,7,4,c,.75); L([[x-7,y],[x+7,y]],1.1); } }
+  if(month>=3 && month<=4){ for(let i=0;i<10;i++){ const x=U(30,W-30), y=U(FL+10,H-20); wash(x,y,4,3,"#F4B6C2",.9); } }
+  if(month>=6 && month<=8){ const x=wx+ww-16; L([[x,wy-8],[x,wy+18]],1.2); out.push(`<path d="M${x-9} ${wy+30} q9 -16 18 0 z" fill="none" stroke="${ink}" stroke-width="1.6"/>`); wash(x,wy+26,8,5,"#9CC9E6",.6); L([[x,wy+30],[x,wy+44]],1); L([[x-3,wy+44],[x+3,wy+50]],1.4); }
+  /* --- ゆるいイベント (部屋の中) --- */
+  const evg = (fn) => { const s0 = out.length; fn(); const inner = out.splice(s0).join(""); out.push(`<g class="revent">${inner}</g>`); };
+  if(ev==="bird") evg(()=>{ const x=wx+ww*0.72, y=wy+wh+4;
+    if(night){ out.push(`<ellipse cx="${x}" cy="${y-14}" rx="11" ry="14" fill="${night?"#3A4256":"#fff"}" stroke="${ink}" stroke-width="1.8"/>`); circ(x-4,y-18,3,1.4); circ(x+4,y-18,3,1.4); L([[x-8,y-28],[x-5,y-24]],1.4); L([[x+8,y-28],[x+5,y-24]],1.4); }
+    else { wash(x,y-9,12,8,"#F2C14E",.8); out.push(`<path d="${jit([[x-12,y-6],[x-6,y-16],[x+6,y-16],[x+12,y-8],[x+4,y-2],[x-12,y-6]],0.6)}" fill="none" stroke="${ink}" stroke-width="1.8"/>`); L([[x+12,y-12],[x+18,y-11],[x+12,y-9]],1.4); circ(x+6,y-12,1.2,1.4); L([[x-12,y-6],[x-20,y-10]],1.4); L([[x-2,y-2],[x-2,y+2]],1.2); L([[x+3,y-2],[x+3,y+2]],1.2); } });
+  if(ev==="letter") evg(()=>{ const x = wide ? C+150 : 120, y = wide ? FL+40 : FL+10; wash(x+20,y+13,22,14,"#FFFFFF",.9);
+    L([[x,y],[x+40,y],[x+40,y+26],[x,y+26]],2,ink,true); L([[x,y],[x+20,y+15],[x+40,y]],1.6); out.push(`<path d="M${x+20} ${y+21} l-4 -4 a2.6 2.6 0 0 1 4 -3 a2.6 2.6 0 0 1 4 3 z" fill="#E24B4A"/>`); });
+  if(ev==="gift") evg(()=>{ const x = wide ? C-200 : C-16, y = wide ? FL+30 : FL+6; wash(x+16,y+14,18,16,"#A7C7E7",.8);
+    L([[x,y+6],[x+32,y+6],[x+32,y+30],[x,y+30]],2,ink,true); L([[x+16,y+6],[x+16,y+30]],1.6); L([[x-2,y],[x+34,y],[x+34,y+6],[x-2,y+6]],1.8,ink,true);
+    out.push(`<path d="M${x+16} ${y} q-10 -10 -12 -2 q4 4 12 2 q10 -10 12 -2 q-4 4 -12 2" fill="none" stroke="#E24B4A" stroke-width="1.6"/>`); });
+  if(ev==="plane") evg(()=>{ const x = W*0.22, y = 300; out.push(`<path d="M${x-80} ${y+30} q30 -40 60 -10 t50 -14" fill="none" stroke="${ink}" stroke-width="1.2" stroke-dasharray="4 5"/>`);
+    L([[x+30,y+6],[x+60,y-6],[x+38,y+14],[x+30,y+6]],1.8); L([[x+38,y+14],[x+40,y+4],[x+60,y-6]],1.4); });
+  if(ev==="teru") evg(()=>{ const x=wx+16; L([[x,wy-8],[x,wy+12]],1.2); circ(x,wy+22,10,1.8); out.push(`<path d="M${x-10} ${wy+28} q-6 18 -10 24 l40 0 q-4 -6 -10 -24" fill="${night?"#3A4256":"#FFFFFF"}" stroke="${ink}" stroke-width="1.8"/>`); circ(x-3,wy+20,1,1.4); circ(x+3,wy+20,1,1.4); out.push(`<path d="M${x-3} ${wy+25} q3 3 6 0" fill="none" stroke="${ink}" stroke-width="1.2"/>`); });
+  if(ev==="clover") evg(()=>{ const x = wide ? C-60 : 260, y = wide ? 600 : 560; [[0,-5],[5,0],[0,5],[-5,0]].forEach(([dx,dy])=>{ wash(x+dx,y+dy,5,5,"#6AB07A",.9); circ(x+dx,y+dy,4.5,1.2); }); L([[x,y+5],[x+3,y+16]],1.4); });
+  /* --- イベント (追加分) --- */
+  const sillY = wy+wh+6;
+  const nightSky = () => wash(C, wy+wh/2, ww/2-4, wh/2-4, "#2E3A70", .85);
+  if(ev==="moon") evg(()=>{ nightSky(); const x=wx+ww*0.62, y=wy+wh*0.38; wash(x,y,30,30,"#FFF3C4",.95); circ(x,y,30,2); circ(x-8,y-6,4,1.2); circ(x+9,y+8,6,1.2); });
+  if(ev==="shootingstar") evg(()=>{ nightSky(); for(let i=0;i<10;i++) out.push(`<circle cx="${U(wx+8,wx+ww-8).toFixed(0)}" cy="${U(wy+8,wy+wh-8).toFixed(0)}" r="1.6" fill="#FFF3C4"/>`); L([[wx+ww*0.8,wy+24],[wx+ww*0.35,wy+wh*0.55]],1.6,"#FFF3C4"); out.push(`<circle cx="${wx+ww*0.35}" cy="${wy+wh*0.55}" r="3" fill="#FFF3C4"/>`); });
+  if(ev==="fireworks") evg(()=>{ nightSky(); [[0.3,0.35,"#F28B82"],[0.68,0.3,"#F2C14E"],[0.5,0.55,"#9CC9E6"]].forEach(([fx,fy,c])=>{ const x=wx+ww*fx, y=wy+wh*fy; for(let a=0;a<12;a++){ const t=a*Math.PI/6; out.push(`<line x1="${(x+Math.cos(t)*6).toFixed(1)}" y1="${(y+Math.sin(t)*6).toFixed(1)}" x2="${(x+Math.cos(t)*22).toFixed(1)}" y2="${(y+Math.sin(t)*22).toFixed(1)}" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`); } }); });
+  if(ev==="fireflies") evg(()=>{ nightSky(); for(let i=0;i<9;i++){ const x=U(wx+10,wx+ww-10), y=U(wy+wh*0.4,wy+wh-10); wash(x,y,6,6,"#F6F2A0",.7); out.push(`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="2" fill="#F6F2A0"/>`); } });
+  if(ev==="butterfly") evg(()=>{ const x=wx+ww*0.3, y=wy+wh*0.4; wash(x-6,y,8,10,"#F2C14E",.9); wash(x+6,y,8,10,"#F2C14E",.9); out.push(`<path d="M${x} ${y} q-14 -16 -14 0 q0 12 14 0 q14 -16 14 0 q0 12 -14 0" fill="none" stroke="${ink}" stroke-width="1.6"/>`); L([[x,y-8],[x,y+8]],1.6); });
+  if(ev==="contrail") evg(()=>{ L([[wx+10,wy+wh*0.6],[wx+ww-14,wy+20]],2.4,night?"#C9D3DE":"#7F93AD"); L([[wx+12,wy+wh*0.6+5],[wx+ww-14,wy+25]],1.2,night?"#8FA0C8":"#C9D3DE"); out.push(`<path d="M${wx+ww-14} ${wy+20} l8 -3 l-3 7 z" fill="${ink}"/>`); });
+  if(ev==="snowman") evg(()=>{ const x=wx+ww*0.3, y=wy+wh-22; wash(x,y,16,14,"#FFFFFF",1); wash(x,y-22,11,10,"#FFFFFF",1); circ(x,y,15,1.8); circ(x,y-23,10,1.8); out.push(`<circle cx="${x-3}" cy="${y-25}" r="1.4" fill="${ink}"/><circle cx="${x+3}" cy="${y-25}" r="1.4" fill="${ink}"/><path d="M${x} ${y-22} l7 2 l-7 1z" fill="#E8925A"/>`); });
+  if(ev==="koinobori") evg(()=>{ const x=wx+ww*0.2; L([[x,wy+wh],[x,wy+12]],2); [["#4A7BD0",30],["#E24B4A",56],["#F2C14E",80]].forEach(([c,y])=>{ out.push(`<path d="M${x} ${wy+y} q30 -6 56 4 l-8 6 l8 6 q-26 10 -56 4 z" fill="${c}" opacity=".75" stroke="${ink}" stroke-width="1.4"/>`); circ(x+8,wy+y+7,2.5,1.2); }); });
+  if(ev==="tsukimi") evg(()=>{ const x=wx+ww-40; out.push(`<path d="M${x-22} ${sillY-2} l44 0 l-6 -10 l-32 0 z" fill="none" stroke="${ink}" stroke-width="1.6"/>`); [[-10,-16],[0,-16],[10,-16],[-5,-25],[5,-25],[0,-34]].forEach(([dx,dy])=>{ wash(x+dx,sillY+dy,5,5,"#FFFFFF",1); circ(x+dx,sillY+dy,5,1.4); }); L([[wx+20,sillY-2],[wx+26,sillY-60]],1.4); L([[wx+26,sillY-2],[wx+34,sillY-56]],1.4); });
+  if(ev==="kagami") evg(()=>{ const x = wide ? W-210 : W-70, y = 356; out.push(`<ellipse cx="${x}" cy="${y}" rx="22" ry="9" fill="#FFFFFF" stroke="${ink}" stroke-width="1.8"/><ellipse cx="${x}" cy="${y-12}" rx="16" ry="7" fill="#FFFFFF" stroke="${ink}" stroke-width="1.8"/>`); wash(x,y-21,7,6,"#F2A541",.95); circ(x,y-21,6,1.4); });
+  if(ev==="tanabata") evg(()=>{ const x = wx-30; L([[x,FL],[x+4,120]],2.2,"#5A9E6F"); [[150,-20],[190,22],[230,-24],[270,20],[310,-18]].forEach(([y,dx],i)=>{ L([[x+3,y],[x+3+dx,y-10]],1.4,"#5A9E6F"); const c=["#F28B82","#9CC9E6","#F2C14E","#B8D8B0","#C5B8E8"][i]; out.push(`<rect x="${x+dx-3}" y="${y-8}" width="7" height="18" fill="${c}" stroke="${ink}" stroke-width="1"/>`); }); });
+  if(ev==="xmas") evg(()=>{ const x = wide ? C-170 : W-60, y = FL; wash(x,y-50,30,46,"#81B29A",.85); out.push(`<path d="${jit([[x,y-96],[x-26,y-50],[x-14,y-50],[x-34,y-14],[x+34,y-14],[x+14,y-50],[x+26,y-50],[x,y-96]],0.8)}" fill="none" stroke="${ink}" stroke-width="1.8"/>`); L([[x-6,y-14],[x-6,y],[x+6,y],[x+6,y-14]],1.6); out.push(`<path d="M${x} ${y-104} l3 6 l7 1 l-5 5 l1 7 l-6 -3 l-6 3 l1 -7 l-5 -5 l7 -1z" fill="#F2C14E"/>`); [[-12,-40,"#E24B4A"],[10,-30,"#4A7BD0"],[-4,-62,"#F2C14E"],[16,-56,"#E24B4A"]].forEach(([dx,dy,c])=>out.push(`<circle cx="${x+dx}" cy="${y+dy}" r="3.5" fill="${c}"/>`)); });
+  if(ev==="bubbles") evg(()=>{ for(let i=0;i<11;i++){ const x=U(W*0.2,W*0.8), y=U(260,420), r=U(5,14); out.push(`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" fill="${night?"#9CC9E6":"#DCEFFB"}" opacity=".45" stroke="${ink}" stroke-width="1.1"/>`); } });
+  if(ev==="cocoa") evg(()=>{ const x = wide ? W-70 : W-60, y = wide ? 358 : 356; L([[x-9,y-18],[x+9,y-18],[x+7,y],[x-7,y]],1.8,ink,true); wash(x,y-10,7,7,"#B07A5A",.8); out.push(`<path d="M${x+8} ${y-14} q8 0 6 8 q-2 4 -7 3" fill="none" stroke="${ink}" stroke-width="1.6"/>`); [-4,2].forEach(dx=>out.push(`<path d="M${x+dx} ${y-24} q-4 -6 0 -12 q4 -6 0 -12" fill="none" stroke="${ink}" stroke-width="1.2" opacity=".7"/>`)); });
+  if(ev==="yarn") evg(()=>{ const x = C-50, y = wide ? 560 : 600; wash(x,y,12,12,"#F28BB0",.85); circ(x,y,12,1.8); L([[x-10,y-4],[x+10,y+4]],1.1); L([[x-6,y-10],[x+8,y+8]],1.1); out.push(`<path d="M${x+12} ${y+4} q24 14 46 -2" fill="none" stroke="#E07A9A" stroke-width="1.4"/>`); });
+  if(ev==="doodle") evg(()=>{ const x = wide ? C+180 : W*0.5+40, y = 300; circ(x,y,20,1.8); out.push(`<circle cx="${x-7}" cy="${y-5}" r="2" fill="${ink}"/><circle cx="${x+7}" cy="${y-5}" r="2" fill="${ink}"/><path d="M${x-9} ${y+5} q9 9 18 0" fill="none" stroke="${ink}" stroke-width="1.6"/>`); [[-30,-22],[30,-24],[34,14]].forEach(([dx,dy])=>out.push(`<path d="M${x+dx} ${y+dy} l2 -6 l2 6 l6 2 l-6 2 l-2 6 l-2 -6 l-6 -2z" fill="#F2C14E"/>`)); });
+  if(ev==="umbrella") evg(()=>{ const x = wide ? C+260 : W-40, y = FL; out.push(`<path d="M${x-30} ${y-60} q30 -36 60 0 q-10 -6 -20 0 q-10 -6 -20 0 q-10 -6 -20 0z" fill="${night?"#5A6FA8":"#9CC9E6"}" fill-opacity=".7" stroke="${ink}" stroke-width="1.8"/>`); L([[x,y-80],[x,y-4]],1.8); out.push(`<path d="M${x} ${y-4} q0 6 -6 6" fill="none" stroke="${ink}" stroke-width="1.8"/>`); [[-14,y+6],[8,y+10]].forEach(([dx,yy])=>out.push(`<ellipse cx="${x+dx}" cy="${yy}" rx="9" ry="2.5" fill="#9CC9E6" opacity=".7"/>`)); });
+  if(ev==="cookies") evg(()=>{ const x = wide ? 280 : C+60, y = wide ? 360 : FL+14; out.push(`<ellipse cx="${x}" cy="${y}" rx="26" ry="7" fill="#FFFFFF" stroke="${ink}" stroke-width="1.8"/>`); [[-10,-6],[8,-6],[0,-12]].forEach(([dx,dy])=>{ wash(x+dx,y+dy,8,5,"#D9A441",.95); out.push(`<ellipse cx="${x+dx}" cy="${y+dy}" rx="8" ry="5" fill="none" stroke="${ink}" stroke-width="1.3"/>`); }); });
+  if(ev==="photo") evg(()=>{ const x = wide ? C+90 : 60, y = wide ? 600 : 470; out.push(`<g transform="rotate(-10 ${x} ${y})"><rect x="${x-18}" y="${y-20}" width="36" height="42" fill="#FFFFFF" stroke="${ink}" stroke-width="1.6"/><rect x="${x-14}" y="${y-16}" width="28" height="26" fill="#F4B183" opacity=".7"/></g>`); });
+  if(ev==="wind") evg(()=>{ [[W*0.2,300],[W*0.45,260],[W*0.7,320]].forEach(([x,y])=>out.push(`<path d="M${x-30} ${y} q20 -10 40 0 t40 0" fill="none" stroke="${night?"#8FA0C8":"#B7C3CF"}" stroke-width="1.6" stroke-linecap="round"/>`)); const x=W*0.55, y=280; wash(x,y,7,4,"#81B29A",.9); L([[x-7,y],[x+7,y]],1.1); });
+  if(ev==="music") evg(()=>{ [[22,300],[60,270],[96,310],[130,280]].forEach(([dx,y],i)=>{ const x=dx+(wide?20:0); out.push(`<ellipse cx="${x}" cy="${y}" rx="6" ry="4.5" fill="${ink}" transform="rotate(-20 ${x} ${y})"/>`); L([[x+5,y-2],[x+5,y-26]],1.6); if(i%2) L([[x+5,y-26],[x+14,y-20]],1.6); }); });
+  if(ev==="twocats") evg(()=>{ const x = wide ? C-110 : 70, y = wide ? 600 : 620;
+    out.push(`<path d="${jit([[x-20,y+8],[x-22,y-4],[x-12,y-13],[x+8,y-13],[x+18,y-3],[x+16,y+8],[x-20,y+8]],0.8)}" fill="${night?"#4A4F5E":"#9A9A9A"}" fill-opacity=".55" stroke="${ink}" stroke-width="1.8"/>`);
+    L([[x-22,y-4],[x-25,y-16],[x-17,y-11]],1.5); L([[x-15,y-12],[x-13,y-22],[x-8,y-13]],1.5); L([[x+16,y+4],[x+28,y],[x+29,y-8]],1.5); });
+  if(ev==="acorn") evg(()=>{ [[W*0.3,FL+20],[W*0.62,FL+46],[W*0.48,FL+30]].forEach(([x,y])=>{ wash(x,y+3,6,7,"#B07A4A",.9); out.push(`<ellipse cx="${x}" cy="${y+3}" rx="6" ry="7" fill="none" stroke="${ink}" stroke-width="1.4"/><path d="M${x-7} ${y-1} q7 -8 14 0 z" fill="#7A5230"/>`); L([[x,y-5],[x+2,y-9]],1.2); }); });
+  /* --- ものがたりの小物 (話が進むと増える) --- */
+  const ep = opts.story || 0;
+  if(ep >= 3){ const x = wx+30, y = sillY; /* 植木鉢: 種→芽→つぼみ→花 */
+    L([[x-12,y-2],[x+12,y-2],[x+9,y-20],[x-9,y-20]],1.8,ink,true); wash(x,y-11,10,8,"#D9A07A",.7);
+    if(ep >= 5){ L([[x,y-20],[x,y-38]],1.6,"#5A9E6F"); out.push(`<path d="M${x} ${y-32} q-10 -6 -12 2 q8 2 12 -2 M${x} ${y-36} q10 -6 12 2 q-8 2 -12 -2" fill="#B8D8B0" stroke="#5A9E6F" stroke-width="1.2"/>`); }
+    if(ep >= 10){ L([[x,y-38],[x,y-50]],1.6,"#5A9E6F"); wash(x,y-54,4,6,"#F2C14E",.8); }
+    if(ep >= 13){ [[0,-6],[6,0],[0,6],[-6,0]].forEach(([dx,dy])=>{ wash(x+dx,y-56+dy,5,5,"#F2C14E",.95); }); out.push(`<circle cx="${x}" cy="${y-56}" r="3" fill="#E8925A"/>`); } }
+  if(ep >= 7){ const x = C-60, y = wide ? 560 : 606; /* モカのクッション */
+    out.push(`<ellipse cx="${x}" cy="${y}" rx="26" ry="9" fill="#F4B6A8" fill-opacity=".6" stroke="${ink}" stroke-width="1.8"/><ellipse cx="${x}" cy="${y-3}" rx="17" ry="5" fill="none" stroke="${ink}" stroke-width="1.2"/>`); }
+  if(ep >= 9){ const x = wx+ww+16, y = wy+70; /* 絵はがき */
+    out.push(`<g transform="rotate(6 ${x+20} ${y+14})"><rect x="${x}" y="${y}" width="40" height="28" fill="#FFFFFF" stroke="${ink}" stroke-width="1.6"/><rect x="${x+3}" y="${y+3}" width="34" height="14" fill="#9CC9E6" opacity=".7"/><path d="M${x+3} ${y+17} q10 -6 17 0 t17 0" fill="none" stroke="${ink}" stroke-width="1"/></g>`); }
+  if(ep >= 12){ const x = 132, y = 250; /* 古い鍵 */
+    circ(x,y,2,1.6); L([[x,y+2],[x,y+12]],1.2); circ(x,y+18,5,1.6); L([[x,y+23],[x,y+40]],1.8,"#C9A227"); L([[x,y+34],[x+6,y+34]],1.6,"#C9A227"); L([[x,y+39],[x+5,y+39]],1.6,"#C9A227"); }
+  if(ep >= 17){ const x = wide ? W-236 : W-56, y = wide ? 336 : 300; /* 写真立て */
+    out.push(`<rect x="${x-14}" y="${y-18}" width="28" height="22" fill="#FFFFFF" stroke="${ink}" stroke-width="1.6"/>`); wash(x,y-7,10,7,"#F4B183",.8); L([[x-6,y+4],[x-10,y+10]],1.4); }
+  if(ep >= 18){ /* ガーランド */
+    out.push(`<path d="M${wx-14} ${wy-4} Q${C} ${wy+34} ${wx+ww+14} ${wy-4}" fill="none" stroke="${ink}" stroke-width="1.2"/>`);
+    for(let i=1;i<10;i++){ const t=i/10, x=(1-t)*(1-t)*(wx-14)+2*t*(1-t)*C+t*t*(wx+ww+14), y=(1-t)*(1-t)*(wy-4)+2*t*(1-t)*(wy+34)+t*t*(wy-4); out.push(`<circle cx="${x.toFixed(1)}" cy="${(y+5).toFixed(1)}" r="4" fill="${["#F2C14E","#F28B82","#9CC9E6"][i%3]}" opacity="${night?1:.85}"/>`); } }
+  /* 左の壁 */
+  if(have.has("shelf")) g("shelf", ()=>{
+    wash(80,170,46,60,"#B8D8B0");
+    L([[40,140],[120,140]],2.4); L([[40,230],[120,230]],2.4);
+    for(let i=0;i<5;i++){ const t=100+(i%2)*10; L([[46+i*13,140],[46+i*13,t],[56+i*13,t],[56+i*13,140]],1.8); }
+    L([[60,230],[56,205],[84,205],[80,230]],1.8);
+    out.push(`<path d="${jit([[70,205],[62,180],[70,170],[76,182],[70,205]],1)}" fill="none" stroke="${ink}" stroke-width="1.6"/>`);
+  });
+  if(have.has("picture")) g("picture", ()=>{ wash(78,292,30,22,"#F4D58D"); L([[48,268],[108,268],[108,316],[48,316]],2,ink,true); L([[56,308],[72,288],[84,300],[92,290],[100,308]],1.6); circ(94,280,5,1.4); });
+  if(have.has("clock")) g("clock", ()=>{ const x = wide ? wx+ww+50 : Math.min(W-40, wx+ww+28), y = 40; circ(x,y,16,2); L([[x,y],[x,y-10]],1.6); L([[x,y],[x+7,y+3]],1.6); });
+  if(have.has("poster")) g("poster", ()=>{ const x=W-92; wash(x+26,140,26,36,"#9CC9E6"); L([[x,100],[x+52,100],[x+52,178],[x,178]],2,ink,true); L([[x+10,160],[x+26,124],[x+42,160]],1.6); circ(x+36,118,6,1.4); });
+  /* 寝床 (左) */
+  if(have.has("bed")) g("bed", ()=>{
+    wash(110,410,90,30,"#C5B8E8");
+    L([[30,360],[30,440]],2.4); L([[30,372],[56,372]],2);
+    L([[30,400],[190,400],[190,428],[30,428]],2.4,ink,true); L([[80,400],[78,428]],1.4);
+    L([[38,388],[76,388],[76,400],[38,400]],1.8,ink,true);
+    L([[36,428],[34,446]],2); L([[186,428],[188,446]],2);
+  });
+  else if(have.has("futon")) g("futon", ()=>{
+    wash(105,425,80,16,"#C5B8E8");
+    L([[30,418],[180,418],[180,438],[30,438]],2.2,ink,true); L([[36,410],[72,410],[72,418],[36,418]],1.8,ink,true); L([[80,418],[100,438]],1.2); L([[110,418],[130,438]],1.2);
+  });
+  if(have.has("lamp")) g("lamp", ()=>{ const x = wide ? 212 : 200; L([[x,300],[x,438]],2); L([[x-20,300],[x+20,300],[x+10,268],[x-10,268]],2.2,ink,true); L([[x-14,440],[x+14,440]],2.4); wash(x,290,26,22,"#FFE9A0", night ? .35 : .55); });
+  /* 机 (右) */
+  if(have.has("desk")) g("desk", ()=>{
+    const x = W-150; wash(x+60,340,64,26,"#E8D39A");
+    L([[x,360],[x+124,360]],2.6); L([[x+6,360],[x+6,440]],2.2); L([[x+118,360],[x+118,440]],2.2);
+    L([[x+30,356],[x+80,356],[x+86,322],[x+36,322]],2,ink,true); L([[x+24,358],[x+88,358]],1.8);
+    L([[x+96,358],[x+96,342],[x+108,342],[x+108,358]],1.6);
+  });
+  if(have.has("plant")) g("plant", ()=>{ const x=W-30; wash(x,380,22,40,"#B8D8B0");
+    L([[x-12,400],[x+12,400],[x+9,440],[x-9,440]],2,ink,true);
+    [[-20,-40],[0,-60],[16,-44],[-8,-70]].forEach(([dx,dy])=>out.push(`<path d="M${x} 400 Q${x+dx*.3} ${400+dy*.6} ${x+dx} ${400+dy}" fill="none" stroke="${ink}" stroke-width="1.8"/>`));
+    if(ev==="flower"){ [[-8,-70],[16,-44]].forEach(([dx,dy])=>{ wash(x+dx,400+dy,7,7,"#F28BB0",.9); circ(x+dx,400+dy,6,1.4); out.push(`<circle cx="${x+dx}" cy="${400+dy}" r="2" fill="#F2C14E"/>`); }); } });
+  /* ソファ・テレビ・ラグ (広い画面は窓の下、狭い画面は手前) */
+  const sofaX = wide ? C-110 : 34, sofaY = wide ? 320 : 476, sofaW = wide ? 220 : 170;
+  if(have.has("rug")) g("rug", ()=>{ const ry = wide ? 545 : 590; wash(C, ry, Math.min(150, W*0.4), 30, "#F4B6A8"); out.push(`<ellipse cx="${C}" cy="${ry}" rx="${Math.min(150, W*0.4)}" ry="30" fill="none" stroke="${ink}" stroke-width="2" stroke-dasharray="8 6"/>`); });
+  if(have.has("sofa")) g("sofa", ()=>{
+    wash(sofaX+sofaW/2, sofaY+70, sofaW/2, 50, "#7FA7D9");
+    L([[sofaX+12,sofaY+50],[sofaX+12,sofaY+10],[sofaX+30,sofaY],[sofaX+sofaW-30,sofaY],[sofaX+sofaW-12,sofaY+10],[sofaX+sofaW-12,sofaY+50]],2.6);
+    L([[sofaX,sofaY+60],[sofaX,sofaY+124],[sofaX+sofaW,sofaY+124],[sofaX+sofaW,sofaY+60],[sofaX+sofaW-12,sofaY+50],[sofaX+12,sofaY+50],[sofaX,sofaY+60]],2.6);
+    L([[sofaX+sofaW/2,sofaY+52],[sofaX+sofaW/2,sofaY+124]],1.6);
+    L([[sofaX+40,sofaY+12],[sofaX+76,sofaY+9],[sofaX+78,sofaY+40],[sofaX+42,sofaY+43]],1.8,ink,true);
+    L([[sofaX+10,sofaY+124],[sofaX+8,sofaY+140]],2.2); L([[sofaX+sofaW-10,sofaY+124],[sofaX+sofaW-8,sofaY+140]],2.2);
+  });
+  if(have.has("tv")) g("tv", ()=>{ const x = wide ? W-300 : W-118, y = wide ? 470 : 520;
+    wash(x+50,y+10,48,30,"#9CC9E6");
+    L([[x,y+36],[x+100,y+36],[x+100,y+64],[x,y+64]],2.2,ink,true);
+    L([[x+12,y-30],[x+88,y-30],[x+88,y+28],[x+12,y+28]],2.2,ink,true); L([[x+44,y+28],[x+44,y+36]],1.6); L([[x+56,y+28],[x+56,y+36]],1.6); });
+  if(have.has("plant2")) g("plant2", ()=>{ const x = wide ? 40 : 30, y = 600; wash(x+6,y-40,30,50,"#81B29A");
+    L([[x-14,y-30],[x+18,y-30],[x+14,y+20],[x-10,y+20]],2,ink,true);
+    [[-26,-60],[-6,-86],[16,-70],[30,-50],[4,-100]].forEach(([dx,dy])=>out.push(`<path d="M${x+2} ${y-30} Q${x+dx*.2} ${y-30+dy*.6} ${x+dx} ${y-30+dy}" fill="none" stroke="${ink}" stroke-width="1.8"/>`)); });
+  /* 猫 (3日以上続けると遊びに来る) */
+  if(streak >= 3 || (opts.story||0) >= 6){ const x = C+20, y = wide ? 540 : 586;
+    out.push(`<path d="${jit([[x-24,y+10],[x-26,y-6],[x-14,y-16],[x+10,y-16],[x+22,y-4],[x+20,y+10],[x-24,y+10]],0.8)}" fill="${night?"#3A4256":"#F2E3C6"}" stroke="${ink}" stroke-width="1.8"/>`);
+    L([[x-26,y-6],[x-30,y-20],[x-20,y-14]],1.6); L([[x-18,y-15],[x-16,y-26],[x-10,y-16]],1.6);
+    L([[x-24,y-4],[x-20,y-4]],1.4); L([[x+20,y+6],[x+34,y+2],[x+36,y-8]],1.6); }
+  /* 段ボール (期限切れ) */
+  const slots = wide
+    ? [[W*0.30,600],[W*0.62,610],[W*0.45,592],[W*0.78,588],[W*0.15,604],[W*0.88,612],[W*0.55,618],[W*0.36,566],[W*0.70,566],[W*0.22,572]]
+    : [[230,456],[260,600],[150,606],[300,452],[200,620],[60,616],[100,452],[300,618],[250,640-90],[30,452]];
+  clutter.slice(0,10).forEach((c,i)=>{
+    const [x,y] = slots[i];
+    const s = out.length;
+    wash(x+24,y+18,26,20,"#D4A373", night ? .3 : .4);
+    L([[x,y],[x+48,y],[x+48,y+38],[x,y+38]],2,ink,true); L([[x,y+10],[x+48,y+10]],1.4); L([[x+24,y],[x+24,y+10]],1.4);
+    out.push(`<circle cx="${x+38}" cy="${y+24}" r="5" fill="#E24B4A"/>`);
+    const inner = out.splice(s).join("");
+    out.push(`<g class="rbox" data-pid="${esc(c.id)}"><title>${esc(c.name)} (期限切れ)</title>${inner}</g>`);
+  });
+  return { svg: out.join(""), w: W, h: H };
+}
+let roomTimer = null;
+function renderRoom(){
+  const el = $("#roomBg"); if(!el) return;
+  const on = state.settings.roomBg !== false;
+  document.body.classList.toggle("room-on", on);
+  if(!on){ el.innerHTML = ""; return; }
+  const pts = roomPoints();
+  const clutter = state.projects.filter(p=>p.status!=="done" && p.deadline && daysLeft(p.deadline) < 0)
+                    .sort((a,b)=>daysLeft(a.deadline)-daysLeft(b.deadline));
+  const night = document.documentElement.dataset.theme !== "light";
+  const vw = el.clientWidth || window.innerWidth, vh = el.clientHeight || window.innerHeight;
+  const W = Math.max(360, Math.min(1400, Math.round(640 * vw / Math.max(1, vh))));
+  const ev = todayEvent();
+  const r = drawRoom({ night, points: pts, streak: roomStreak(), clutter, W, event: ev.id, month: new Date().getMonth()+1, story: storyUnlocked() });
+  renderStoryLine();
+  const he = $("#hEvent"); if(he) he.textContent = ev.id ? ev.say(night) : "";
+  el.innerHTML = `<svg viewBox="0 0 ${r.w} ${r.h}" preserveAspectRatio="xMidYMax slice" width="100%" height="100%">${r.svg}</svg>`;
+  /* 新しく届いた家具を知らせる */
+  const got = ROOM_ITEMS.filter(i=>pts >= i.at);
+  const seen = state.settings.roomSeen;
+  if(seen == null){ state.settings.roomSeen = got.length; save({silent:true}); }
+  else if(got.length > seen){
+    got.slice(seen).forEach(i=>{ const n = el.querySelector(`[data-item="${i.id}"]`); if(n) n.classList.add("rnew"); });
+    toast(`📦 ${got[got.length-1].name}が届きました！`);
+    state.settings.roomSeen = got.length; save({silent:true});
+  }
+}
+$("#roomBg").addEventListener("click", e=>{
+  if(e.target.closest(".revent")){ const ev = todayEvent(); if(ev.tap) toast(ev.tap()); return; }
+  const b = e.target.closest(".rbox"); if(!b) return;
+  jumpToProject(b.dataset.pid);
+});
+/* ---- ゆるいイベント: 日付と時間帯(昼/夜)で決まるので、同じ時間帯ならどの端末でも同じ ---- */
+const ROOM_LETTERS = [
+  "いつもおつかれさま。今日はひとつ片付ければ十分です",
+  "水を一杯飲んで、深呼吸しよう",
+  "がんばりすぎないでね。休むのも予定のうち",
+  "昨日の自分より、ほんの少し前へ",
+  "窓を開けて、空気を入れかえよう",
+  "小さく始めれば、意外と進むもの",
+  "終わったことを数えてみよう。ちゃんと進んでいるよ",
+  "今日の夕ごはんは、好きなものにしよう",
+  "肩をぐるっと回して、ひと休み",
+  "うまくいかない日も、手帳をひらいただけで十分",
+];
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const ROOM_EVENTS = [
+  /* いつでも */
+  { id:"bird",     say:n=> n ? "🦉 ふくろうが窓辺に来ています" : "🐦 小鳥が窓辺で休んでいます", tap:()=>"ちいさなお客さん。そっとしておこう" },
+  { id:"rain",     say:()=> "☔ 今日は雨。部屋でゆっくり片付けよう" },
+  { id:"letter",   say:()=> "💌 手紙が届いています（床の封筒をタップ）", tap:()=>"「" + pick(ROOM_LETTERS) + "」" },
+  { id:"gift",     say:()=> "🎁 小さな贈り物が置いてあります", tap:()=>pick(["中身はお菓子でした。ひと休みにどうぞ","中身はいい香りの紅茶でした","中身は手のひらサイズの折り紙の鶴でした"]) },
+  { id:"plane",    say:()=> "✈️ どこからか紙飛行機が飛んできました", tap:()=>"「今日もいい日になりますように」と書いてある" },
+  { id:"teru",     say:()=> "☁️ てるてる坊主を吊るしました", tap:()=>"明日は晴れるといいね" },
+  { id:"balloon",  say:()=> "🎈 窓の外を風船が飛んでいきます" },
+  { id:"flower",   say:()=> "🌸 観葉植物に花が咲きました", need:"plant" },
+  { id:"butterfly",say:()=> "🦋 窓の外でちょうちょが舞っています", slot:"day" },
+  { id:"contrail", say:()=> "✈️ 空に飛行機雲が一本", slot:"day" },
+  { id:"bubbles",  say:()=> "🫧 どこからかシャボン玉が入ってきました", tap:()=>"ぱちん。" },
+  { id:"cocoa",    say:()=> "☕ あたたかいココアをいれました", tap:()=>"ふう、とひと息" },
+  { id:"yarn",     say:()=> "🧶 毛糸玉が転がっています", tap:()=>"ねこが遊んだあとみたい" },
+  { id:"doodle",   say:()=> "✏️ 壁に小さな落書きを見つけました", tap:()=>"にっこり。誰が描いたんだろう" },
+  { id:"umbrella", say:()=> "🌂 傘を干しています" },
+  { id:"cookies",  say:()=> "🍪 クッキーが焼けました", tap:()=>"ひとつどうぞ" },
+  { id:"photo",    say:()=> "📷 古い写真が出てきました", tap:()=>"なつかしい夕焼けの写真" },
+  { id:"wind",     say:()=> "🍃 気持ちのいい風が入ってきます" },
+  { id:"music",    say:()=> "🎵 となりの部屋からピアノの音", tap:()=>"今日の曲は、少しだけ楽しそう" },
+  { id:"twocats",  say:()=> "🐈 今日はねこの友だちも来ています", tap:()=>"二匹でのんびり" },
+  /* 夜だけ */
+  { id:"moon",         say:()=> "🌕 今夜は月がきれいです", slot:"night" },
+  { id:"shootingstar", say:()=> "🌠 流れ星が見えました", slot:"night", tap:()=>"願いごとは間に合ったかな" },
+  /* 季節 */
+  { id:"fireworks", say:()=> "🎆 遠くで花火が上がっています", slot:"night", months:[7,8] },
+  { id:"fireflies", say:()=> "✨ 窓の外にホタル", slot:"night", months:[6,7] },
+  { id:"snowman",   say:()=> "⛄ 窓の外に雪だるま", months:[12,1,2] },
+  { id:"acorn",     say:()=> "🌰 どんぐりを拾いました", months:[10,11] },
+];
+/* 日付で必ず出る行事 */
+const ROOM_SPECIAL = [
+  { id:"kagami",    from:[1,1],  to:[1,7],   say:()=> "🎍 あけましておめでとう。鏡餅を飾りました" },
+  { id:"koinobori", from:[5,1],  to:[5,5],   say:()=> "🎏 こいのぼりが泳いでいます" },
+  { id:"tanabata",  from:[7,1],  to:[7,7],   say:()=> "🎋 七夕。短冊に願いごとを", tap:()=>"「" + pick(["のんびり過ごせますように","いい知らせが届きますように","みんな元気でいられますように"]) + "」" },
+  { id:"tsukimi",   from:[9,15], to:[9,30],  say:()=> "🎑 お月見。窓辺にお団子を" },
+  { id:"xmas",      from:[12,20],to:[12,25], say:()=> "🎄 小さなツリーを飾りました" },
+];
+function todayEvent(){
+  const d = new Date(), m = d.getMonth()+1, day = d.getDate(), hr = d.getHours();
+  const slot = (hr >= 18 || hr < 5) ? "night" : "day";
+  const md = m*100 + day;
+  const sp = ROOM_SPECIAL.find(e=> md >= e.from[0]*100+e.from[1] && md <= e.to[0]*100+e.to[1]);
+  const key = d.getFullYear()*10000 + md;
+  let h = key*2 + (slot==="night"?1:0); h = Math.imul(h ^ (h>>>16), 0x45d9f3b); h = Math.imul(h ^ (h>>>16), 0x45d9f3b); h = (h ^ (h>>>16)) >>> 0;
+  let ev;
+  if(sp && slot==="day") ev = sp;
+  else if(h % 100 < 4) ev = { id:"clover", say:()=> "🍀 床に四つ葉のクローバーが落ちています", tap:()=>"めずらしい！今日はいいことがあるかも" };
+  else if(h % 100 >= 75) ev = { id:"" };          /* 何もない時もある */
+  else {
+    const pts = roomPoints();
+    const list = ROOM_EVENTS.filter(e=>(!e.need || ROOM_ITEMS.some(i=>i.id===e.need && pts >= i.at))
+                                    && (!e.slot || e.slot===slot) && (!e.months || e.months.includes(m)));
+    ev = list[(h >>> 8) % list.length];
+  }
+  if(ev.id){ try{
+    const log = state.settings.roomEvents || {}, k = key + slot;
+    if(!log[k]){ log[k] = ev.id; const ks = Object.keys(log).sort(); while(ks.length > 90) delete log[ks.shift()]; state.settings.roomEvents = log; save({silent:true}); }
+  }catch(e){} }
+  return ev;
+}
+
+/* ================= ものがたり (タスクを完了すると進む) ================= */
+const STORY = [
+  { at:1,   t:"はじまりの部屋",   b:"引っ越してきたばかりの、小さな部屋。手帳を一冊、机の上に置いた。ここから少しずつ、自分の場所にしていこう。" },
+  { at:3,   t:"窓辺の訪問者",     b:"窓の外から、白いねこがこちらを見ていた。目が合うと、ゆっくりまばたきをして、どこかへ行ってしまった。" },
+  { at:5,   t:"ちいさな種",       b:"窓辺に、見知らぬ植木鉢がひとつ。『水をあげてください』と、丸い字のメモが添えてあった。" },
+  { at:8,   t:"おとなりさん",     b:"メモの主は、となりの部屋の人らしい。壁ごしに、ときどきピアノの音が聞こえてくる。" },
+  { at:11,  t:"芽が出た",         b:"植木鉢から、小さな双葉が顔を出した。うれしくて、手帳のすみに日付を書きこんだ。" },
+  { at:15,  t:"ねこの名前",       b:"あの白いねこが、今日は部屋の中まで入ってきた。首輪の札には『モカ』と書いてある。" },
+  { at:19,  t:"モカのお気に入り", b:"モカはラグの上が好きらしい。小さなクッションを置いてみたら、すぐにその上で丸くなった。" },
+  { at:24,  t:"返事の手紙",       b:"おとなりさんに、植木鉢のお礼の手紙を書いた。ドアの下に、そっとすべりこませる。" },
+  { at:29,  t:"絵はがき",         b:"翌朝、ドアの下に絵はがきが一枚。海の見える町の絵に『いつか行ってみたい場所』と書いてあった。" },
+  { at:35,  t:"つぼみ",           b:"双葉はすっかり大きくなり、てっぺんに小さなつぼみ。モカが不思議そうに見上げている。" },
+  { at:41,  t:"雨の日の音楽",     b:"雨の日、壁ごしにピアノが聞こえる。今日の曲は、いつもより少しだけ楽しそうだ。" },
+  { at:48,  t:"古い鍵",           b:"本棚の奥から、古い真鍮の鍵が出てきた。どこの鍵だろう。ひとまず壁のフックに掛けておく。" },
+  { at:55,  t:"花が咲いた",       b:"つぼみがひらいて、黄色い花が咲いた。おとなりさんにも見せたくて、短いメモを書いた。" },
+  { at:63,  t:"ねこの散歩道",     b:"モカのあとをついていくと、廊下の突き当たりに小さな扉があった。古い鍵穴がひとつ。" },
+  { at:71,  t:"屋上へ",           b:"あの鍵で、扉がひらいた。階段をのぼった先には、誰もいない屋上と、広い空が待っていた。" },
+  { at:80,  t:"屋上の付箋",       b:"屋上の手すりに、『ここで星を見るのが好き』と書かれた付箋。見覚えのある、丸い字だ。" },
+  { at:90,  t:"夕焼けの写真",     b:"屋上から見た夕焼けを撮って、写真立てに入れた。部屋が少しだけ、にぎやかになった。" },
+  { at:100, t:"小さな灯り",       b:"星を見る会を開こう。そう決めて、小さな電球のガーランドを窓に飾った。" },
+  { at:112, t:"招待状",           b:"おとなりさんへ、星を見る会の招待状を書いた。返事は『ぜひ』のひとことだけ。それで十分だった。" },
+  { at:125, t:"星を見る夜",       b:"屋上で、はじめておとなりさんと会った。思っていたより、ずっと気さくな人だった。モカも一緒に空を見ていた。" },
+  { at:140, t:"いつもの部屋",     b:"部屋に戻って、手帳の最初のページを見返した。何もなかった部屋は、もうすっかり自分の場所になっていた。（第1部 おわり）" },
+];
+function storyCount(){
+  const gm = state.settings.game;
+  const local = state.projects.filter(p=>p.status==="done" && !p.dropped).length;
+  return Math.max(gm && typeof gm.doneTotal === "number" ? gm.doneTotal : 0, local);
+}
+function storyUnlocked(){ const n = storyCount(); return STORY.filter(s=>n >= s.at).length; }
+function renderStoryLine(){
+  const el = $("#hStory"); if(!el) return;
+  const n = storyCount(), u = storyUnlocked(), next = STORY[u];
+  const seen = state.settings.storySeen || 0;
+  const cur = u ? `📖 第${u}話「${STORY[u-1].t}」` : "📖 ものがたりは、最初の完了から始まります";
+  const rest = next ? ` ・ 次のお話まで あと${next.at - n}件` : " ・ 第1部 完";
+  el.innerHTML = `<a href="#" id="storyOpen">${esc(cur)}</a>${u > seen ? ' <span class="ntag t-pin" style="font-size:10.5px">NEW</span>' : ""}<span>${esc(rest)}</span>`;
+  if(u > seen && state.settings.storySeen != null && !renderStoryLine._told){ renderStoryLine._told = true; toast(`📖 第${u}話「${STORY[u-1].t}」が届きました`); }
+  if(state.settings.storySeen == null){ state.settings.storySeen = u; save({silent:true}); }
+}
+function openStory(){
+  const u = storyUnlocked(), n = storyCount();
+  const list = STORY.slice(0, u).map((s,i)=>`<div class="story-ep${i===u-1?" cur":""}"><div class="story-t">第${i+1}話　${esc(s.t)}</div><div class="story-b">${esc(s.b)}</div></div>`).reverse().join("");
+  const next = STORY[u];
+  $("#storyBody").innerHTML = (next ? `<div class="hint" style="margin-bottom:10px">次のお話（第${u+1}話）まで、あと${next.at - n}件の完了</div>` : "")
+    + (list || `<div class="hint">予定をひとつ完了すると、第1話が始まります。</div>`);
+  $("#storyDlg").showModal();
+  state.settings.storySeen = u; save({silent:true}); renderStoryLine();
+}
+document.addEventListener("click", e=>{ if(e.target.closest("#storyOpen")){ e.preventDefault(); openStory(); } });
+$("#storyClose").addEventListener("click", ()=>$("#storyDlg").close());
+window.addEventListener("resize", ()=>{ clearTimeout(roomTimer); roomTimer = setTimeout(renderRoom, 150); });
+
+$("#roomOn").addEventListener("change", e=>{ state.settings.roomBg = e.target.checked; save({silent:true}); renderRoom(); });
 
 /* ================= tabs & init ================= */
 const loaded = {};
