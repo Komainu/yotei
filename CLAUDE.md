@@ -16,7 +16,7 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 
 - localStorage キー: `sakiyomi_v1` (state本体), `sakiyomi_backups` (自動バックアップ10世代)
 - Script Properties のキー名 (下記)。名前を変える時は移行処理を必ず書く
-- ウェブアプリの公開URL (デプロイID) は変えない。更新は「デプロイを管理 → 新バージョン」
+- ウェブアプリの公開URL (デプロイID) は変えない。更新は main の `gas/` 変更で自動 (下記「サーバーの公開」)。手でやる時は「デプロイを管理 → 新バージョン」
 - 空データでクラウドを上書きしない保護 (アプリ側とサーバー側の両方にある)
 
 ## アプリ (index.html) の要点
@@ -60,3 +60,10 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 - `test/helpers/gas.js`: `gas/Code.gs` を Node の vm で読み込み、PropertiesService などの偽物を差し込む (Telegramの送受信は `tg` に記録)
 - `test/helpers/app.js`: `index.html` を jsdom で開く。通信は偽のGAS (上記) へ届く。`app.run("式")` でアプリ内の変数・関数を使える
 - `test/helpers/clock.js`: 両方で共有する偽の時計 (日本時間)。テストでは実際の時刻を使わない
+
+## サーバーの公開 (`.github/workflows/deploy-gas.yml`)
+
+- main の `gas/` が変わると: テスト → `clasp push --force` → `clasp deploy -i <既存のデプロイID>` (新バージョン、URLは変わらない) → 公開中の `version` が `GAS_VERSION` と一致するか確認
+- 設定: `gas/.clasp.json` (スクリプトID), `gas/appsscript.json` (Asia/Tokyo・V8・自分として実行・全員), `gas/.claspignore` (Code.gs と appsscript.json だけ送る)
+- Secrets: `CLASPRC_JSON` (clasp login の認証情報), `GAS_DEPLOYMENT_ID`。手順は `docs/deploy.md`
+- `setup()` (トリガー) は自動では実行されない。新しいGoogleサービスを使う時は画面での権限許可が必要
