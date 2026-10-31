@@ -1,0 +1,108 @@
+name: deploy-gas
+
+# main の gas/ が変わったら、テストが通った後に Apps Script へ反映し、
+# 既存のウェブアプリのデプロイを新しいバージョンで更新する (URLは変わらない)。
+# 必要な Secrets (登録方法は docs/deploy.md):
+#   CLASPRC_JSON       … clasp login で作られる .clasprc.json の中身
+#   GAS_DEPLOYMENT_ID  … 今使っているウェブアプリのデプロイID
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gas/**'
+  workflow_dispatch:   # Actions 画面の「Run workflow」から手動でも実行できる
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-gas
+  cancel-in-progress: false
+
+env:
+  CLASP_VERSION: 3.4.1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: clasp を入れる
+        run: npm install -g @google/clasp@${CLASP_VERSION}
+
+      - name: Secrets が登録されているか確認
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          missing=""
+          [ -n "$CLASPRC_JSON" ] || missing="$missing CLASPRC_JSON"
+          [ -n "$GAS_DEPLOYMENT_ID" ] || missing="$missing GAS_DEPLOYMENT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::GitHub Secrets が未登録です:$missing (docs/deploy.md の手順で登録してください)"
+            exit 1
+          fi
+          if ! printf '%s' "$CLASPRC_JSON" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))'; then
+            echo "::error::CLASPRC_JSON がJSONとして読めません。.clasprc.json の中身を全部そのまま貼り付けてください"
+            exit 1
+          fi
+
+      - name: 認証情報を書き出す
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+
+      - name: Apps Script へ送る (clasp push)
+        working-directory: gas
+        run: |
+          clasp show-file-status
+          clasp push --force
+
+      - name: 既存のデプロイを新バージョンで更新 (clasp deploy -i)
+        working-directory: gas
+        env:
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          desc="GitHub ${GITHUB_SHA::7} $(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M')"
+          clasp deploy -i "$GAS_DEPLOYMENT_ID" -d "$desc"
+
+      - name: 公開されたか確認 (版数を照合)
+        env:
+          GAS_DEPLOYMENT_ID: ${{ secrets.GAS_DEPLOYMENT_ID }}
+        run: |
+          want=$(sed -n "s/^const GAS_VERSION = '\(.*\)';.*/\1/p" gas/Code.gs)
+          echo "期待する版数: $want"
+          for i in 1 2 3 4 5 6; do
+            # 応答には案件の情報も含まれるため、ログには版数だけを出す
+            got=$(curl -sSL "https://script.google.com/macros/s/${GAS_DEPLOYMENT_ID}/exec" \
+                  | node -e 'try{const d=JSON.parse(require("fs").readFileSync(0,"utf8"));process.stdout.write(String(d.version||""))}catch(e){}' || true)
+            echo "公開中の版数: ${got:-(読めません)}"
+            if [ "$got" = "$want" ]; then echo "✅ 公開を確認しました"; exit 0; fi
+            sleep 10
+          done
+          echo "::error::公開中のウェブアプリの版数が $want になりませんでした。docs/deploy.md の「うまくいかない時」を確認してください"
+          exit 1
+
+      - name: 認証情報を消す
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"
