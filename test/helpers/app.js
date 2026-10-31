@@ -32,6 +32,8 @@ async function openApp(opts) {
     if (opts.gas && url.startsWith(GAS_URL)) {
       opts.gas.clock.now = clock.now;   // 同じ時計を共有
       if (init && String(init.method || 'GET').toUpperCase() === 'POST') {
+        // CORSなどで fetch の POST が通らない端末を再現する (アプリはフォーム送信に切り替える)
+        if (opts.gasPostFails) throw new TypeError('Failed to fetch');
         return reply(JSON.parse(opts.gas.ctx.doPost({ postData: { contents: init.body }, parameter: {} }).getContent()));
       }
       const params = Object.fromEntries(new URL(url).searchParams);
@@ -68,6 +70,11 @@ async function openApp(opts) {
     },
   });
   const win = dom.window;
+  // フォーム送信 (gasFormPost) は jsdom では送れないので、送る中身 (payload) を偽のGASへ直接届ける
+  win.gasFormPost = async (url, body) => {
+    requests.push({ url, form: body });
+    if (opts.gas && String(url).startsWith(GAS_URL)) { opts.gas.clock.now = clock.now; opts.gas.ctx.doPost({ parameter: { payload: body } }); }
+  };
   await settle(win);
   return {
     dom, win, doc: win.document, clock, errors, requests, GAS_URL,

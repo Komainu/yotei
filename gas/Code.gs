@@ -35,7 +35,38 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.10.27';
+const GAS_VERSION = '2026.10.31';
+
+// =====================================================================
+//  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
+//  ・未設定の間は今まで通り誰でも使える (移行期間のため)
+//  ・設定後は、GET の key / POST の JSON の key が一致した時だけ中身を返す
+//  ・Telegram・毎朝のメール・トリガーは doGet/doPost を通らないので影響しない
+// =====================================================================
+
+const SECRET_MIN = 12;
+
+function apiSecret_() {
+  return PropertiesService.getScriptProperties().getProperty('API_SECRET') || '';
+}
+
+/** 合言葉が一致するか (未設定なら常に true)。比べる時間で中身が推測されないよう全文字を比べる */
+function authOk_(key) {
+  const secret = apiSecret_();
+  if (!secret) return true;
+  const k = String(key == null ? '' : key);
+  let diff = k.length ^ secret.length;
+  for (let i = 0; i < secret.length; i++) diff |= secret.charCodeAt(i) ^ (k.charCodeAt(i) || 0);
+  return diff === 0;
+}
+
+/** 合言葉が違う時の応答。件数や案件は返さない (自動公開の確認用に版数だけ返す) */
+function authError_() {
+  return json({
+    ok: false, needKey: true, version: GAS_VERSION,
+    error: '合言葉が違います。アプリの設定「☁️ クラウド同期」に合言葉を入れてください',
+  });
+}
 
 // =====================================================================
 //  受信箱 — Telegramで行った変更を記録し、Web版AIへの引き継ぎに使う
@@ -145,6 +176,19 @@ function doPost(e) {
     const data = JSON.parse(raw);
     const props = PropertiesService.getScriptProperties();
 
+    // --- 合言葉の確認 (未設定なら素通り) ---
+    if (!authOk_(data.key != null ? data.key : (e && e.parameter && e.parameter.key))) return authError_();
+
+    // --- 合言葉を設定・変更する (未設定の時は誰でも / 設定済みなら今の合言葉が必要: 上で確認済み) ---
+    if (data.action === 'setSecret') {
+      const nk = String(data.newKey || '').trim();
+      if (nk.length < SECRET_MIN || nk.length > 200) {
+        return json({ ok: false, error: '合言葉は' + SECRET_MIN + '〜200文字にしてください' });
+      }
+      props.setProperty('API_SECRET', nk);
+      return json({ ok: true, secretSet: true });
+    }
+
     // --- Telegram連携の設定を受け取る ---
     if (data.action === 'config') {
       const split = function (v) { return String(v || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean); };
@@ -209,6 +253,7 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  if (!authOk_(e && e.parameter ? e.parameter.key : '')) return authError_();
   const props = PropertiesService.getScriptProperties();
   const list = getProjects_();
   const base = {
@@ -223,6 +268,7 @@ function doGet(e) {
     })(),
   };
   base.version = GAS_VERSION;
+  base.locked = !!apiSecret_();   // 合言葉を設定済みか (合言葉そのものは返さない)
   base.tgChats = tgChats_().length;
   base.alertLastOk = props.getProperty('ALERT_LAST_OK') || null;
   try { base.tgLastSend = JSON.parse(props.getProperty('TG_LAST_SEND') || 'null'); } catch (e) { base.tgLastSend = null; }

@@ -500,6 +500,11 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
     <h3>☁️ クラウド同期 & 毎日のメール通知</h3>
     <label>Google Apps Script ウェブアプリURL</label>
     <input id="gasUrl" placeholder="https://script.google.com/macros/s/..../exec">
+    <label>合言葉 (サーバーを守るパスワード)</label>
+    <div class="row">
+      <input id="gasKey" type="password" autocomplete="off" placeholder="合言葉を設定していなければ空のまま">
+      <button class="btn small" id="gasKeyToggle" type="button">表示</button>
+    </div>
     <label>メール通知の送信先</label>
     <input id="gasMail" type="email" placeholder="you@example.com">
     <label class="check" style="margin-top:12px"><input type="checkbox" id="gasAuto" checked>変更を自動でクラウドに保存する (推奨)</label>
@@ -512,6 +517,24 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <button class="btn" id="gasCheck">状況を確認</button>
     </div>
     <div id="gasResult" style="font-size:13px; margin-top:10px"></div>
+    <details id="gasKeyBox" style="margin-top:12px">
+      <summary style="cursor:pointer">🔑 合言葉を設定・変更する</summary>
+      <label>新しい合言葉 (12文字以上)</label>
+      <div class="row">
+        <input id="gasKeyNew" type="text" autocomplete="off" placeholder="「🎲 作る」で自動で作れます">
+        <button class="btn small" id="gasKeyGen" type="button">🎲 作る</button>
+      </div>
+      <div class="row" style="margin-top:10px; flex-wrap:wrap">
+        <button class="btn primary" id="gasKeySet" type="button">合言葉を設定</button>
+      </div>
+      <div id="gasKeyResult" style="font-size:13px; margin-top:10px"></div>
+      <p class="hint">合言葉を設定すると、ウェブアプリのURLを知っているだけでは、案件を見たり書きかえたりできなくなります。<br>
+        <b>作り方:</b> 「🎲 作る」を押すと、ランダムな合言葉が入ります。自分で決める時は、12文字以上で、ほかでは使っていない文字にしてください。<br>
+        <b>ほかの端末:</b> 設定したら、ほかのPC・スマホの設定にも、上の「合言葉」の欄に同じ合言葉を入れてください。入れるまで、その端末は同期できません。<br>
+        <b>変更する時:</b> 上の「合言葉」の欄に今の合言葉が入った状態で、新しい合言葉を設定します。<br>
+        <b>忘れた時:</b> Apps Script の画面 →「プロジェクトの設定」→「スクリプト プロパティ」の <code>API_SECRET</code> で確認できます。<br>
+        Telegram と毎朝のメールは、合言葉を設定しても今まで通り届きます。</p>
+    </details>
     <p class="hint">同じURLを他のPCの設定に入れれば、案件データを共有できます (APIキー類は端末ごとに入力してください)。アプリを開いた時・画面に戻った時に、他の端末やTelegramでの変更を案件ごとに合体して反映します。セットアップ手順は同梱の <b>gas-daily-mail.gs</b> を参照。</p>
   </div>
 
@@ -640,9 +663,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.10.27";
+const APP_VERSION = "2026.10.31";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.10.27";
+const MIN_GAS_VERSION = "2026.10.31";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -1179,7 +1202,7 @@ $("#btnDedup").addEventListener("click", ()=>{
   }
 });
 /* APIキー・Botトークン・クラウドURLはファイルに書き出さない (人に渡すと漏れるため) */
-const SECRET_KEYS = ["key","tgToken","tgChat","gasUrl","fredKey"];
+const SECRET_KEYS = ["key","tgToken","tgChat","gasUrl","gasKey","fredKey"];
 $("#btnExport").addEventListener("click", ()=>{
   const settings = Object.assign({}, state.settings);
   SECRET_KEYS.forEach(k=>delete settings[k]);
@@ -2048,7 +2071,7 @@ $("#tgSave").addEventListener("click", ()=>{
   el.addEventListener("change", saveTgSettings);
   el.addEventListener("input", saveTgSettings);
 });
-["gasUrl","gasMail","gasAuto"].forEach(id=>{
+["gasUrl","gasKey","gasMail","gasAuto"].forEach(id=>{
   const el = $("#"+id);
   el.addEventListener("change", saveGasSettings);
   el.addEventListener("input", saveGasSettings);
@@ -2098,7 +2121,7 @@ $("#tgTest").addEventListener("click", async ()=>{
 async function gasConfig(payloadObj){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("先に「☁️ クラウド同期」のウェブアプリURLを設定してください");
-  const body = JSON.stringify(payloadObj);
+  const body = JSON.stringify(withGasKey(payloadObj));
   try{
     const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body, redirect:"follow" });
     const d = await r.json();
@@ -2158,6 +2181,15 @@ $("#tgIngestOff").addEventListener("click", async ()=>{
 
 /* ================= Google Apps Script 同期 ================= */
 /* CORSの影響を受けないフォーム送信 (hidden iframe 宛) */
+/* 合言葉 (サーバーの API_SECRET) をすべての通信に付ける。未設定なら付けない */
+function gasGetUrl(query){
+  const url = state.settings.gasUrl, k = state.settings.gasKey || "";
+  return url + (url.includes("?")?"&":"?") + query + (k ? "&key=" + encodeURIComponent(k) : "");
+}
+function withGasKey(obj){
+  const k = state.settings.gasKey || "";
+  return k ? Object.assign({}, obj, { key: k }) : obj;
+}
 function gasFormPost(url, body){
   return new Promise(resolve=>{
     let frame = document.getElementById("gasFrame");
@@ -2189,7 +2221,7 @@ function gasSync(force){
 }
 async function gasFetchAll(){
   const url = state.settings.gasUrl;
-  const r = await fetch(url + (url.includes("?")?"&":"?") + "action=load&t=" + Date.now(), { redirect:"follow" });
+  const r = await fetch(gasGetUrl("action=load&t=" + Date.now()), { redirect:"follow" });
   const d = await r.json();
   if(!d.ok || !Array.isArray(d.projects)) throw new Error(d.error || "クラウドのデータを読めません");
   return d;
@@ -2241,7 +2273,7 @@ async function gasSyncInner(force){
   /* 全案件 + 削除記録を送る。サーバー側でも案件ごとに新しい方を採用して合体する */
   const payload = { email: state.settings.gasMail || "", syncedAt: stamp, base: state.settings.gasSyncedAt || "",
                     all: state.projects, deleted: state.deleted || {} };
-  const body = JSON.stringify(payload);
+  const body = JSON.stringify(withGasKey(payload));
   /* ② CORS対応のfetchを試す (成功すれば応答をそのまま使える) */
   try{
     const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body, redirect:"follow" });
@@ -2254,7 +2286,7 @@ async function gasSyncInner(force){
       return { ok:true, count: state.projects.length, pulled };
     }
     if(d.error) throw new Error(d.error);
-  }catch(e){ if(/拒否/.test(e.message)) throw e; /* ③ へ */ }
+  }catch(e){ if(/拒否|合言葉/.test(e.message)) throw e; /* ③ へ */ }
   /* ③ フォーム送信でリトライ */
   await gasFormPost(url, body);
   /* ④ Google側を読み直して本当に反映されたか検証 */
@@ -2274,7 +2306,7 @@ async function gasSyncInner(force){
 async function gasLoad(force){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
-  const r = await fetch(url + (url.includes("?")?"&":"?") + "action=load&t=" + Date.now(), { redirect:"follow" });
+  const r = await fetch(gasGetUrl("action=load&t=" + Date.now()), { redirect:"follow" });
   const d = await r.json();
   if(!d.ok) throw new Error(d.error || "読込に失敗しました");
   if(!Array.isArray(d.projects)) throw new Error("クラウドにデータがありません (先に「⬆ クラウドへ保存」してください)");
@@ -2300,6 +2332,7 @@ async function gasAutoResume(){
   try{
     const st = await gasCheck();
     if(!st || !st.ok) return;
+    if(/合言葉/.test(state.settings.gasError || "")){ state.settings.gasError = ""; save({silent:true}); }   /* 合言葉が合った */
     const dirty = state.updatedAt && (!state.settings.gasSyncedAt || Date.parse(state.updatedAt) > Date.parse(state.settings.gasSyncedAt) + 1000);
     const remoteChanged = st.syncedAt && st.syncedAt !== state.settings.gasSyncedAt;
     if(!state.projects.length && st.count > 0){
@@ -2315,7 +2348,10 @@ async function gasAutoResume(){
     }
     renderTgIngestStatus();
     renderGasStatus();
-  }catch(e){ /* オフライン等は無視 */ }
+  }catch(e){
+    /* オフライン等は無視。合言葉が違う時だけは気づけるように知らせる */
+    if(/合言葉/.test(e.message || "")){ state.settings.gasError = e.message; save({silent:true}); renderGasStatus(); renderHome(); }
+  }
 }
 /* 開きっぱなしの画面に戻った時も最新にする (30秒に1回まで) */
 let lastResume = Date.now();
@@ -2359,8 +2395,10 @@ function renderGasStatus(){
 async function gasCheck(){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
-  const r = await fetch(url + (url.includes("?")?"&":"?") + "t=" + Date.now(), { redirect:"follow" });
+  const r = await fetch(gasGetUrl("t=" + Date.now()), { redirect:"follow" });
   const d = await r.json();
+  if(d && d.version && d.version !== state.settings.gasVersion){ state.settings.gasVersion = d.version; save({silent:true}); }
+  if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
   if(d && d.game) setGame(d.game);
   return d;
 }
@@ -2370,8 +2408,10 @@ $("#gasCheck").addEventListener("click", async ()=>{
   try{
     const d = await gasCheck();
     const at = d.syncedAt ? new Date(d.syncedAt).toLocaleString("ja-JP") : "なし";
-    r.innerHTML = `☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`;
+    r.innerHTML = `☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`
+      + (d.locked ? `<br>🔑 合言葉: 設定済み` : d.locked === false ? `<br>🔓 合言葉: 未設定 (下の「🔑 合言葉を設定・変更する」から設定できます)` : "");
     r.style.color = "var(--muted)";
+    if(/合言葉/.test(state.settings.gasError || "")){ state.settings.gasError = ""; save({silent:true}); renderGasStatus(); }
   }catch(err){
     r.textContent = "❌ 確認できません: " + err.message + " (デプロイの「アクセスできるユーザー」が全員か確認してください)";
     r.style.color = "var(--danger)";
@@ -2390,6 +2430,7 @@ $("#gasLoad").addEventListener("click", async ()=>{
 });
 function saveGasSettings(){
   state.settings.gasUrl = $("#gasUrl").value.trim();
+  state.settings.gasKey = $("#gasKey").value.trim();
   state.settings.gasMail = $("#gasMail").value.trim();
   state.settings.gasAuto = $("#gasAuto").checked;
   save({silent:true});   /* 設定変更は案件データの更新ではない */
@@ -2409,6 +2450,47 @@ $("#gasSync").addEventListener("click", async ()=>{
   }
 });
 
+/* ---- 合言葉の設定・変更 (サーバーの API_SECRET) ---- */
+function makeGasKey(){
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const a = new Uint32Array(24); crypto.getRandomValues(a);
+  return [...a].map(n=>chars[n % chars.length]).join("").replace(/(.{6})(?=.)/g, "$1-");
+}
+async function gasSetSecret(newKey){
+  const url = state.settings.gasUrl;
+  if(!url) throw new Error("先にウェブアプリURLを設定してください");
+  newKey = String(newKey || "").trim();
+  if(newKey.length < 12) throw new Error("合言葉は12文字以上にしてください");
+  let d;
+  try{
+    const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify(withGasKey({ action:"setSecret", newKey })), redirect:"follow" });
+    d = await r.json();
+  }catch(e){ throw new Error("サーバーと通信できませんでした (" + e.message + ")"); }
+  if(!d || !d.ok) throw new Error((d && d.error) || "設定できませんでした");
+  if(!d.secretSet) throw new Error("サーバー(Apps Script)が古い版のため設定できません。サーバーを更新してください");
+  state.settings.gasKey = newKey;
+  state.settings.gasError = "";
+  save({silent:true});
+  return newKey;
+}
+$("#gasKeyToggle").addEventListener("click", ()=>{
+  const k = $("#gasKey"); k.type = k.type==="password" ? "text" : "password";
+});
+$("#gasKeyGen").addEventListener("click", ()=>{ $("#gasKeyNew").value = makeGasKey(); });
+$("#gasKeySet").addEventListener("click", async ()=>{
+  saveGasSettings();
+  const r = $("#gasKeyResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    const k = await gasSetSecret($("#gasKeyNew").value);
+    $("#gasKey").value = k; $("#gasKeyNew").value = "";
+    r.innerHTML = `✅ 合言葉を設定しました。<b>ほかの端末にも同じ合言葉を入れてください。</b><br><code style="user-select:all">${esc(k)}</code> <button class="btn small" id="gasKeyCopy" type="button">📋 コピー</button>`;
+    r.style.color = "var(--ok)";
+    $("#gasKeyCopy").addEventListener("click", ()=>copyText(k, "合言葉をコピーしました"));
+    renderGasStatus(); renderHome();
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
+
 /* ================= settings ================= */
 function loadSettingsUI(){
   $("#setKey").value = state.settings.key || "";
@@ -2418,6 +2500,7 @@ function loadSettingsUI(){
   $("#tgToken").value = state.settings.tgToken || "";
   $("#tgChat").value = state.settings.tgChat || "";
   $("#gasUrl").value = state.settings.gasUrl || "";
+  $("#gasKey").value = state.settings.gasKey || "";
   $("#gasMail").value = state.settings.gasMail || "";
   $("#gasAuto").checked = state.settings.gasAuto !== false;
   $("#roomOn").checked = state.settings.roomBg !== false;
@@ -2833,7 +2916,7 @@ async function loadReviewData(){
   if(!state.settings.gasUrl){ reviewData = { hist:[], qhist:[], histSince:null, local:true }; return reviewData; }
   const url = state.settings.gasUrl;
   try{
-    const r = await fetch(url + (url.includes("?")?"&":"?") + "action=history&t=" + Date.now(), { redirect:"follow" });
+    const r = await fetch(gasGetUrl("action=history&t=" + Date.now()), { redirect:"follow" });
     const d = await r.json();
     reviewData = { hist: d.hist || [], qhist: d.qhist || [], histSince: d.histSince || null, game: d.game || null };
     if(d.game) setGame(d.game);
