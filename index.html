@@ -211,7 +211,7 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .todo:first-of-type{border-top:none; padding-top:2px}
 .todo .tname{font-weight:700}
 .todo .tmemo{font-size:12.5px; color:var(--muted)}
-.home-menu{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px}
+.home-menu{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px}
 .home-menu button{border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:12px;
   padding:12px 10px; text-align:left; font-size:14px; font-weight:700}
 .home-menu button small{display:block; font-size:11.5px; font-weight:500; color:var(--muted)}
@@ -370,6 +370,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
   <div class="home-menu">
     <button data-go="ai">🤖 AIに渡す<small>Web版AIへコピー</small></button>
+    <button data-go="review">📈 振り返り<small>傾向をAIで分析</small></button>
     <button data-go="import">📥 結果を取り込む<small>AIの回答を貼る</small></button>
     <button data-go="list">📋 一覧を見る<small>全案件</small></button>
     <button data-go="settings">⚙️ 設定<small>通知・同期</small></button>
@@ -570,6 +571,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <label>やってほしいこと</label>
       <select id="aiPurpose">
         <option value="table">📊 タスク管理表にまとめる</option>
+        <option value="review">📈 振り返り分析（自分の進め方の傾向を見る）</option>
         <option value="research">🔎 各案件を調べて参加条件・期限を埋める</option>
         <option value="priority">🎯 優先順位をつけて今日やることを出す</option>
         <option value="risk">⚠️ リスク(Sybil・詐欺・費用)を洗い出す</option>
@@ -580,7 +582,13 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
         <label>指示内容</label>
         <textarea id="aiFree" rows="3" placeholder="例: 期限が近い順に並べて、それぞれ30分以内で終わる作業に分解して"></textarea>
       </div>
-      <label class="check" style="margin-top:12px"><input type="checkbox" id="aiWantJson" checked>取り込み用のJSONも一緒に出させる (結果をアプリに戻せます)</label>
+      <div id="aiReviewWrap" style="display:none">
+        <label>期間</label>
+        <select id="rvDays"><option value="7">直近7日</option><option value="30" selected>直近30日</option><option value="90">直近90日</option></select>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="rvAnon" checked style="width:auto">案件名を伏せる（「案件A」などに置き換え、分野と数字だけを渡す）</label>
+        <p class="hint">完了・見送り・明日へ・期限変更などの記録を集計して渡します。メモやURLは含めません。記録は今回の更新から始まるので、数週間たつほど分析が深くなります。週に一度、Claudeなどに渡して振り返るのがおすすめです。</p>
+      </div>
+      <label class="check" id="aiJsonWrap" style="margin-top:12px"><input type="checkbox" id="aiWantJson" checked>取り込み用のJSONも一緒に出させる (結果をアプリに戻せます)</label>
       <label>送る内容 <span id="aiCount" style="color:var(--dim)"></span></label>
       <textarea id="aiPrompt" rows="10" style="font-family:ui-monospace,monospace; font-size:12px"></textarea>
       <div class="row" style="margin-top:12px; flex-wrap:wrap">
@@ -632,9 +640,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.10.26";
+const APP_VERSION = "2026.10.27";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.10.26";
+const MIN_GAS_VERSION = "2026.10.27";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -1032,6 +1040,7 @@ $("#tab-home").addEventListener("click", e=>{
   const go = e.target.closest("[data-go]"); if(!go) return;
   const g = go.dataset.go;
   if(g==="ai") $("#btnAiExport").click();
+  if(g==="review"){ $("#btnAiExport").click(); $("#aiPurpose").value = "review"; $("#aiPurpose").dispatchEvent(new Event("change")); }
   else if(g==="import"){ $("#btnAiExport").click(); const c = $('#aiDialog [data-ai-tab="in"]'); if(c) c.click(); }
   else if(g==="list") switchTab("projects");
   else if(g==="settings") switchTab("settings");
@@ -1291,8 +1300,13 @@ function aiProjectsForExport(){
     : state.projects.filter(p=>p.status!=="done");
 }
 function buildAiPrompt(){
-  const list = aiProjectsForExport();
   const purpose = $("#aiPurpose").value;
+  if(purpose==="review"){
+    if(!reviewData) return "記録を読み込んでいます…";
+    $("#aiCount").textContent = `(直近${$("#rvDays").value}日の記録)`;
+    return buildReviewPrompt();
+  }
+  const list = aiProjectsForExport();
   const head = purpose==="free" ? ($("#aiFree").value.trim() || "以下の案件を分かりやすく整理してください。") : AI_PURPOSE[purpose];
   const body = list.map((p,i)=>{
     const dl = p.deadline ? `${fmtDeadline(p.deadline)} (残り${daysLeft(p.deadline)}日)` : "未定";
@@ -1399,10 +1413,16 @@ $("#aiDialog").addEventListener("click", e=>{
   $("#aiIn").style.display  = t==="in"  ? "" : "none";
   $("#aiApply").style.display = t==="in" ? "" : "none";
 });
-$("#aiPurpose").addEventListener("change", ()=>{
-  $("#aiFreeWrap").style.display = $("#aiPurpose").value==="free" ? "" : "none";
+$("#aiPurpose").addEventListener("change", async ()=>{
+  const v = $("#aiPurpose").value;
+  $("#aiFreeWrap").style.display = v==="free" ? "" : "none";
+  $("#aiReviewWrap").style.display = v==="review" ? "" : "none";
+  $("#aiJsonWrap").style.display = v==="review" ? "none" : "";
   refreshAiPrompt();
+  if(v==="review"){ await loadReviewData(); refreshAiPrompt(); }
 });
+$("#rvDays").addEventListener("change", refreshAiPrompt);
+$("#rvAnon").addEventListener("change", refreshAiPrompt);
 $("#aiFree").addEventListener("input", refreshAiPrompt);
 $("#aiWantJson").addEventListener("change", refreshAiPrompt);
 $("#aiClose").addEventListener("click", ()=>$("#aiDialog").close());
@@ -2806,6 +2826,134 @@ $("#storyClose").addEventListener("click", ()=>$("#storyDlg").close());
 window.addEventListener("resize", ()=>{ clearTimeout(roomTimer); roomTimer = setTimeout(renderRoom, 150); });
 
 $("#roomOn").addEventListener("change", e=>{ state.settings.roomBg = e.target.checked; save({silent:true}); renderRoom(); });
+
+/* ================= 📈 振り返り分析 (AIに渡す) ================= */
+let reviewData = null;      /* サーバーから取った操作の記録 */
+async function loadReviewData(){
+  if(!state.settings.gasUrl){ reviewData = { hist:[], qhist:[], histSince:null, local:true }; return reviewData; }
+  const url = state.settings.gasUrl;
+  try{
+    const r = await fetch(url + (url.includes("?")?"&":"?") + "action=history&t=" + Date.now(), { redirect:"follow" });
+    const d = await r.json();
+    reviewData = { hist: d.hist || [], qhist: d.qhist || [], histSince: d.histSince || null, game: d.game || null };
+    if(d.game) setGame(d.game);
+  }catch(e){ reviewData = { hist:[], qhist:[], histSince:null, error:true }; }
+  return reviewData;
+}
+const jstDate = iso => { const d = new Date(iso); return isNaN(d) ? "" : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+const dayDiff = (a,b) => Math.round((Date.parse(jstDate(b)) - Date.parse(jstDate(a))) / 86400000);
+
+function buildReviewPrompt(){
+  const days = +($("#rvDays")?.value || 30), anon = $("#rvAnon")?.checked !== false;
+  const since = Date.now() - days*86400000;
+  const rd = reviewData || { hist:[], qhist:[] };
+  /* 匿名化: 案件名を「案件A」などに置き換える (分野は残す) */
+  const names = new Map();
+  const nm = (id, name) => {
+    if(!anon) return name || "(名称なし)";
+    if(!names.has(id)){ const i = names.size; names.set(id, "案件" + (i < 26 ? String.fromCharCode(65+i) : (i+1))); }
+    return names.get(id);
+  };
+  const cat = c => (c && c.trim()) || "未分類";
+  const byId = new Map(state.projects.map(p=>[p.id,p]));
+  let hist = (rd.hist||[]).filter(e=>Date.parse(e.t) >= since);
+  /* 記録が無い期間は、アプリの完了日時から補う */
+  const histDone = new Set(hist.filter(e=>e.k==="done"||e.k==="drop").map(e=>e.id));
+  state.projects.filter(p=>p.status==="done" && p.doneAt && Date.parse(p.doneAt) >= since && !histDone.has(p.id))
+    .forEach(p=>hist.push({ t:p.doneAt, k:p.dropped?"drop":"done", id:p.id, n:p.name, c:p.chain, d:p.deadline, ca:p.createdAt, s:"app" }));
+  hist.sort((a,b)=>a.t<b.t?-1:1);
+  const K = { add:"追加", done:"完了", drop:"見送り", reopen:"未完了に戻す", due:"期限変更", del:"削除", skip:"明日へ", check:"確認のみ", pin:"ピン" };
+  const count = k => hist.filter(e=>e.k===k).length;
+
+  /* 完了の質 */
+  const dones = hist.filter(e=>e.k==="done");
+  const withDl = dones.filter(e=>e.d);
+  const onTime = withDl.filter(e=>jstDate(e.t) <= String(e.d).slice(0,10)).length;
+  const lead = dones.map(e=>{ const ca = e.ca || byId.get(e.id)?.createdAt; return ca ? dayDiff(ca, e.t) : null; }).filter(v=>v!=null && v>=0);
+  const avg = a => a.length ? (a.reduce((x,y)=>x+y,0)/a.length).toFixed(1) : "-";
+  const med = a => { if(!a.length) return "-"; const s=[...a].sort((x,y)=>x-y); return s[Math.floor(s.length/2)]; };
+
+  /* 曜日・時間帯 */
+  const wd = "日月火水木金土", slots = ["朝(5-11時)","昼(11-17時)","夜(17-23時)","深夜(23-5時)"];
+  const wdc = Array(7).fill(0), slc = Array(4).fill(0);
+  dones.forEach(e=>{ const d = new Date(e.t), h = d.getHours(); wdc[d.getDay()]++; slc[h>=5&&h<11?0:h>=11&&h<17?1:h>=17&&h<23?2:3]++; });
+
+  /* 分野別 */
+  const cats = new Map();
+  const C = c => { if(!cats.has(c)) cats.set(c,{ open:0, overdue:0, done:0, drop:0, skip:0, due:0, lead:[] }); return cats.get(c); };
+  state.projects.filter(p=>p.status!=="done").forEach(p=>{ const o=C(cat(p.chain)); o.open++; if(p.deadline && daysLeft(p.deadline) < 0) o.overdue++; });
+  hist.forEach(e=>{ if(!e.id) return; const o=C(cat(e.c)); if(e.k==="done"){ o.done++; const ca=e.ca||byId.get(e.id)?.createdAt; if(ca) o.lead.push(dayDiff(ca,e.t)); } if(e.k==="drop") o.drop++; if(e.k==="skip") o.skip++; if(e.k==="due") o.due++; });
+
+  /* 先送りが多い案件 */
+  const post = new Map();
+  hist.filter(e=>e.k==="skip" || (e.k==="due" && e.od && e.d && e.d > e.od)).forEach(e=>{ const x = post.get(e.id) || { n:e.n, c:e.c, skip:0, ext:0 }; e.k==="skip" ? x.skip++ : x.ext++; post.set(e.id, x); });
+  const postTop = [...post.entries()].sort((a,b)=>(b[1].skip+b[1].ext)-(a[1].skip+a[1].ext)).slice(0,8);
+
+  /* 放置中 */
+  const overdue = state.projects.filter(p=>p.status!=="done" && p.deadline && daysLeft(p.deadline) < 0).sort((a,b)=>daysLeft(a.deadline)-daysLeft(b.deadline)).slice(0,12);
+  const stale = state.projects.filter(p=>p.status!=="done" && !p.deadline && p.createdAt && dayDiff(p.createdAt, new Date().toISOString()) >= 30);
+  const openAll = state.projects.filter(p=>p.status!=="done");
+
+  /* クエスト・連続記録 */
+  const qh = (rd.qhist||[]).filter(q=>Date.parse(q.d) >= since);
+  const gm = rd.game || state.settings.game || {};
+
+  /* 日別の完了数 */
+  const perDay = new Map(); dones.forEach(e=>{ const k=jstDate(e.t); perDay.set(k,(perDay.get(k)||0)+1); });
+  const dayLine = []; for(let i=Math.min(days,30)-1;i>=0;i--){ const k = jstDate(new Date(Date.now()-i*86400000).toISOString()); dayLine.push(`${k.slice(5)}:${perDay.get(k)||0}`); }
+
+  const T = (head, rows) => rows.length ? `| ${head.join(" | ")} |\n|${head.map(()=>"---").join("|")}|\n` + rows.map(r=>`| ${r.join(" | ")} |`).join("\n") : "(該当なし)";
+  const recStart = rd.histSince ? fmtDeadline(rd.histSince) : "まだ記録がありません";
+  const logRows = hist.slice(-150).map(e=>[fmtDeadline(e.t), K[e.k]||e.k, e.id ? cat(e.c) : "-", e.id ? nm(e.id, e.n) : "-", e.s==="tg"?"Telegram":"アプリ"]);
+
+  return `以下は、私の予定管理アプリの記録です。私の「予定の進め方」の傾向を分析し、改善の手助けをしてください。
+
+## お願いしたいこと
+1. 先送りしやすいパターン（分野・曜日・時間帯・案件の種類）
+2. 期限切れになりやすい案件の共通点
+3. うまくいっている点（続けたほうがいい習慣）
+4. 来週から試せる、小さく始められる改善を3つ（具体的に）
+5. 予定の整理の提案（見送ってよさそうなもの、まとめられるもの、期限を入れるべきもの）
+※ データ量が少ない部分は推測で断定せず、「データ不足」と書いてください。
+※ 箇条書きで簡潔に。最後に一言、前向きなまとめをください。
+
+## データの前提
+- 期間: 直近${days}日（現在日時 ${nowJa()}）
+- 操作の記録の開始: ${recStart}（それ以前の完了は、完了日時のみ分かります）
+- 「明日へ」はTelegramのクエストで先送りした操作、「期限変更」は期限を書き換えた操作です
+${anon ? "- 案件名は伏せています（案件A、案件B…）。分野名はそのままです\n" : ""}
+## 全体の数字
+${T(["項目","件数"],[["追加",count("add")],["完了",dones.length],["見送り",count("drop")],["明日へ(先送り)",count("skip")],["期限変更",count("due")],["未完了に戻した",count("reopen")],["削除",count("del")],["いま未完了",openAll.length],["いま期限切れ",overdue.length],["期限なしで30日以上たつ未完了",stale.length]])}
+
+## 完了の質
+- 期限つきの完了 ${withDl.length}件のうち、期限内 ${onTime}件（${withDl.length ? Math.round(onTime/withDl.length*100) : "-"}%）
+- 登録から完了までの日数: 平均 ${avg(lead)}日 / 中央値 ${med(lead)}日（${lead.length}件）
+
+## 曜日・時間帯ごとの完了数
+${T([...wd].map(x=>x), [wdc.map(String)])}
+
+${T(slots, [slc.map(String)])}
+
+## 日ごとの完了数（直近${Math.min(days,30)}日）
+${dayLine.join("  ")}
+
+## 分野ごと
+${T(["分野","未完了","うち期限切れ","完了","見送り","明日へ","期限変更","完了までの平均日数"], [...cats.entries()].sort((a,b)=>(b[1].open+b[1].done)-(a[1].open+a[1].done)).map(([c,o])=>[c,o.open,o.overdue,o.done,o.drop,o.skip,o.due,avg(o.lead)]))}
+
+## 先送りが多い案件
+${T(["案件","分野","明日へ","期限延長"], postTop.map(([id,x])=>[nm(id,x.n), cat(x.c), x.skip, x.ext]))}
+
+## 期限切れのまま残っている案件
+${T(["案件","分野","超過日数","ピン"], overdue.map(p=>[nm(p.id,p.name), cat(p.chain), -daysLeft(p.deadline), p.pinned?"○":""]))}
+
+## 毎朝のクエストと連続記録
+- いまの連続記録 ${gm.streak ?? "-"}日 / 最高 ${gm.best ?? "-"}日 / レベル ${gm.lv ?? "-"}
+- クエストの記録 ${qh.length}日分: 全部片付けた日 ${qh.filter(q=>q.b).length}日 / 1件以上完了した日 ${qh.filter(q=>q.done>0).length}日 / 先送りがあった日 ${qh.filter(q=>q.skip>0).length}日
+
+## 操作の記録（古い順、最大150件）
+${T(["日時","操作","分野","案件","どこから"], logRows)}
+`;
+}
 
 /* ================= tabs & init ================= */
 const loaded = {};
