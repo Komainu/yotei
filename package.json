@@ -1,0 +1,15 @@
+{
+  "name": "yotei",
+  "version": "1.0.0",
+  "private": true,
+  "description": "予定管理 (yotei) の自動テスト",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "devDependencies": {
+    "jsdom": "^29.0.0"
+  }
+}

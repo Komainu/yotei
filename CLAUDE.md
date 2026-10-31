@@ -53,3 +53,10 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 - 画面の文言は丁寧語・やさしい日本語。専門用語は避ける
 - 外部ライブラリは原則追加しない (追加する場合は cdnjs から、理由をPRに書く)
 - 秘密情報 (トークン・APIキー・URL) をコード・テスト・ログに書かない
+
+## テスト (`npm test`)
+
+- Node 20 以上。`npm ci` → `npm test`。GitHub Actions (`.github/workflows/test.yml`) がプッシュ・PRのたびに実行する
+- `test/helpers/gas.js`: `gas/Code.gs` を Node の vm で読み込み、PropertiesService などの偽物を差し込む (Telegramの送受信は `tg` に記録)
+- `test/helpers/app.js`: `index.html` を jsdom で開く。通信は偽のGAS (上記) へ届く。`app.run("式")` でアプリ内の変数・関数を使える
+- `test/helpers/clock.js`: 両方で共有する偽の時計 (日本時間)。テストでは実際の時刻を使わない
