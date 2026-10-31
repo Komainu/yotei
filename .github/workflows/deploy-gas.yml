@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm test
@@ -40,10 +40,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - name: clasp を入れる
         run: npm install -g @google/clasp@${CLASP_VERSION}
@@ -93,7 +93,8 @@ jobs:
           want=$(sed -n "s/^const GAS_VERSION = '\(.*\)';.*/\1/p" gas/Code.gs)
           echo "期待する版数: $want"
           for i in 1 2 3 4 5 6; do
-            # 応答には案件の情報も含まれるため、ログには版数だけを出す
+            # 合言葉は付けない: サーバーは合言葉なしの問い合わせには版数だけを返す (件数や案件は返さない)
+            # 念のため、ログにも版数だけを出す
             got=$(curl -sSL "https://script.google.com/macros/s/${GAS_DEPLOYMENT_ID}/exec" \
                   | node -e 'try{const d=JSON.parse(require("fs").readFileSync(0,"utf8"));process.stdout.write(String(d.version||""))}catch(e){}' || true)
             echo "公開中の版数: ${got:-(読めません)}"

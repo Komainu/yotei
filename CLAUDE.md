@@ -27,13 +27,15 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 - 同期 (`gasSync`): クラウドを取得 → `mergeProjects()` で案件ごとに新しい方を採用 → 全件+削除記録を送信。サーバーでも同じ規則で合体する。同期は直列化 (`gasChain`)
 - 版数: `APP_VERSION`, `MIN_GAS_VERSION` (サーバーが古いと警告)。変更したら日付で上げる
 - 機能: HOME / よてい一覧 / Polymarket / BTCマクロ(FRED) / 設定 / 「🤖 AIに渡す」(用途別プロンプト・JSON/Markdown表の取り込み・📈振り返り分析) / 部屋の背景(手帳の線画SVG、家具・段ボール・日替わりイベント・季節) / ものがたり(完了数で進む全21話) / レベル・XP・連続記録の表示
-- 秘密情報 (`key, tgToken, tgChat, gasUrl, fredKey`) はエクスポートに含めない
+- 秘密情報 (`key, tgToken, tgChat, gasUrl, gasKey, fredKey`) はエクスポートに含めない
+- サーバーとの通信は必ず `gasGetUrl()` (GET) / `withGasKey()` (POST・フォーム送信) を通し、合言葉 `settings.gasKey` を付ける
 
 ## サーバー (gas/Code.gs) の要点
 
 - 保存: Script Properties に分割保存 (`saveBlob_/loadBlob_`, 8000文字ずつ)。合計500KB上限に注意
   - `ALL` 案件, `DELETED` 削除記録, `INBOX` Telegram変更の受信箱, `GAME` ゲーム状態, `HIST` 操作の記録
-  - その他: `TG_TOKEN, TG_CHAT(カンマ区切り), TG_PENDING, TG_OFFSET, TG_LASTLIST_<chat>, GEMINI_KEY, GEMINI_MODEL, MAIL_TO, SYNCED_AT, ALERT_LAST_RUN, ALERT_TRIES_<日付>, ALERT_LAST_OK, TG_LAST_SEND, NUDGE_LAST, HIST_SINCE`
+  - その他: `TG_TOKEN, TG_CHAT(カンマ区切り), TG_PENDING, TG_OFFSET, TG_LASTLIST_<chat>, GEMINI_KEY, GEMINI_MODEL, MAIL_TO, SYNCED_AT, ALERT_LAST_RUN, ALERT_TRIES_<日付>, ALERT_LAST_OK, TG_LAST_SEND, NUDGE_LAST, HIST_SINCE, API_SECRET`
+- 合言葉 `API_SECRET`: 設定済みなら doGet は `key` パラメータ、doPost は JSON の `key` が一致しないと `{ok:false, needKey:true, version}` だけを返す (中身は返さない)。未設定なら今まで通り。`{action:"setSecret", newKey}` で設定 (未設定時は誰でも / 設定済みは今の key が必要)。Telegram・トリガーは doGet/doPost を通らないので影響なし。手順は `docs/secret.md`
 - `doGet`: 状態 (`version, count, telegram, tgChats, game, inbox...`)。`?action=load` で案件+削除記録、`?action=history` で操作の記録
 - `doPost` (text/plain JSON、フォーム送信 `payload=` も可):
   - `{action:"config", tgToken, tgChat, geminiKey, clear}` Chat IDは既存に追加、空値は変更しない
@@ -56,7 +58,7 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 
 ## テスト (`npm test`)
 
-- Node 20 以上。`npm ci` → `npm test`。GitHub Actions (`.github/workflows/test.yml`) がプッシュ・PRのたびに実行する
+- Node 22 以上。`npm ci` → `npm test`。GitHub Actions (`.github/workflows/test.yml`) がプッシュ・PRのたびに実行する
 - `test/helpers/gas.js`: `gas/Code.gs` を Node の vm で読み込み、PropertiesService などの偽物を差し込む (Telegramの送受信は `tg` に記録)
 - `test/helpers/app.js`: `index.html` を jsdom で開く。通信は偽のGAS (上記) へ届く。`app.run("式")` でアプリ内の変数・関数を使える
 - `test/helpers/clock.js`: 両方で共有する偽の時計 (日本時間)。テストでは実際の時刻を使わない
