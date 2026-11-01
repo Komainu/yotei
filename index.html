@@ -567,6 +567,27 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <input id="fDeadline" type="datetime-local">
       <label class="check" style="margin:0; white-space:nowrap"><input type="checkbox" id="fNoDeadline">未定</label>
     </div>
+    <label>繰り返し</label>
+    <select id="fRepeat">
+      <option value="">なし</option>
+      <option value="daily">毎日</option>
+      <option value="weekdays">平日 (月〜金)</option>
+      <option value="weekly">毎週 (曜日を選ぶ)</option>
+      <option value="monthly">毎月 (日付を選ぶ)</option>
+    </select>
+    <div id="fRepeatWeek" class="row" style="display:none; flex-wrap:wrap; gap:8px; margin-top:8px">
+      <label class="check" style="margin:0"><input type="checkbox" data-dow="0" style="width:auto">日</label>
+      <label class="check" style="margin:0"><input type="checkbox" data-dow="1" style="width:auto">月</label>
+      <label class="check" style="margin:0"><input type="checkbox" data-dow="2" style="width:auto">火</label>
+      <label class="check" style="margin:0"><input type="checkbox" data-dow="3" style="width:auto">水</label>
+      <label class="check" style="margin:0"><input type="checkbox" data-dow="4" style="width:auto">木</label>
+      <label class="check" style="margin:0"><input type="checkbox" data-dow="5" style="width:auto">金</label>
+      <label class="check" style="margin:0"><input type="checkbox" data-dow="6" style="width:auto">土</label>
+    </div>
+    <div id="fRepeatMonth" class="row" style="display:none; margin-top:8px; align-items:center">
+      <span>毎月</span><input id="fRepeatDom" type="number" min="1" max="31" style="width:5em"><span>日 (その月に無い日付は月末)</span>
+    </div>
+    <p class="hint" id="fRepeatHint" style="display:none">完了すると、同じ内容で次の回が自動で作られます。時刻は期限の時刻を使います。「見送り」にすると、繰り返しは止まります。</p>
     <label>情報ソース (1行に1つ / 「URL タイトル」形式も可)</label>
     <textarea id="fSources" rows="3" placeholder="https://x.com/... 公式アナウンス&#10;https://example.com/article"></textarea>
     <label>メモ・タスク</label>
@@ -663,9 +684,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.01";
+const APP_VERSION = "2026.11.02";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.10.31";
+const MIN_GAS_VERSION = "2026.11.02";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -694,6 +715,7 @@ function normalizeProjects(){
       return /^https?:\/\//i.test(url) ? { url, title:String(x.title||"") } : { url:"", title:String(x.title || url) };
     });
     if(p.ai){ delete p.ai; fixed++; }   /* 廃止したアプリ内AI解析の結果を片付ける */
+    if(p.repeat !== undefined){ const r = repeatNorm(p.repeat, (p.deadline||"").slice(0,10)); if(r) p.repeat = r; else delete p.repeat; }
   }
   state.projects = state.projects.filter(p=>p && typeof p==="object" && p.name);
   if(fixed) localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -755,8 +777,11 @@ function mergeProjects(a, b, tombs, base){
   return out;
 }
 function save(opts){
+  save.spawned = [];
   if(!opts || !opts.silent){
     const now = new Date().toISOString();
+    /* 繰り返しの予定: 完了した回の次の回を作る (どこで完了しても同じ規則。サーバーにも同じものがある) */
+    save.spawned = spawnRepeats(state.projects, state.deleted, todayYmd(), now);
     state.updatedAt = now;
     if(!state.deleted) state.deleted = {};
     const cur = new Set();
@@ -773,6 +798,96 @@ function save(opts){
   catch(e){ toast("⚠️ 保存できませんでした (ブラウザの保存容量がいっぱいです)"); }
 }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+/* ===== 繰り返しの予定 (この囲みの中は index.html と gas/Code.gs でまったく同じ内容にする) =====
+   repeat: { type: "daily" | "weekdays" | "weekly" | "monthly", dow: [0-6] (毎週: 曜日。0=日), dom: 1-31 (毎月: 日付) }
+   ・完了すると、同じ内容で次の期限の新しい回を作る。id は「元の案件のid~次の日付」(どこで作っても同じidになり、二重にならない)
+   ・元の案件の id を repeatOf に、作った次の回の id を完了した回の repeatNext に持たせる
+   ・見送り (dropped) の時は作らない (繰り返しを止める)
+   ・同じ繰り返しの未完了の回がすでにある時・次の回を削除した記録がある時も作らない */
+const REPEAT_TYPES = { daily: "毎日", weekdays: "平日", weekly: "毎週", monthly: "毎月" };
+const REPEAT_DOW = "日月火水木金土";
+function ymdParts(ymd) { const m = String(ymd || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? [+m[1], +m[2], +m[3]] : null; }
+function ymdFrom(t) { const d = new Date(t); return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0"); }
+function ymdAdd(ymd, n) { const p = ymdParts(ymd); return ymdFrom(Date.UTC(p[0], p[1] - 1, p[2] + n)); }
+function ymdDow(ymd) { const p = ymdParts(ymd); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); }
+function ymdMonthDay(y, m, dom) { const last = new Date(Date.UTC(y, m, 0)).getUTCDate(); return ymdFrom(Date.UTC(y, m - 1, Math.min(dom, last))); }
+/** 形を整えた repeat (正しくなければ null)。base = 曜日・日付を決めていない時に使う日付 */
+function repeatNorm(r, base) {
+  if (!r || typeof r !== "object" || !REPEAT_TYPES[r.type]) return null;
+  const out = { type: r.type };
+  if (r.type === "weekly") {
+    const dow = (Array.isArray(r.dow) ? r.dow : []).map(Number).filter(function (x) { return x >= 0 && x <= 6 && x === Math.floor(x); });
+    out.dow = dow.length ? dow.filter(function (x, i) { return dow.indexOf(x) === i; }).sort() : (base ? [ymdDow(base)] : [1]);
+  }
+  if (r.type === "monthly") {
+    const dom = Math.floor(Number(r.dom));
+    out.dom = dom >= 1 && dom <= 31 ? dom : (base ? ymdParts(base)[2] : 1);
+  }
+  return out;
+}
+function repeatLabel(r) {
+  const n = repeatNorm(r);
+  if (!n) return "";
+  if (n.type === "weekly") return "毎週 " + n.dow.map(function (d) { return REPEAT_DOW[d]; }).join("・");
+  if (n.type === "monthly") return "毎月 " + n.dom + "日";
+  return REPEAT_TYPES[n.type];
+}
+/** after より後で、繰り返しに当てはまる最初の日付 ("YYYY-MM-DD")。毎月で月末より大きい日付は、その月の月末 */
+function repeatNextDate(r, after) {
+  const n = repeatNorm(r, after);
+  if (!n || !ymdParts(after)) return "";
+  if (n.type === "daily") return ymdAdd(after, 1);
+  if (n.type === "monthly") {
+    const p = ymdParts(after);
+    const here = ymdMonthDay(p[0], p[1], n.dom);
+    if (here > after) return here;
+    return p[1] === 12 ? ymdMonthDay(p[0] + 1, 1, n.dom) : ymdMonthDay(p[0], p[1] + 1, n.dom);
+  }
+  for (let i = 1; i <= 7; i++) {
+    const d = ymdAdd(after, i), w = ymdDow(d);
+    if (n.type === "weekdays" ? (w >= 1 && w <= 5) : n.dow.indexOf(w) >= 0) return d;
+  }
+  return "";
+}
+/** 完了した回 p の次の回 (作れなければ null)。today = 今日 ("YYYY-MM-DD")。期限を過ぎてから完了した時は、今日より後の回にする */
+function repeatNextOf(p, today, nowIso) {
+  const base = String(p.deadline || "").slice(0, 10);
+  const r = repeatNorm(p.repeat, base || today);
+  if (!r) return null;
+  const from = base && base > today ? base : today;
+  const d = repeatNextDate(r, from);
+  if (!d) return null;
+  const time = String(p.deadline || "").slice(11, 16) || "23:59";
+  const root = p.repeatOf || p.id;
+  return {
+    id: root + "~" + d, name: p.name, chain: p.chain || "", memo: p.memo || "",
+    sources: (p.sources || []).map(function (s) { return { url: s.url || "", title: s.title || "" }; }),
+    pinned: !!p.pinned, repeat: r, repeatOf: root, status: "open",
+    deadline: d + "T" + time, createdAt: nowIso, updatedAt: nowIso,
+  };
+}
+/** list の中で、完了したのにまだ次の回を作っていない繰り返しの予定について、次の回を list に足す。足した回を返す */
+function spawnRepeats(list, tombs, today, nowIso) {
+  const made = [], T = tombs || {};
+  list.slice().forEach(function (p) {
+    if (!p || !p.repeat || p.status !== "done" || p.dropped || p.repeatNext) return;
+    const n = repeatNextOf(p, today, nowIso);
+    if (!n) return;
+    p.repeatNext = n.id;
+    p.updatedAt = nowIso;
+    const openExists = list.some(function (q) { return q && q !== p && q.status !== "done" && (q.repeatOf || q.id) === n.repeatOf; });
+    const exists = list.some(function (q) { return q && q.id === n.id; });
+    if (openExists || exists || T[n.id]) return;
+    list.push(n);
+    made.push(n);
+  });
+  return made;
+}
+/* ===== 繰り返しの予定 ここまで ===== */
+
+/** 今日 (端末の時刻) の "YYYY-MM-DD" */
+function todayYmd(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 
 function toast(msg){
   const t = $("#toast"); t.textContent = msg; t.classList.add("show");
@@ -874,6 +989,7 @@ function renderProjects(){
             <span class="pname ${p.status==="done"?"strike":""}">${esc(p.name)}</span>
             ${p.chain?`<span class="badge chain">${esc(p.chain)}</span>`:""}
             ${p.pinned?`<span class="badge pin">📌 ピン</span>`:""}
+            ${p.repeat?`<span class="badge chain" title="繰り返しの予定">🔁 ${esc(repeatLabel(p.repeat))}</span>`:""}
             ${p.status==="done"?`<span class="badge due-ok">✅ 完了</span>`:dueBadge(p)}
           </div>
           <div class="pactions">
@@ -1117,11 +1233,13 @@ $("#projectList").addEventListener("click", e=>{
   else if(act==="toggle"){
     p.status = p.status==="done"?"open":"done";
     if(p.status==="done") p.doneAt = new Date().toISOString(); else delete p.doneAt;
-    save(); renderProjects(); scheduleGasSync();
+    save();
+    const nx = (save.spawned || [])[0];   /* 繰り返しの予定で作った次の回 */
+    renderProjects(); scheduleGasSync();
     /* 絞り込み中は一覧から外れるため、消えたと誤解されないよう明示する */
     const hiddenNow = (p.status==="done" && (filter==="open"||filter==="soon")) || (p.status==="open" && filter==="done");
     toast(p.status==="done"
-      ? (hiddenNow ? "✅ 完了にしました (「すべて」タブで確認できます)" : "✅ 完了にしました")
+      ? (hiddenNow ? "✅ 完了にしました (「すべて」タブで確認できます)" : "✅ 完了にしました") + (nx ? ` 🔁 次の回 (${fmtDeadline(nx.deadline)}) を作りました` : "")
       : "↩ 未完了に戻しました");
   }
   else if(act==="edit"){ openDialog(p); }
@@ -1141,9 +1259,27 @@ function openDialog(p){
   $("#fSources").value = (p?.sources||[]).map(s=> s.url ? (s.title? s.url+" "+s.title : s.url) : s.title).join("\n");
   $("#fMemo").value = p?.memo || "";
   $("#fPinned").checked = !!p?.pinned;
+  const r = repeatNorm(p?.repeat, (p?.deadline||"").slice(0,10));
+  $("#fRepeat").value = r ? r.type : "";
+  $$("#fRepeatWeek input[data-dow]").forEach(c=>{ c.checked = !!(r && r.dow && r.dow.includes(+c.dataset.dow)); });
+  $("#fRepeatDom").value = r && r.dom ? r.dom : "";
+  showRepeatFields();
   $("#pDialog").showModal();
 }
 $("#fNoDeadline").addEventListener("change", e=>{ $("#fDeadline").disabled = e.target.checked; });
+function showRepeatFields(){
+  const t = $("#fRepeat").value;
+  $("#fRepeatWeek").style.display = t==="weekly" ? "" : "none";
+  $("#fRepeatMonth").style.display = t==="monthly" ? "" : "none";
+  $("#fRepeatHint").style.display = t ? "" : "none";
+}
+$("#fRepeat").addEventListener("change", showRepeatFields);
+/** 編集画面の「繰り返し」から repeat を作る (なしなら null) */
+function readRepeatField(deadline){
+  const t = $("#fRepeat").value; if(!t) return null;
+  const base = (deadline || "").slice(0,10) || todayYmd();
+  return repeatNorm({ type:t, dow: $$("#fRepeatWeek input[data-dow]").filter(c=>c.checked).map(c=>+c.dataset.dow), dom: +$("#fRepeatDom").value || undefined }, base);
+}
 $("#btnAdd").addEventListener("click", ()=>openDialog(null));
 $("#dlgCancel").addEventListener("click", ()=>$("#pDialog").close());
 $("#dlgSave").addEventListener("click", ()=>{
@@ -1156,10 +1292,14 @@ $("#dlgSave").addEventListener("click", ()=>{
     memo: $("#fMemo").value.trim(),
     pinned: $("#fPinned").checked,
   };
+  const rp = readRepeatField(data.deadline);
   let added = null;
   if(editId){
-    Object.assign(state.projects.find(x=>x.id===editId), data);
+    const tgt = state.projects.find(x=>x.id===editId);
+    Object.assign(tgt, data);
+    if(rp) tgt.repeat = rp; else delete tgt.repeat;
   }else{
+    if(rp) data.repeat = rp;
     added = Object.assign({ id: uid(), status:"open", createdAt: new Date().toISOString() }, data);
     state.projects.push(added);
   }
@@ -1341,6 +1481,7 @@ function buildAiPrompt(){
       `- 期限: ${dl}`,
       `- status: ${p.status==="done"?"done":"open"}`,
       `- pinned: ${p.pinned?"true (重要・通知対象)":"false"}`,
+      p.repeat ? `- 繰り返し: ${repeatLabel(p.repeat)} (完了すると次の回が自動で作られます)` : "",
       `- メモ: ${p.memo || "(なし)"}`,
       src ? `- ソース: ${src}` : "",
     ].filter(Boolean).join("\n");
@@ -2979,6 +3120,26 @@ function buildReviewPrompt(){
   const stale = state.projects.filter(p=>p.status!=="done" && !p.deadline && p.createdAt && dayDiff(p.createdAt, new Date().toISOString()) >= 30);
   const openAll = state.projects.filter(p=>p.status!=="done");
 
+  /* 繰り返しの予定の達成率: 期限が期間内に来た回ごとに、期限内に完了できたか */
+  const todayK = jstDate(new Date().toISOString()), sinceK = jstDate(new Date(since).toISOString());
+  const series = new Map();
+  state.projects.filter(p=>(p.repeat || p.repeatOf) && p.deadline).forEach(p=>{
+    const dk = String(p.deadline).slice(0,10);
+    if(dk < sinceK || dk > todayK) return;
+    const done = p.status==="done";
+    if(!done && dk === todayK) return;          /* 今日が期限でまだ未完了の回は、まだ数えない */
+    const root = p.repeatOf || p.id;
+    if(!series.has(root)) series.set(root, { n:p.name, c:p.chain, r:p.repeat, due:0, ok:0, late:0, drop:0, miss:0 });
+    const x = series.get(root); if(p.repeat) x.r = p.repeat;
+    x.due++;
+    if(done && p.dropped) x.drop++;
+    else if(done) (p.doneAt && jstDate(p.doneAt) <= dk) ? x.ok++ : x.late++;
+    else x.miss++;
+  });
+  const repRows = [...series.entries()].sort((a,b)=>b[1].due-a[1].due);
+  const repDue = repRows.reduce((n,[,x])=>n+x.due,0), repOk = repRows.reduce((n,[,x])=>n+x.ok,0);
+  const pct = (a,b) => b ? Math.round(a/b*100) + "%" : "-";
+
   /* クエスト・連続記録 */
   const qh = (rd.qhist||[]).filter(q=>Date.parse(q.d) >= since);
   const gm = rd.game || state.settings.game || {};
@@ -3006,6 +3167,7 @@ function buildReviewPrompt(){
 - 期間: 直近${days}日（現在日時 ${nowJa()}）
 - 操作の記録の開始: ${recStart}（それ以前の完了は、完了日時のみ分かります）
 - 「明日へ」はTelegramのクエストで先送りした操作、「期限変更」は期限を書き換えた操作です
+- 「繰り返しの予定」は、完了すると次の回が自動で作られる予定です (毎日・平日・毎週・毎月)
 ${anon ? "- 案件名は伏せています（案件A、案件B…）。分野名はそのままです\n" : ""}
 ## 全体の数字
 ${T(["項目","件数"],[["追加",count("add")],["完了",dones.length],["見送り",count("drop")],["明日へ(先送り)",count("skip")],["期限変更",count("due")],["未完了に戻した",count("reopen")],["削除",count("del")],["いま未完了",openAll.length],["いま期限切れ",overdue.length],["期限なしで30日以上たつ未完了",stale.length]])}
@@ -3027,6 +3189,10 @@ ${T(["分野","未完了","うち期限切れ","完了","見送り","明日へ",
 
 ## 先送りが多い案件
 ${T(["案件","分野","明日へ","期限延長"], postTop.map(([id,x])=>[nm(id,x.n), cat(x.c), x.skip, x.ext]))}
+
+## 繰り返しの予定の達成率
+- 期限が来た回 ${repDue}回のうち、期限内に完了 ${repOk}回（${pct(repOk, repDue)}）
+${T(["予定","分野","繰り返し","期限が来た回","期限内に完了","遅れて完了","見送り","やらずに過ぎた","達成率"], repRows.map(([id,x])=>[nm(id,x.n), cat(x.c), repeatLabel(x.r) || "(停止)", x.due, x.ok, x.late, x.drop, x.miss, pct(x.ok, x.due)]))}
 
 ## 期限切れのまま残っている案件
 ${T(["案件","分野","超過日数","ピン"], overdue.map(p=>[nm(p.id,p.name), cat(p.chain), -daysLeft(p.deadline), p.pinned?"○":""]))}
