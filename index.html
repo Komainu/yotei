@@ -663,7 +663,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.10.31";
+const APP_VERSION = "2026.11.01";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.10.31";
 const $ = s => document.querySelector(s);
@@ -2409,7 +2409,9 @@ $("#gasCheck").addEventListener("click", async ()=>{
     const d = await gasCheck();
     const at = d.syncedAt ? new Date(d.syncedAt).toLocaleString("ja-JP") : "なし";
     r.innerHTML = `☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`
-      + (d.locked ? `<br>🔑 合言葉: 設定済み` : d.locked === false ? `<br>🔓 合言葉: 未設定 (下の「🔑 合言葉を設定・変更する」から設定できます)` : "");
+      + (d.locked ? `<br>🔑 合言葉: 設定済み` : d.locked === false ? `<br>🔓 合言葉: 未設定 (下の「🔑 合言葉を設定・変更する」から設定できます)` : "")
+      + (d.store === "drive" ? `<br>💾 保存先: Googleドライブ` + (d.backupLast ? ` ／ 最終バックアップ ${new Date(d.backupLast).toLocaleString("ja-JP")}` : "")
+         : d.store === "props" ? `<br>💾 保存先: スクリプト プロパティ (Apps Script で setup を実行すると、容量の大きいGoogleドライブへ移ります)` : "");
     r.style.color = "var(--muted)";
     if(/合言葉/.test(state.settings.gasError || "")){ state.settings.gasError = ""; save({silent:true}); renderGasStatus(); }
   }catch(err){
