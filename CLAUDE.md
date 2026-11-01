@@ -69,6 +69,7 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 ## サーバーの公開 (`.github/workflows/deploy-gas.yml`)
 
 - main の `gas/` が変わると: テスト → `clasp push --force` → `clasp deploy -i <既存のデプロイID>` (新バージョン、URLは変わらない) → 公開中の `version` が `GAS_VERSION` と一致するか確認
-- 設定: `gas/.clasp.json` (スクリプトID), `gas/appsscript.json` (Asia/Tokyo・V8・自分として実行・全員), `gas/.claspignore` (Code.gs と appsscript.json だけ送る)
+- 設定: `gas/.clasp.json` (スクリプトID), `gas/appsscript.json` (Asia/Tokyo・V8・自分として実行・全員・`oauthScopes` を明示), `gas/.claspignore` (Code.gs と appsscript.json だけ送る)
+- 権限は自動判定に頼らず `oauthScopes` に明示 (drive / script.external_request / script.send_mail / script.scriptapp)。新しいサービスを使う時は足すこと。`test/gas-scopes.test.js` が Code.gs のサービスと突き合わせる
 - Secrets: `CLASPRC_JSON` (clasp login の認証情報), `GAS_DEPLOYMENT_ID`。手順は `docs/deploy.md`
 - `setup()` (トリガー) は自動では実行されない。新しいGoogleサービスを使う時は画面での権限許可が必要
