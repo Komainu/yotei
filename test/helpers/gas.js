@@ -27,12 +27,72 @@ function formatDate(date, tz, fmt) {
   return fmt.replace(/yyyy|MM|dd|HH|mm|ss|H|M|d|E/g, k => map[k]());
 }
 
-function createProps(initial) {
+/**
+ * DriveApp の偽物。drive.files に中身を持つ。
+ * drive.fail = { write: n } で n 回目以降の書き込みを失敗させる / { read: true } で読み出しを失敗させる
+ */
+function createDrive(clock) {
+  const items = new Map();   // id → {kind, name, content, parent, trashed, created}
+  let seq = 0;
+  const drive = { items, fail: {}, writes: 0, calls: 0 };
+  const iter = list => { let i = 0; return { hasNext: () => i < list.length, next: () => list[i++] }; };
+  const checkWrite = () => {
+    drive.writes++;
+    if (drive.fail.write && drive.writes >= drive.fail.write) throw new Error('テスト用のドライブ書き込み失敗');
+  };
+  function wrapFile(it) {
+    return {
+      getId: () => it.id, getName: () => it.name, isTrashed: () => it.trashed,
+      setTrashed: v => { it.trashed = !!v; },
+      setContent: c => { checkWrite(); it.content = String(c); return wrapFile(it); },
+      getBlob: () => ({ getDataAsString: () => { if (drive.fail.read) throw new Error('テスト用のドライブ読み出し失敗'); return it.content; } }),
+      getDateCreated: () => new Date(it.created),
+    };
+  }
+  function wrapFolder(it) {
+    return {
+      getId: () => it.id, getName: () => it.name, isTrashed: () => it.trashed,
+      setTrashed: v => { it.trashed = !!v; },
+      createFile(name, content, mime) {
+        checkWrite();
+        const f = { id: 'file' + (++seq), kind: 'file', name, content: String(content), mime, parent: it.id, trashed: false, created: clock.now };
+        items.set(f.id, f);
+        return wrapFile(f);
+      },
+      getFiles: () => iter([...items.values()].filter(f => f.kind === 'file' && f.parent === it.id).map(wrapFile)),
+      getFilesByName: n => iter([...items.values()].filter(f => f.kind === 'file' && f.parent === it.id && f.name === n && !f.trashed).map(wrapFile)),
+    };
+  }
+  const get = (id, kind) => { drive.calls++; const it = items.get(id); if (!it || it.kind !== kind) throw new Error('見つかりません: ' + id); return it; };
+  drive.api = {
+    getFileById: id => wrapFile(get(id, 'file')),
+    getFolderById: id => wrapFolder(get(id, 'folder')),
+    createFolder(name) {
+      const f = { id: 'folder' + (++seq), kind: 'folder', name, parent: 'root', trashed: false, created: clock.now };
+      items.set(f.id, f);
+      return wrapFolder(f);
+    },
+  };
+  /** 名前でフォルダ内のファイルを探す (テスト用) */
+  drive.folderFiles = folderName => [...items.values()].filter(f => f.kind === 'file' && !f.trashed && items.get(f.parent) && items.get(f.parent).name === folderName);
+  return drive;
+}
+
+function createProps(initial, limit) {
   const store = new Map(Object.entries(initial || {}));
+  /** 保存している量 (バイト)。本物は合計500KBまで */
+  const bytes = () => [...store].reduce((n, [k, v]) => n + Buffer.byteLength(k) + Buffer.byteLength(v), 0);
   return {
-    store,
+    store, bytes,
     getProperty: k => (store.has(k) ? store.get(k) : null),
-    setProperty: (k, v) => { store.set(k, String(v)); },
+    setProperty: (k, v) => {
+      const old = store.get(k);
+      store.set(k, String(v));
+      if (limit && bytes() > limit) {
+        if (old === undefined) store.delete(k); else store.set(k, old);
+        throw new Error('Exceeded maximum stored value size (テスト用の' + limit + 'バイト上限)');
+      }
+    },
     deleteProperty: k => { store.delete(k); },
     getKeys: () => [...store.keys()],
     getProperties: () => Object.fromEntries(store),
@@ -46,7 +106,7 @@ function createProps(initial) {
 function loadGas(opts) {
   opts = opts || {};
   const clock = opts.clock || createClock(opts.start);
-  const props = createProps(opts.props);
+  const props = createProps(opts.props, opts.propsLimit);
 
   /* Telegram の偽物: 送ったものは tg.sent に記録、getUpdates は tg.queue から返す */
   const tg = {
@@ -88,6 +148,7 @@ function loadGas(opts) {
     },
   };
 
+  const drive = createDrive(clock);
   const mails = [];
   const logs = [];
   const sandbox = {
@@ -95,7 +156,9 @@ function loadGas(opts) {
     console,
     PropertiesService: { getScriptProperties: () => props },
     UrlFetchApp,
-    Utilities: { formatDate },
+    Utilities: { formatDate, sleep() {} },
+    DriveApp: drive.api,
+    MimeType: { PLAIN_TEXT: 'text/plain' },
     LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, releaseLock() {} }) },
     ContentService: {
       MimeType: { JSON: 'application/json' },
@@ -108,11 +171,12 @@ function loadGas(opts) {
     Logger: { log: s => logs.push(String(s)) },
     ScriptApp: {
       triggers: [],
+      WeekDay: { SUNDAY: 'SUNDAY', MONDAY: 'MONDAY', SATURDAY: 'SATURDAY' },
       getProjectTriggers() { return sandbox.ScriptApp.triggers; },
       deleteTrigger(t) { sandbox.ScriptApp.triggers = sandbox.ScriptApp.triggers.filter(x => x !== t); },
       newTrigger(fn) {
         const t = { fn, getHandlerFunction: () => fn };
-        const b = { timeBased: () => b, atHour: h => { t.hour = h; return b; }, everyDays: () => b, everyMinutes: m => { t.minutes = m; return b; }, inTimezone: () => b, create: () => { sandbox.ScriptApp.triggers.push(t); return t; } };
+        const b = { timeBased: () => b, atHour: h => { t.hour = h; return b; }, onWeekDay: d => { t.weekDay = d; return b; }, everyDays: () => b, everyMinutes: m => { t.minutes = m; return b; }, inTimezone: () => b, create: () => { sandbox.ScriptApp.triggers.push(t); return t; } };
         return b;
       },
     },
@@ -124,7 +188,9 @@ function loadGas(opts) {
 
   const parse = out => JSON.parse(out.getContent());
   const env = {
-    ctx, C, clock, props, tg, mails, logs, fetchLog,
+    ctx, C, clock, props, tg, mails, logs, fetchLog, drive,
+    /** 別の実行 (トリガー・通信) が始まったことにする: 読み出しキャッシュを捨てる (本物のGASでは実行ごとに消える) */
+    newRun() { ctx.blobCacheClear_(); },
     /** doPost に JSON を送る (アプリの fetch と同じ形) */
     post(obj) { return parse(ctx.doPost({ postData: { contents: JSON.stringify(obj) }, parameter: {} })); },
     /** フォーム送信 (payload=) の形で送る */

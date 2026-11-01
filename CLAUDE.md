@@ -32,16 +32,19 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 
 ## サーバー (gas/Code.gs) の要点
 
-- 保存: Script Properties に分割保存 (`saveBlob_/loadBlob_`, 8000文字ずつ)。合計500KB上限に注意
+- 保存: 大きなデータは `saveBlob_/loadBlob_` を通す。保存先は Google ドライブ「予定管理データ」フォルダの `<KEY>.json` (Script Properties `STORE='drive'` の時)。移行前は Script Properties に8000文字ずつ分割 (合計500KB上限)
   - `ALL` 案件, `DELETED` 削除記録, `INBOX` Telegram変更の受信箱, `GAME` ゲーム状態, `HIST` 操作の記録
-  - その他: `TG_TOKEN, TG_CHAT(カンマ区切り), TG_PENDING, TG_OFFSET, TG_LASTLIST_<chat>, GEMINI_KEY, GEMINI_MODEL, MAIL_TO, SYNCED_AT, ALERT_LAST_RUN, ALERT_TRIES_<日付>, ALERT_LAST_OK, TG_LAST_SEND, NUDGE_LAST, HIST_SINCE, API_SECRET`
+  - 移行 `migrateToDrive_()`: 書く→読み直して一致確認→`STORE='drive'`→古いチャンク削除。`setup()` と `pollTelegram` (30分に1回まで) から呼ぶ。失敗時は元データのまま
+  - `loadBlob_` は1回の実行の中だけキャッシュする。ロックを取った直後は `blobCacheClear_()` を呼ぶこと。ドライブが読めない時は空ではなく例外にする (空データ扱いの上書き事故を防ぐ)
+  - 週ごとのバックアップ `weeklyBackup` (日曜2時): 「予定管理バックアップ」に `yotei-backup-YYYY-MM-DD.json`、12個まで。秘密情報は入れない。詳細は `docs/storage.md`
+  - その他: `TG_TOKEN, TG_CHAT(カンマ区切り), TG_PENDING, TG_OFFSET, TG_LASTLIST_<chat>, GEMINI_KEY, GEMINI_MODEL, MAIL_TO, SYNCED_AT, ALERT_LAST_RUN, ALERT_TRIES_<日付>, ALERT_LAST_OK, TG_LAST_SEND, NUDGE_LAST, HIST_SINCE, API_SECRET, STORE, STORE_AT, STORE_ERROR, STORE_TRIED, DATA_FOLDER_ID, FILE_<KEY>, BACKUP_FOLDER_ID, BACKUP_LAST`
 - 合言葉 `API_SECRET`: 設定済みなら doGet は `key` パラメータ、doPost は JSON の `key` が一致しないと `{ok:false, needKey:true, version}` だけを返す (中身は返さない)。未設定なら今まで通り。`{action:"setSecret", newKey}` で設定 (未設定時は誰でも / 設定済みは今の key が必要)。Telegram・トリガーは doGet/doPost を通らないので影響なし。手順は `docs/secret.md`
 - `doGet`: 状態 (`version, count, telegram, tgChats, game, inbox...`)。`?action=load` で案件+削除記録、`?action=history` で操作の記録
 - `doPost` (text/plain JSON、フォーム送信 `payload=` も可):
   - `{action:"config", tgToken, tgChat, geminiKey, clear}` Chat IDは既存に追加、空値は変更しない
   - `{action:"inboxClear", before}`
   - 保存 `{all, deleted, base, syncedAt, email, force}` → 合体して `{projects, deleted, game}` を返す
-- トリガー: `setup()` が作る。`sendDailyMail` 毎朝8時 (ピン留め&未完了をメール)、`pollTelegram` 1分おき (受信・ボタン処理・9時のクエスト・20時の連続記録お知らせ)
+- トリガー: `setup()` が作る。`sendDailyMail` 毎朝8時 (ピン留め&未完了をメール)、`pollTelegram` 1分おき (受信・ボタン処理・9時のクエスト・20時の連続記録お知らせ)、`weeklyBackup` 毎週日曜2時
 - 日付はすべて日本時間 (`jstDays_`, `todayJst_`)
 - Telegram: 自由文→Geminiで案件化 (キーが無ければ簡易登録)、`/alert /list /today /done N /pin N /help`、クエストのボタン `q:d|s|x:<id>`, `q:c`
 - ゲーム: XP (期限内20/通常10/見送り2/確認2/全クリア+30)、レベル=累計25×(L-1)×L、連続記録、二重付与防止 `awarded`、`doneTotal` (ものがたり用)、`qhist`

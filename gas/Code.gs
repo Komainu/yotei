@@ -28,6 +28,9 @@ const SEND_HOUR = 8;
 /** Telegram期限アラートの時刻 (0-23, 日本時間) */
 const ALERT_HOUR = 9;
 
+/** 週ごとのバックアップの時刻 (日曜日の 0-23時, 日本時間) */
+const BACKUP_HOUR = 2;
+
 /** 期限が何日以内なら「緊急」として強調するか */
 const URGENT_DAYS = 7;
 
@@ -35,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.10.31';
+const GAS_VERSION = '2026.11.01';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -74,7 +77,8 @@ function authError_() {
 // =====================================================================
 
 function getInbox_() {
-  try { return JSON.parse(loadBlob_('INBOX') || '[]'); } catch (e) { return []; }
+  const raw = loadBlob_('INBOX');   // 読めない時は例外 (空とみなさない)
+  try { return JSON.parse(raw || '[]'); } catch (e) { return []; }
 }
 
 function logInbox_(entry) {
@@ -86,10 +90,43 @@ function logInbox_(entry) {
 
 // =====================================================================
 //  データの保存 / 読み出し
-//  (1件あたり9KB制限を回避するため分割して保存します)
+//  大きなデータ (ALL / DELETED / HIST / INBOX / GAME) は Google ドライブの
+//  「予定管理データ」フォルダに JSON ファイルとして保存する (Script Properties の合計500KB上限を避ける)。
+//  ・移行前 (STORE が 'drive' でない間) は、今まで通り Script Properties に8000文字ずつ分割して保存
+//  ・移行は migrateToDrive_() が1回だけ行う (setup() から / pollTelegram が30分に1回まで試す)
+//  ・小さな設定値 (TG_TOKEN 等) は Script Properties のまま
 // =====================================================================
 
+const DATA_KEYS = ['ALL', 'DELETED', 'HIST', 'INBOX', 'GAME'];
+const DATA_FOLDER_NAME = '予定管理データ';
+const BACKUP_FOLDER_NAME = '予定管理バックアップ';
+const BACKUP_KEEP = 12;   // 週ごとのバックアップを何個残すか
+
+/** 1回の実行の中だけで使う読み出しキャッシュ (ドライブを何度も読まないため) */
+let BLOB_CACHE_ = {};
+/** ロックを取った直後に呼ぶ: 待っている間に別の実行が書いた内容を読み直すため */
+function blobCacheClear_() { BLOB_CACHE_ = {}; }
+
+function useDrive_() {
+  return PropertiesService.getScriptProperties().getProperty('STORE') === 'drive';
+}
+
 function saveBlob_(key, str) {
+  str = String(str);
+  if (useDrive_()) driveWrite_(key, str);
+  else savePropBlob_(key, str);
+  BLOB_CACHE_[key] = str;
+}
+
+function loadBlob_(key) {
+  if (Object.prototype.hasOwnProperty.call(BLOB_CACHE_, key)) return BLOB_CACHE_[key];
+  const v = useDrive_() ? driveRead_(key) : loadPropBlob_(key);
+  BLOB_CACHE_[key] = v;
+  return v;
+}
+
+/** 移行前の保存先: Script Properties に分割保存 (1件あたり9KB制限を回避) */
+function savePropBlob_(key, str) {
   const props = PropertiesService.getScriptProperties();
   const CHUNK = 8000;
   const n = Math.ceil(str.length / CHUNK) || 1;
@@ -99,12 +136,159 @@ function saveBlob_(key, str) {
   props.setProperty(key + '_N', String(n));
 }
 
-function loadBlob_(key) {
+function loadPropBlob_(key) {
   const props = PropertiesService.getScriptProperties();
   const n = Number(props.getProperty(key + '_N') || 0);
   let out = '';
   for (let i = 0; i < n; i++) out += (props.getProperty(key + '_' + i) || '');
   return out;
+}
+
+/** 古いチャンクを消す。上限に当たって途中まで書かれた余分なチャンク (key_N より後ろ) も消す */
+function deletePropBlob_(key) {
+  const props = PropertiesService.getScriptProperties();
+  const re = new RegExp('^' + key + '_(\\d+|N)$');
+  props.getKeys().forEach(function (k) { if (re.test(k)) props.deleteProperty(k); });
+}
+
+/** ドライブの操作は一時的に失敗することがあるので、少し待って3回まで試す */
+function driveRetry_(fn) {
+  let err;
+  for (let i = 0; i < 3; i++) {
+    try { return fn(); } catch (e) { err = e; Utilities.sleep(500 * (i + 1)); }
+  }
+  throw err;
+}
+
+/** フォルダを1つ用意する (IDは Script Properties に控える。消されていたら作り直す) */
+function driveFolder_(propKey, name) {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty(propKey);
+  if (id) {
+    try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) {}
+  }
+  const f = DriveApp.createFolder(name);
+  props.setProperty(propKey, f.getId());
+  return f;
+}
+
+/**
+ * key のファイル (まだ作っていない・ゴミ箱に入っている時は null)。
+ * 開けない時は、読む時 (forWrite=false) は例外にする (空のデータと取り違えないため)。書く時は作り直す
+ */
+function driveFile_(key, forWrite) {
+  const id = PropertiesService.getScriptProperties().getProperty('FILE_' + key);
+  if (!id) return null;
+  let f;
+  try { f = DriveApp.getFileById(id); }
+  catch (e) { if (forWrite) return null; throw e; }
+  return f.isTrashed() ? null : f;
+}
+
+function driveRead_(key) {
+  return driveRetry_(function () {
+    const f = driveFile_(key);
+    return f ? f.getBlob().getDataAsString('UTF-8') : '';
+  });
+}
+
+function driveWrite_(key, str) {
+  driveRetry_(function () {
+    const f = driveFile_(key, true);
+    if (f) { f.setContent(str); return; }
+    const nf = driveFolder_('DATA_FOLDER_ID', DATA_FOLDER_NAME).createFile(key + '.json', str, MimeType.PLAIN_TEXT);
+    PropertiesService.getScriptProperties().setProperty('FILE_' + key, nf.getId());
+  });
+}
+
+/**
+ * Script Properties → ドライブへの移行 (1回だけ)。
+ * ① ドライブへ書く → ② 読み直して一致を確認 → ③ STORE='drive' に切り替え → ④ 古いチャンクを削除。
+ * ③より前で失敗した時は Script Properties の元データには一切触れていないので、そのまま今まで通り動く。
+ * 戻り値: 移行した (または済んでいる) なら true
+ */
+function migrateToDrive_() {
+  const props = PropertiesService.getScriptProperties();
+  if (useDrive_()) return true;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (useDrive_()) return true;
+    blobCacheClear_();
+    const src = {};
+    DATA_KEYS.forEach(function (k) { src[k] = loadPropBlob_(k); });
+    DATA_KEYS.forEach(function (k) { if (src[k] || driveFile_(k, true)) driveWrite_(k, src[k]); });
+    DATA_KEYS.forEach(function (k) {
+      const back = driveRead_(k);
+      if (back !== src[k]) throw new Error(k + ' の確認に失敗しました (' + back.length + '/' + src[k].length + '文字)');
+    });
+    props.setProperty('STORE', 'drive');
+    props.setProperty('STORE_AT', new Date().toISOString());
+    props.deleteProperty('STORE_ERROR');
+    DATA_KEYS.forEach(function (k) { try { deletePropBlob_(k); } catch (e) { Logger.log('古いデータの削除失敗 ' + k + ': ' + e); } });
+    blobCacheClear_();
+    Logger.log('ドライブへの移行が完了しました');
+    return true;
+  } catch (e) {
+    props.setProperty('STORE_ERROR', new Date().toISOString() + ' ' + String(e).slice(0, 300));
+    Logger.log('ドライブへの移行に失敗しました (元のデータはそのままです): ' + e);
+    blobCacheClear_();
+    return false;
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/** まだ移行していなければ試す (失敗しても30分は待つ) */
+function maybeMigrate_() {
+  const props = PropertiesService.getScriptProperties();
+  if (useDrive_()) return;
+  const last = Date.parse(props.getProperty('STORE_TRIED') || '') || 0;
+  if (Date.now() - last < 30 * 60000) return;
+  props.setProperty('STORE_TRIED', new Date().toISOString());
+  migrateToDrive_();
+}
+
+// =====================================================================
+//  週ごとのバックアップ — 毎週日曜の深夜に「予定管理バックアップ」フォルダへ
+// =====================================================================
+
+/** バックアップの中身 (トークン・APIキー・合言葉は入れない) */
+function backupData_() {
+  const out = { app: 'yotei', version: GAS_VERSION, at: new Date().toISOString(), data: {} };
+  DATA_KEYS.forEach(function (k) {
+    const raw = loadBlob_(k);
+    let v = null;
+    if (raw) { try { v = JSON.parse(raw); } catch (e) { v = raw; } }
+    out.data[k] = v;
+  });
+  const props = PropertiesService.getScriptProperties();
+  out.props = {};
+  ['MAIL_TO', 'SYNCED_AT', 'HIST_SINCE'].forEach(function (k) { out.props[k] = props.getProperty(k); });
+  return out;
+}
+
+function weeklyBackup() {
+  const name = 'yotei-backup-' + todayJst_() + '.json';
+  const body = JSON.stringify(backupData_());
+  driveRetry_(function () {
+    const folder = driveFolder_('BACKUP_FOLDER_ID', BACKUP_FOLDER_NAME);
+    const same = folder.getFilesByName(name);
+    if (same.hasNext()) same.next().setContent(body);   // 同じ日にもう一度動いた時は上書き
+    else folder.createFile(name, body, MimeType.PLAIN_TEXT);
+    // 古いものは BACKUP_KEEP 個だけ残す (名前に日付が入っているので名前順 = 日付順)
+    const files = [];
+    const it = folder.getFiles();
+    while (it.hasNext()) {
+      const f = it.next();
+      if (/^yotei-backup-\d{4}-\d{2}-\d{2}\.json$/.test(f.getName()) && !f.isTrashed()) files.push(f);
+    }
+    files.sort(function (a, b) { return a.getName() < b.getName() ? 1 : -1; });
+    files.slice(BACKUP_KEEP).forEach(function (f) { f.setTrashed(true); });
+  });
+  PropertiesService.getScriptProperties().setProperty('BACKUP_LAST', new Date().toISOString());
+  Logger.log('バックアップを保存しました: ' + name);
+  return name;
 }
 
 function getProjects_() {
@@ -116,7 +300,8 @@ function getProjects_() {
 
 /** 削除した案件の記録 (id → 削除時刻)。複数端末の合体で「消したのに復活」を防ぐ */
 function getTombs_() {
-  try { return JSON.parse(loadBlob_('DELETED') || '{}') || {}; } catch (e) { return {}; }
+  const raw = loadBlob_('DELETED');
+  try { return JSON.parse(raw || '{}') || {}; } catch (e) { return {}; }
 }
 function unionTombs_(a, b) {
   const out = {}, lim = Date.now() - 90 * 86400000;
@@ -170,6 +355,7 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
+    blobCacheClear_();
     const raw = (e && e.parameter && e.parameter.payload)
       ? e.parameter.payload
       : (e && e.postData ? e.postData.contents : '{}');
@@ -254,7 +440,11 @@ function doPost(e) {
 
 function doGet(e) {
   if (!authOk_(e && e.parameter ? e.parameter.key : '')) return authError_();
-  const props = PropertiesService.getScriptProperties();
+  try { return doGetInner_(e); }
+  catch (err) { return json({ ok: false, version: GAS_VERSION, error: String(err) }); }   // ドライブが読めない時など
+}
+
+function doGetInner_(e) {  const props = PropertiesService.getScriptProperties();
   const list = getProjects_();
   const base = {
     ok: true,
@@ -268,7 +458,9 @@ function doGet(e) {
     })(),
   };
   base.version = GAS_VERSION;
-  base.locked = !!apiSecret_();   // 合言葉を設定済みか (合言葉そのものは返さない)
+  base.locked = !!apiSecret_();
+  base.store = useDrive_() ? 'drive' : 'props';   // データの保存先
+  base.backupLast = props.getProperty('BACKUP_LAST') || null;   // 合言葉を設定済みか (合言葉そのものは返さない)
   base.tgChats = tgChats_().length;
   base.alertLastOk = props.getProperty('ALERT_LAST_OK') || null;
   try { base.tgLastSend = JSON.parse(props.getProperty('TG_LAST_SEND') || 'null'); } catch (e) { base.tgLastSend = null; }
@@ -294,7 +486,9 @@ function json(obj) {
 // =====================================================================
 
 function setup() {
-  const keep = ['sendDailyMail', 'pollTelegram', 'checkDeadlines'];
+  // ① 大きなデータをドライブへ移す (初回だけ。失敗しても元のデータはそのまま)
+  const moved = migrateToDrive_();
+  const keep = ['sendDailyMail', 'pollTelegram', 'checkDeadlines', 'weeklyBackup'];
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (keep.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
@@ -304,8 +498,12 @@ function setup() {
   // 以前の checkDeadlines トリガーが残っていると通知が二重になるため、上で削除している)
   ScriptApp.newTrigger('pollTelegram')
     .timeBased().everyMinutes(POLL_MINUTES).create();
+  // 毎週日曜の深夜に全データをバックアップ
+  ScriptApp.newTrigger('weeklyBackup')
+    .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(BACKUP_HOUR).inTimezone('Asia/Tokyo').create();
   Logger.log('メール通知 ' + SEND_HOUR + ':00 / Telegramダイジェスト ' + ALERT_HOUR + ':00 / '
-    + POLL_MINUTES + '分おきのTelegram確認 を登録しました');
+    + POLL_MINUTES + '分おきのTelegram確認 / 毎週日曜' + BACKUP_HOUR + '時のバックアップ を登録しました');
+  Logger.log(moved ? '保存先: Googleドライブ「' + DATA_FOLDER_NAME + '」' : '⚠ ドライブへの移行に失敗しました。保存先は今まで通りです (' + (PropertiesService.getScriptProperties().getProperty('STORE_ERROR') || '') + ')');
 }
 
 // =====================================================================
@@ -391,6 +589,7 @@ function rememberPending_(id) {
 
 function pollTelegram() {
   const props = PropertiesService.getScriptProperties();
+  try { maybeMigrate_(); } catch (e) { Logger.log('移行の確認に失敗: ' + e); }
   if (!props.getProperty('TG_TOKEN')) return;
 
   // 1日1回のダイジェスト。新着が無い時も確実に動くよう、受信処理より前で呼ぶ
@@ -399,6 +598,7 @@ function pollTelegram() {
 
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return;
+  blobCacheClear_();
   try {
     const offset = Number(props.getProperty('TG_OFFSET') || 0);
     const res = tgApi_('getUpdates', { offset: offset, timeout: 0, limit: 20, allowed_updates: ['message', 'channel_post', 'callback_query'] });
@@ -934,7 +1134,8 @@ const LEVEL_TITLES = [
 
 function getGame_() {
   let g;
-  try { g = JSON.parse(loadBlob_('GAME') || '{}') || {}; } catch (e) { g = {}; }
+  const raw = loadBlob_('GAME');
+  try { g = JSON.parse(raw || '{}') || {}; } catch (e) { g = {}; }
   // ものがたり用の完了数 (初回だけ、今ある完了済みの数から始める)
   if (g.doneTotal == null) g.doneTotal = getProjects_().filter(function (p) { return p && p.status === 'done' && !p.dropped; }).length;
   return g;
@@ -1237,7 +1438,8 @@ function storyNotice_(before, after) {
 //  s: tg(Telegram) / app(アプリ)
 // =====================================================================
 function getHist_() {
-  try { return JSON.parse(loadBlob_('HIST') || '[]') || []; } catch (e) { return []; }
+  const raw = loadBlob_('HIST');
+  try { return JSON.parse(raw || '[]') || []; } catch (e) { return []; }
 }
 function logHist_(entries) {
   if (!entries || !entries.length) return;
