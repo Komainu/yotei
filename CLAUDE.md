@@ -12,6 +12,15 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 
 外部のビルド工程はない。ブラウザで `index.html` を開けば動く(`file://` でも動作する前提を壊さない)。
 
+## ホーム画面アプリ (PWA)
+
+- `manifest.webmanifest` / `icons/` (元の絵は `icons/icon.svg`、PNGは `node icons/make-icons.js` で作り直す) / `sw.js`
+- `sw.js` はアプリ本体 (`ASSETS`) だけをキャッシュする。Apps Script・Telegram・外部API・POST・ほかのページには手を出さない
+- **`sw.js` の `VERSION` は `index.html` の `APP_VERSION` と必ず同じにする** (テストで確認)。`index.html` を変えたら両方を上げる (同じ日に2回目は `2026.11.02-2` のように)。上げないと利用者の端末に新しい版が届かない
+- 新しい版は、次に開いた時に「新しい版があります → 読み込み直す」が出て、押すと切り替わる (勝手には切り替えない)
+- `file://` や service worker の無いブラウザでは登録しない (`setupPwa()`)
+- スマホ幅の確認: `npm run check:mobile` (Playwright が必要。npm test には含めない)
+
 ## 絶対に壊してはいけないもの (既存利用者のデータ)
 
 - localStorage キー: `sakiyomi_v1` (state本体), `sakiyomi_backups` (自動バックアップ10世代)

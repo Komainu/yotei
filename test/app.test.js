@@ -134,7 +134,7 @@ test('設定: 画面が開け、入力欄に設定が入る。エクスポート
     assert.ok(app.doc.querySelector('#tab-settings').classList.contains('active'));
     assert.equal(app.doc.querySelector('#tgToken').value, 'SECRET-TG');
     assert.equal(app.doc.querySelector('#tgToken').type, 'password');
-    assert.match(app.text('#appVer'), /^v\d{4}\.\d{2}\.\d{2}$/);
+    assert.match(app.text('#appVer'), /^v\d{4}\.\d{2}\.\d{2}(-\d+)?$/);
 
     let blob = null;
     app.win.URL.createObjectURL = b => { blob = b; return 'blob:test'; };

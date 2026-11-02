@@ -44,7 +44,7 @@ async function openApp(opts) {
   };
 
   const dom = new JSDOM(HTML, {
-    url: 'https://komainu.github.io/yotei/',
+    url: opts.url || 'https://komainu.github.io/yotei/',
     runScripts: 'dangerously',
     pretendToBeVisual: true,
     virtualConsole: vc,
@@ -67,6 +67,7 @@ async function openApp(opts) {
       win.addEventListener('error', e => errors.push('window error: ' + (e.error && e.error.stack || e.message)));
       win.addEventListener('unhandledrejection', e => errors.push('unhandledrejection: ' + (e.reason && e.reason.stack || e.reason)));
       if (opts.state) win.localStorage.setItem('sakiyomi_v1', JSON.stringify(opts.state));
+      if (opts.beforeParse) opts.beforeParse(win);   // テストごとの追加の偽物 (service worker など)
     },
   });
   const win = dom.window;
