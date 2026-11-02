@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.01';
+const GAS_VERSION = '2026.11.02';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -347,6 +347,107 @@ function uid_() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+/* ===== 繰り返しの予定 (この囲みの中は index.html と gas/Code.gs でまったく同じ内容にする) =====
+   repeat: { type: "daily" | "weekdays" | "weekly" | "monthly", dow: [0-6] (毎週: 曜日。0=日), dom: 1-31 (毎月: 日付) }
+   ・完了すると、同じ内容で次の期限の新しい回を作る。id は「元の案件のid~次の日付」(どこで作っても同じidになり、二重にならない)
+   ・元の案件の id を repeatOf に、作った次の回の id を完了した回の repeatNext に持たせる
+   ・見送り (dropped) の時は作らない (繰り返しを止める)
+   ・同じ繰り返しの未完了の回がすでにある時・次の回を削除した記録がある時も作らない */
+const REPEAT_TYPES = { daily: "毎日", weekdays: "平日", weekly: "毎週", monthly: "毎月" };
+const REPEAT_DOW = "日月火水木金土";
+function ymdParts(ymd) { const m = String(ymd || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? [+m[1], +m[2], +m[3]] : null; }
+function ymdFrom(t) { const d = new Date(t); return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0"); }
+function ymdAdd(ymd, n) { const p = ymdParts(ymd); return ymdFrom(Date.UTC(p[0], p[1] - 1, p[2] + n)); }
+function ymdDow(ymd) { const p = ymdParts(ymd); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); }
+function ymdMonthDay(y, m, dom) { const last = new Date(Date.UTC(y, m, 0)).getUTCDate(); return ymdFrom(Date.UTC(y, m - 1, Math.min(dom, last))); }
+/** 形を整えた repeat (正しくなければ null)。base = 曜日・日付を決めていない時に使う日付 */
+function repeatNorm(r, base) {
+  if (!r || typeof r !== "object" || !REPEAT_TYPES[r.type]) return null;
+  const out = { type: r.type };
+  if (r.type === "weekly") {
+    const dow = (Array.isArray(r.dow) ? r.dow : []).map(Number).filter(function (x) { return x >= 0 && x <= 6 && x === Math.floor(x); });
+    out.dow = dow.length ? dow.filter(function (x, i) { return dow.indexOf(x) === i; }).sort() : (base ? [ymdDow(base)] : [1]);
+  }
+  if (r.type === "monthly") {
+    const dom = Math.floor(Number(r.dom));
+    out.dom = dom >= 1 && dom <= 31 ? dom : (base ? ymdParts(base)[2] : 1);
+  }
+  return out;
+}
+function repeatLabel(r) {
+  const n = repeatNorm(r);
+  if (!n) return "";
+  if (n.type === "weekly") return "毎週 " + n.dow.map(function (d) { return REPEAT_DOW[d]; }).join("・");
+  if (n.type === "monthly") return "毎月 " + n.dom + "日";
+  return REPEAT_TYPES[n.type];
+}
+/** after より後で、繰り返しに当てはまる最初の日付 ("YYYY-MM-DD")。毎月で月末より大きい日付は、その月の月末 */
+function repeatNextDate(r, after) {
+  const n = repeatNorm(r, after);
+  if (!n || !ymdParts(after)) return "";
+  if (n.type === "daily") return ymdAdd(after, 1);
+  if (n.type === "monthly") {
+    const p = ymdParts(after);
+    const here = ymdMonthDay(p[0], p[1], n.dom);
+    if (here > after) return here;
+    return p[1] === 12 ? ymdMonthDay(p[0] + 1, 1, n.dom) : ymdMonthDay(p[0], p[1] + 1, n.dom);
+  }
+  for (let i = 1; i <= 7; i++) {
+    const d = ymdAdd(after, i), w = ymdDow(d);
+    if (n.type === "weekdays" ? (w >= 1 && w <= 5) : n.dow.indexOf(w) >= 0) return d;
+  }
+  return "";
+}
+/** 完了した回 p の次の回 (作れなければ null)。today = 今日 ("YYYY-MM-DD")。期限を過ぎてから完了した時は、今日より後の回にする */
+function repeatNextOf(p, today, nowIso) {
+  const base = String(p.deadline || "").slice(0, 10);
+  const r = repeatNorm(p.repeat, base || today);
+  if (!r) return null;
+  const from = base && base > today ? base : today;
+  const d = repeatNextDate(r, from);
+  if (!d) return null;
+  const time = String(p.deadline || "").slice(11, 16) || "23:59";
+  const root = p.repeatOf || p.id;
+  return {
+    id: root + "~" + d, name: p.name, chain: p.chain || "", memo: p.memo || "",
+    sources: (p.sources || []).map(function (s) { return { url: s.url || "", title: s.title || "" }; }),
+    pinned: !!p.pinned, repeat: r, repeatOf: root, status: "open",
+    deadline: d + "T" + time, createdAt: nowIso, updatedAt: nowIso,
+  };
+}
+/** list の中で、完了したのにまだ次の回を作っていない繰り返しの予定について、次の回を list に足す。足した回を返す */
+function spawnRepeats(list, tombs, today, nowIso) {
+  const made = [], T = tombs || {};
+  list.slice().forEach(function (p) {
+    if (!p || !p.repeat || p.status !== "done" || p.dropped || p.repeatNext) return;
+    const n = repeatNextOf(p, today, nowIso);
+    if (!n) return;
+    p.repeatNext = n.id;
+    p.updatedAt = nowIso;
+    const openExists = list.some(function (q) { return q && q !== p && q.status !== "done" && (q.repeatOf || q.id) === n.repeatOf; });
+    const exists = list.some(function (q) { return q && q.id === n.id; });
+    if (openExists || exists || T[n.id]) return;
+    list.push(n);
+    made.push(n);
+  });
+  return made;
+}
+/* ===== 繰り返しの予定 ここまで ===== */
+
+/** サーバー側で次の回を作る (Telegram の完了・同期のたび)。作った回は記録と受信箱にも残す */
+function spawnRepeats_(list, src) {
+  const made = spawnRepeats(list, getTombs_(), todayJst_(), new Date().toISOString());
+  made.forEach(function (n) {
+    try { logHist_([histEntry_('add', n, src || 'tg', { rep: 1 })]); } catch (e) {}
+    if (src !== 'app') logInbox_({ type: 'add', id: n.id, name: n.name, project: n });
+  });
+  return made;
+}
+/** 次の回のお知らせ (Telegram 用) */
+function repeatNote_(made) {
+  return made.length ? '\n🔁 次の回: ' + fmtDate(made[0].deadline).slice(5) : '';
+}
+
 // =====================================================================
 //  アプリとの通信
 // =====================================================================
@@ -421,6 +522,8 @@ function doPost(e) {
       tombs = unionTombs_(getTombs_(), data.deleted);
       out = mergeProjects_(list, cur, tombs, data.base);
       saveBlob_('DELETED', JSON.stringify(tombs));
+      // 繰り返しの予定: 古いアプリなどで完了だけ届いた時も、次の回を作る (新しいアプリは作り済みなので何もしない)
+      try { spawnRepeats(out, tombs, todayJst_(), new Date().toISOString()); } catch (e) { Logger.log('繰り返しの処理に失敗: ' + e); }
     }
     saveBlob_('ALL', JSON.stringify(out));
     try { awardTransitions_(cur, out); } catch (e) { Logger.log('XP計算失敗: ' + e); }
@@ -861,6 +964,7 @@ function handleCommand_(text, from) {
     p.updatedAt = new Date().toISOString();
     if (cmd === '/done') {
       p.status = 'done'; p.doneAt = p.updatedAt;
+      const made = spawnRepeats_(list, 'tg');
       const g = getGame_();
       const doneBefore = g.doneTotal || 0;
       const a = awardDone_(g, p);
@@ -868,7 +972,7 @@ function handleCommand_(text, from) {
       const q = ensureQuest_(g, list);
       if (q.ids.indexOf(p.id) >= 0) q.res[p.id] = 'done';
       putGame_(g);
-      tgSend_('✅ 完了にしました: <b>' + esc(p.name) + '</b>  +' + a.xp + 'XP 🔥' + g.streak + '日連続', from);
+      tgSend_('✅ 完了にしました: <b>' + esc(p.name) + '</b>  +' + a.xp + 'XP 🔥' + g.streak + '日連続' + repeatNote_(made), from);
       const story = storyNotice_(doneBefore, g.doneTotal || 0);
       if (story) tgSend_(story, from);
     }
@@ -1205,7 +1309,10 @@ function pickQuest_(list) {
                    .sort(function (a, b) { return dd[a.id] - dd[b.id]; });
   const pins = open.filter(function (p) { return p.pinned && near.indexOf(p) < 0; })
                    .sort(function (a, b) { return (dd[a.id] === null ? 9999 : dd[a.id]) - (dd[b.id] === null ? 9999 : dd[b.id]); });
-  return near.concat(pins).slice(0, 3).map(function (p) { return p.id; });
+  // 繰り返しの予定は、毎日の分で埋まらないよう1日1件まで
+  let rep = 0;
+  return near.concat(pins).filter(function (p) { return !p.repeat || rep++ < 1; })
+             .slice(0, 3).map(function (p) { return p.id; });
 }
 function ensureQuest_(g, list) {
   const t = todayJst_();
@@ -1310,6 +1417,7 @@ function handleCallback_(cq) {
     else if (parts[1] === 'd' || parts[1] === 'x') {
       p.status = 'done'; p.doneAt = now; p.updatedAt = now;
       if (parts[1] === 'x') p.dropped = true;
+      const made = spawnRepeats_(list, 'tg');   // 見送りの時は作らない
       const a = awardDone_(g, p);
       up = a.up || up;
       touchStreak_(g);
@@ -1317,7 +1425,7 @@ function handleCallback_(cq) {
       changed = true;
       logInbox_({ type: 'done', id: p.id, name: p.name, dropped: parts[1] === 'x' || undefined });
       try { logHist_([histEntry_(parts[1] === 'x' ? 'drop' : 'done', p, 'tg')]); } catch (e) {}
-      toast = (parts[1] === 'x' ? '🙅 見送りました' : '✅ 完了！') + ' +' + a.xp + 'XP';
+      toast = (parts[1] === 'x' ? '🙅 見送りました' + (p.repeat ? ' (繰り返しを止めました)' : '') : '✅ 完了！') + ' +' + a.xp + 'XP' + repeatNote_(made).replace('\n', ' ');
     } else if (parts[1] === 's') {
       q.res[id] = 'skip';
       try { logHist_([histEntry_('skip', p, 'tg')]); } catch (e) {}

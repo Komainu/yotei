@@ -22,7 +22,10 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 ## アプリ (index.html) の要点
 
 - `state = { projects:[], settings:{...}, deleted:{id:削除時刻}, updatedAt }`
-- 案件: `{ id, name, chain(分野), deadline("YYYY-MM-DDTHH:MM" ローカル時刻), memo, sources:[{url,title}], pinned, status:"open"|"done", dropped?, doneAt?, createdAt, updatedAt }`
+- 案件: `{ id, name, chain(分野), deadline("YYYY-MM-DDTHH:MM" ローカル時刻), memo, sources:[{url,title}], pinned, status:"open"|"done", dropped?, doneAt?, createdAt, updatedAt, repeat?, repeatOf?, repeatNext? }`
+- 繰り返し `repeat: {type:"daily"|"weekdays"|"weekly"|"monthly", dow:[0-6], dom:1-31}`: 完了すると次の回を作る (`spawnRepeats`)。次の回の id は `元のid~YYYY-MM-DD` (アプリとサーバーで同じidになり二重にならない)。完了した回に `repeatNext`、次の回に `repeatOf` (最初の回のid)。見送り・同じ繰り返しの未完了の回がある・削除記録がある時は作らない。毎月で無い日付は月末
+  - 規則は `index.html` と `gas/Code.gs` の「繰り返しの予定」の囲みに **まったく同じコード** で入っている (テストで一致を確認)。変える時は両方を同じに直す
+  - アプリは `save()` の中で、サーバーは Telegram の完了 (`/done`・ボタン) と同期 (`doPost`) で作る
 - `save()` は前回保存時との差分を見て、変わった案件だけ `updatedAt` を付け、消えた案件を `state.deleted` に記録する (`save({silent:true})` は設定変更用で印を付けない)
 - 同期 (`gasSync`): クラウドを取得 → `mergeProjects()` で案件ごとに新しい方を採用 → 全件+削除記録を送信。サーバーでも同じ規則で合体する。同期は直列化 (`gasChain`)
 - 版数: `APP_VERSION`, `MIN_GAS_VERSION` (サーバーが古いと警告)。変更したら日付で上げる
@@ -47,6 +50,7 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 - トリガー: `setup()` が作る。`sendDailyMail` 毎朝8時 (ピン留め&未完了をメール)、`pollTelegram` 1分おき (受信・ボタン処理・9時のクエスト・20時の連続記録お知らせ)、`weeklyBackup` 毎週日曜2時
 - 日付はすべて日本時間 (`jstDays_`, `todayJst_`)
 - Telegram: 自由文→Geminiで案件化 (キーが無ければ簡易登録)、`/alert /list /today /done N /pin N /help`、クエストのボタン `q:d|s|x:<id>`, `q:c`
+- 毎朝のクエスト (`pickQuest_`): 期限が近い順→ピン留め、最大3件。繰り返しの予定は1日1件まで
 - ゲーム: XP (期限内20/通常10/見送り2/確認2/全クリア+30)、レベル=累計25×(L-1)×L、連続記録、二重付与防止 `awarded`、`doneTotal` (ものがたり用)、`qhist`
 - 記録 `HIST`: `{t,k,id,n,c,d,s}` k=add/done/drop/reopen/due/del/skip/check/pin、180日・1500件まで
 - 版数: `GAS_VERSION`
