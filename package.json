@@ -4,7 +4,8 @@
   "private": true,
   "description": "予定管理 (yotei) の自動テスト",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "check:mobile": "node tools/mobile-check.js"
   },
   "engines": {
     "node": ">=22.13"
