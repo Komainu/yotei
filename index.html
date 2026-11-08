@@ -380,6 +380,15 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .mc-chg{border:1px solid var(--accent); background:var(--tint-accent); color:var(--text); border-radius:99px; padding:2px 10px; font:inherit; font-size:12.5px; cursor:pointer; margin:2px}
 .mc-trend{margin-top:12px; font-size:18px; letter-spacing:2px}
 .mc-flash{outline:2px solid var(--accent); outline-offset:2px; transition:outline .3s}
+.mc-cal{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px}
+.mc-cal-row{display:flex; gap:14px; padding:8px 0; border-top:1px solid var(--border); align-items:flex-start}
+.mc-cal-row:first-of-type{border-top:none}
+.mc-cal-when{flex:none; width:118px}
+.mc-cal-when b{display:block; font-size:14px}
+.mc-cal-when small{font-size:11.5px; color:var(--muted)}
+.mc-cal-what{flex:1; font-size:13.5px; display:grid; gap:4px}
+.mc-cal-what > div{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+.mc-cal-pm{text-align:left; border:1px solid var(--border); background:var(--card2); border-radius:8px; padding:4px 10px; font:inherit; font-size:12.5px; color:var(--text); cursor:pointer}
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -551,6 +560,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
     <button class="btn small" id="mcReload" title="最新にする">↻</button>
   </div>
   <div id="mcWeather"></div>
+  <div id="mcCal"></div>
   <div id="mcBody"></div>
   <input id="fredKey" type="hidden">
   <p class="hint" style="margin-top:10px">ソース: FRED (セントルイス連銀) / Hyperliquid / DefiLlama / alternative.me。信号 (🟢🟡🔴) は一般的な目安で、売買の判断ではありません。</p>
@@ -878,7 +888,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.20";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.21";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.19";
 const $ = s => document.querySelector(s);
@@ -3244,6 +3254,99 @@ $("#mcWeather").addEventListener("click", ev=>{
   el.scrollIntoView && el.scrollIntoView({ behavior:"smooth", block:"center" });
   el.classList.add("mc-flash"); setTimeout(()=>el.classList.remove("mc-flash"), 1600);
 });
+/* ---- 📅 経済カレンダー (FOMC・CPI・雇用統計) と、関連する Polymarket の予想 ----
+   日付は公式の発表予定 (federalreserve.gov / bls.gov、2026年11月に確認)。毎年1回、翌年分を足す */
+const MC_CAL = [
+  // FOMC: 2日目の米東部時間14:00に発表 (日付は2日目)
+  ...["2026-12-09","2027-01-27","2027-03-17","2027-04-28","2027-06-09","2027-07-28","2027-09-15","2027-10-27","2027-12-08"].map(d=>({ d, k:"fomc", h:14, m:0 })),
+  // CPI: 米東部時間8:30 (ref = 対象の月)
+  ...[["2026-11-10","2026-10"],["2026-12-10","2026-11"],["2027-01-13","2026-12"],["2027-02-11","2027-01"],["2027-03-10","2027-02"],["2027-04-13","2027-03"],["2027-05-12","2027-04"],
+      ["2027-06-10","2027-05"],["2027-07-14","2027-06"],["2027-08-11","2027-07"],["2027-09-14","2027-08"],["2027-10-14","2027-09"],["2027-11-10","2027-10"],["2027-12-10","2027-11"]].map(([d,ref])=>({ d, ref, k:"cpi", h:8, m:30 })),
+  // 雇用統計: 米東部時間8:30
+  ...[["2026-11-06","2026-10"],["2026-12-04","2026-11"],["2027-01-08","2026-12"],["2027-02-05","2027-01"],["2027-03-05","2027-02"],["2027-04-02","2027-03"],["2027-05-07","2027-04"],
+      ["2027-06-04","2027-05"],["2027-07-02","2027-06"],["2027-08-06","2027-07"],["2027-09-03","2027-08"],["2027-10-08","2027-09"],["2027-11-05","2027-10"],["2027-12-03","2027-11"]].map(([d,ref])=>({ d, ref, k:"jobs", h:8, m:30 })),
+];
+const MC_CAL_KIND = { fomc:["🏦","FOMC (政策金利の発表)","fomc"], cpi:["🛒","CPI (物価)","cpi"], jobs:["👷","雇用統計","unrate"] };
+const MC_MON_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+/** 米東部時間 → 発表の時刻 (Date)。夏時間は3月の第2日曜〜11月の第1日曜 */
+function mcEtTime(d, h, m){
+  const [y, mo, da] = d.split("-").map(Number);
+  const nthSun = (mon, n) => { const f = new Date(Date.UTC(y, mon, 1)).getUTCDay(); return 1 + ((7 - f) % 7) + 7*(n-1); };
+  const day = Date.UTC(y, mo-1, da);
+  const dst = day >= Date.UTC(y, 2, nthSun(2, 2)) && day < Date.UTC(y, 10, nthSun(10, 1));
+  return new Date(Date.UTC(y, mo-1, da, h + (dst ? 4 : 5), m));
+}
+function mcCalUpcoming(n){
+  const now = Date.now();
+  return MC_CAL.map(e=>Object.assign({ at: mcEtTime(e.d, e.h, e.m) }, e))
+    .filter(e=>e.at.getTime() > now - 3*3600000).sort((a,b)=>a.at - b.at).slice(0, n || 6);
+}
+function mcCalLabel(e){
+  const k = MC_CAL_KIND[e.k];
+  return e.ref ? `${k[1]} ${Number(e.ref.slice(5))}月分` : k[1];
+}
+function mcUntil(t){
+  const ms = t - Date.now();
+  if(ms <= 0) return "発表済み";
+  const h = ms/3600000;
+  if(h < 24) return "あと" + Math.max(1, Math.round(h)) + "時間";
+  return "あと" + Math.floor(h/24) + "日";
+}
+/* Polymarket で関連する予想市場を探す (日付が近く、言葉が合うイベント) */
+const mcCalPM = {};
+function mcCalQueries(e){
+  const mon = MC_MON_EN[Number((e.ref || e.d).slice(5,7)) - 1];
+  if(e.k === "fomc") return ["Fed decision in " + mon, "Fed interest rates " + mon];
+  if(e.k === "cpi") return [mon + " Inflation US", "CPI YoY - " + mon];
+  return [mon + " jobs report", "Unemployment rate in " + mon, "US unemployment " + mon];
+}
+function mcCalFind(e){
+  const key = e.k + e.d;
+  if(mcCalPM[key] !== undefined) return Promise.resolve(mcCalPM[key]);
+  const re = { fomc:/fed|interest rate|fomc/i, cpi:/inflation us|cpi/i, jobs:/unemployment|jobs report|payroll/i }[e.k];
+  const other = /\b(uk|china|argentina|canada|euro|eurozone|japan|germany|india|brazil|turkey|australia)\b|jolts|pce|ppi/i;
+  /* 同じ日に複数ある時の優先: CPI は前年比 (Annual) を、FOMC は「Fed Decision」を先に */
+  const prefer = ev => e.k === "cpi" ? (/annual/i.test(ev.title) ? 2 : /yoy/i.test(ev.title) ? 1 : 0) : e.k === "fomc" ? (/fed decision/i.test(ev.title) ? 1 : 0) : 0;
+  const day = Date.parse(e.d + "T12:00:00Z");
+  return Promise.all(mcCalQueries(e).map(q=>pmFetchJson(`${PM_GAMMA}/public-search?q=${encodeURIComponent(q)}&limit_per_type=10&events_status=active`).catch(()=>null)))
+    .then(rs=>{
+      const evs = [], seen = new Set();
+      for(const r of rs) for(const ev of ((r && r.events) || [])) if(!seen.has(ev.id)){ seen.add(ev.id); evs.push(ev); }
+      const cand = evs.filter(ev=> re.test(ev.title || "") && !other.test(ev.title || "") && !ev.closed && Math.abs((Date.parse(ev.endDate) || 0) - day) <= 4*86400000)
+        .sort((a,b)=> prefer(b) - prefer(a) || (Number(b.volume)||0) - (Number(a.volume)||0));
+      const ev = cand[0];
+      if(!ev){ mcCalPM[key] = null; return null; }
+      const opts = (ev.markets || []).filter(m=>!m.closed).map(m=>({ id: String(m.id), g: String(m.groupItemTitle || m.question || ""), p: Number(pmArr(m.outcomePrices)[0]) }))
+        .filter(o=>!isNaN(o.p)).sort((a,b)=>b.p - a.p);
+      mcCalPM[key] = { id: String(ev.id), t: String(ev.title || ""), s: String(ev.slug || ""), opts };
+      return mcCalPM[key];
+    }).catch(()=>{ mcCalPM[key] = null; return null; });
+}
+function renderCal(){
+  const box = $("#mcCal"); if(!box) return;
+  const list = mcCalUpcoming(6);
+  if(!list.length){ box.innerHTML = ""; return; }
+  const row = e => {
+    const k = MC_CAL_KIND[e.k], key = e.k + e.d, pmx = mcCalPM[key];
+    const when = e.at.toLocaleString("ja-JP", { timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", weekday:"short", hour:"2-digit", minute:"2-digit" });
+    const odds = pmx === undefined ? `<span class="hint" style="margin:0"><span class="spin"></span> 予想市場を確認中…</span>`
+      : !pmx || !pmx.opts.length ? `<span class="hint" style="margin:0">関連する予想市場は見つかりませんでした</span>`
+      : `<button class="mc-cal-pm" data-pmev="${esc(pmx.id)}" data-pms="${esc(pmx.s)}">📊 ${pmx.opts.slice(0,3).map(o=>`${esc(pmJa(o.g))} <b>${pmPct(o.p)}</b>`).join(" ／ ")}</button>`;
+    return `<div class="mc-cal-row"><div class="mc-cal-when"><b>${esc(mcUntil(e.at))}</b><small>${esc(when)}</small></div>
+      <div class="mc-cal-what"><div>${k[0]} ${esc(mcCalLabel(e))} ${termBtn(k[2])}</div>${odds}</div></div>`;
+  };
+  /* Polymarket の経済・金融の注目市場 (出来高の多い順に4つ) */
+  const econ = (pm.events || []).filter(e=>pmCatOf(e) === "経済・金融" && !pm.hide[e.id]).sort((a,b)=>b.v24 - a.v24).slice(0, 4);
+  const econHtml = econ.length ? `<div class="mc-w-h">📊 Polymarket の経済・金融の注目市場</div>` + econ.map(e=>{ const m = pmMain(e);
+      return `<button class="mc-cal-pm" data-pmev="${esc(e.id)}" data-pms="${esc(e.s)}" style="display:block; width:100%; margin-bottom:6px">${esc(pmJa(e.multi ? e.t : m.q))} ― ${e.multi ? `${esc(pmJa(m.g || m.q))} <b>${pmPct(m.p[0])}</b>` : `はい <b>${pmPct(m.p[0])}</b>`}</button>`; }).join("") : "";
+  box.innerHTML = `<div class="mc-cal"><div class="mc-w-h" style="margin-top:0">📅 経済カレンダー <span class="hint" style="font-weight:400; margin:0">(日本時間・📊 は Polymarket の予想)</span></div>${list.map(row).join("")}${econHtml}</div>`;
+  list.forEach(e=>{ if(mcCalPM[e.k + e.d] === undefined) mcCalFind(e).then(()=>renderCal()); });
+}
+$("#mcCal").addEventListener("click", ev=>{
+  const b = ev.target.closest(".mc-cal-pm"); if(!b) return;
+  const e = pm.events.find(x=>x.id === b.dataset.pmev);
+  if(e) pmOpen(e.id); else window.open("https://polymarket.com/event/" + encodeURIComponent(b.dataset.pms), "_blank", "noopener");
+});
 function renderMacro(){
   const box = $("#mcBody");
   if(!MC.data){ return; }
@@ -3252,6 +3355,7 @@ function renderMacro(){
   const res = {};
   MC_DEFS.forEach(d=>{ res[d.id] = mcEval(d, D); });
   renderWeather(res);
+  renderCal();
   box.innerHTML = MC_THEMES.map(([th, name])=>{
     const defs = MC_DEFS.filter(d=>d.th === th);
     return `<section class="mc-theme" id="mc-th-${th}"><h3>${esc(name)}</h3><div class="mc-grid">${defs.map(d=>mcCard(d, D, res[d.id])).join("")}</div></section>`;

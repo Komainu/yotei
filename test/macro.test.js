@@ -217,3 +217,45 @@ test('天気図: 信号を重み付きでまとめて空模様を出し、追い
     assert.equal(app.run('mcScore(["netliq","fng"], { netliq:{sig:"g"}, fng:{sig:"r"} }).s').toFixed(2), '0.60');
   } finally { app.close(); }
 });
+
+test('経済カレンダー: 次の発表を日本時間で並べ、関連する Polymarket の予想を出す', async () => {
+  const clock = createClock('2026-11-09T10:00:00+09:00');
+  const gas = loadGas({ clock, fetch: macroFetch(clock.now).fetch });
+  const searches = [];
+  const fedEv = { id: 'fed12', title: 'Fed decision in December?', slug: 'fed-decision-in-december', endDate: '2026-12-09T00:00:00Z', volume: '5000000', markets: [
+    { id: 'a', groupItemTitle: 'No change', outcomePrices: '["0.62","0.38"]' }, { id: 'b', groupItemTitle: '25 bps decrease', outcomePrices: '["0.36","0.64"]' },
+    { id: 'c', groupItemTitle: '50+ bps decrease', outcomePrices: '["0.02","0.98"]' }] };
+  const fetch = async url => {
+    const u = new URL(url);
+    if (u.pathname === '/public-search') {
+      searches.push(u.searchParams.get('q'));
+      const q = u.searchParams.get('q');
+      const cpi = [{ id: 'uk', title: 'October Inflation UK - Annual', endDate: '2026-11-11T00:00:00Z', volume: '900000', markets: [{ id: 'u', groupItemTitle: '3.1%', outcomePrices: '["0.9","0.1"]' }] },
+        { id: 'm', title: 'October Inflation US - Monthly', endDate: '2026-11-11T00:00:00Z', volume: '46336', markets: [{ id: 'm1', groupItemTitle: '0.2%', outcomePrices: '["0.5","0.5"]' }] },
+        { id: 'y', title: 'October Inflation US - Annual', endDate: '2026-11-11T00:00:00Z', volume: '84716', markets: [{ id: 'y1', groupItemTitle: '2.9%', outcomePrices: '["0.4","0.6"]' }, { id: 'y2', groupItemTitle: '3.0%', outcomePrices: '["0.35","0.65"]' }] }];
+      return { ok: true, status: 200, json: async () => ({ events: /Fed decision in December/.test(q) ? [fedEv, { id: 'x', title: 'Fed decision in January?', endDate: '2027-01-27T00:00:00Z', markets: [] }] : /October Inflation US/.test(q) ? cpi : [] }) };
+    }
+    throw new TypeError('offline');
+  };
+  const app = await openApp({ clock, gas, fetch, state: { projects: [], settings: { gasUrl: GAS_URL, gasAuto: false }, deleted: {} } });
+  try {
+    app.run('switchTab("btc")');
+    for (let i = 0; i < 8; i++) await app.settle();
+    const rows = [...app.doc.querySelectorAll('#mcCal .mc-cal-row')].map(r => r.textContent.replace(/\s+/g, ' ').trim());
+    assert.equal(rows.length, 6);
+    assert.match(rows[0], /^あと1日 ?11\/10\(火\) 22:30 🛒 CPI \(物価\) 10月分/, '11/10 8:30 ET (冬時間) = 日本時間 22:30');
+    assert.match(rows[0], /📊 2\.9% 40% ／ 3\.0% 35%/, 'CPI は米国の前年比 (Annual) を選び、英国などは除く');
+    const fomc = rows.find(r => /FOMC/.test(r));
+    assert.match(fomc, /12\/10\(木\) 04:00/, '12/9 14:00 ET = 日本時間 12/10 4:00');
+    assert.match(fomc, /📊 No change 62% ／ 25 bps decrease 36% ／ 50\+ bps decrease 2%/);
+    assert.ok(searches.includes('Fed decision in December'));
+    assert.match(rows.find(r => /雇用統計/.test(r)).replace(/\s+/g, ''), /12\/4\(金\)22:30.*雇用統計11月分.*関連する予想市場は見つかりませんでした/);
+    // 夏時間: 2027-06-09 14:00 ET = 6/10 3:00 JST
+    assert.equal(app.run('mcEtTime("2027-06-09", 14, 0).toISOString()'), '2027-06-09T18:00:00.000Z');
+    assert.equal(app.run('mcEtTime("2026-12-09", 14, 0).toISOString()'), '2026-12-09T19:00:00.000Z');
+    // 解説
+    app.doc.querySelector('#mcCal .gq[data-term="fomc"]').click();
+    assert.match(app.text('#termBody'), /FOMC/);
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
