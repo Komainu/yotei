@@ -315,7 +315,11 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .pm-h{font-weight:700; font-size:13.5px; margin:14px 0 6px}
 .pm-chart-box{margin-top:6px}
 .pm-chart-head{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); margin:12px 0 6px; flex-wrap:wrap}
-.pm-chart{height:180px}
+.pm-chart{min-height:180px}
+.pm-more-opts{margin-top:6px}
+.pm-opt.closed{opacity:.55}
+.pm-closed{margin-top:10px; font-size:12.5px; color:var(--muted)}
+.pm-closed summary{cursor:pointer}
 .pm-chart svg{width:100%; height:180px; display:block}
 .pm-rule #pmSRule{font-size:13.5px; line-height:1.75; white-space:pre-wrap; color:var(--text)}
 .pm-rule details{margin-top:8px; font-size:12px; color:var(--muted)}
@@ -789,7 +793,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.09";
+const APP_VERSION = "2026.11.11";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.09";
 const $ = s => document.querySelector(s);
@@ -2007,10 +2011,10 @@ function pmLabel(o){ return o === "Yes" ? "はい" : o === "No" ? "いいえ" : 
 /* ---- 取得と整理 ---- */
 function pmArr(s){ if(Array.isArray(s)) return s; try{ const a = JSON.parse(s || "[]"); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
 /** Gamma の市場を、端末に保存できる小さな形にする (決まりきった市場・使えない市場は null) */
-function pmCompact(m){
+function pmCompact(m, keep){
   const p = pmArr(m.outcomePrices).map(Number);
-  if(!p.length || p.some(isNaN) || m.closed) return null;
-  if(Math.max(...p) >= 0.995) return null;   /* ほぼ決着済み (試合終了直後など) は並べない */
+  if(!p.length || p.some(isNaN)) return null;
+  if(!keep && (m.closed || Math.max(...p) >= 0.995)) return null;   /* 一覧ではほぼ決着済み (試合終了直後など) は並べない */
   const ev = (m.events && m.events[0]) || {};
   return {
     id: String(m.id), q: String(m.question||""), g: String(m.groupItemTitle||""), o: pmArr(m.outcomes).map(String), p,
@@ -2019,7 +2023,7 @@ function pmCompact(m){
     w1: m.oneWeekPriceChange != null ? Number(m.oneWeekPriceChange) : null,
     v24: Number(m.volume24hr)||0, liq: Number(m.liquidityNum != null ? m.liquidityNum : m.liquidity)||0,
     end: m.endDate || ev.endDate || null, tok: pmArr(m.clobTokenIds).map(String), slug: String(m.slug||""),
-    neg: !!m.negRisk, th: m.groupItemThreshold != null && m.groupItemThreshold !== "" ? Number(m.groupItemThreshold) : null,
+    c: !!m.closed, neg: !!m.negRisk, th: m.groupItemThreshold != null && m.groupItemThreshold !== "" ? Number(m.groupItemThreshold) : null,
     ev: { id: String(ev.id != null ? ev.id : "m" + m.id), t: String(ev.title || m.question || ""), s: String(ev.slug || m.slug || "") },
   };
 }
@@ -2033,15 +2037,69 @@ function pmGroup(markets){
     if(m.end && (!e.end || m.end < e.end)) e.end = m.end;
   }
   for(const e of map.values()){
-    e.multi = e.markets.length > 1;
-    /* 「どれか1つが勝つ」形 (negRisk) は確率の高い順。価格の段階などの形は、本来の並び (しきい値の順) */
-    e.ladder = e.multi && !e.markets.some(m=>m.neg) && e.markets.every(m=>m.th != null && !isNaN(m.th));
-    e.markets.sort(e.ladder ? (a,b)=> a.th - b.th : (a,b)=> b.p[0]-a.p[0] || b.v24-a.v24);
-    /* イベントの動き: 出来高のある市場の中で一番大きく動いたもの */
-    const mv = (k)=> e.markets.reduce((best,m)=> (m[k]!=null && Math.abs(m[k]) > Math.abs(best||0)) ? m[k] : best, null);
-    e.h1 = mv("h1"); e.d1 = mv("d1");
+    if(pmFullCache[e.id]) pmApplyFull(e, pmFullCache[e.id]);
+    else pmShape(e);
   }
   return [...map.values()];
+}
+/** "↑ 80,000" "$200M" "3.5%" などから数を取り出す (無ければ null) */
+function pmNum(s){
+  const m = String(s||"").replace(/,/g,"").match(/(-?\d+(?:\.\d+)?)\s*([kKmMbB])?/);
+  if(!m) return null;
+  return Number(m[1]) * ({k:1e3,m:1e6,b:1e9}[(m[2]||"").toLowerCase()] || 1);
+}
+/** 選択肢の並びと「形」を決める */
+function pmShape(e){
+  e.multi = e.markets.length > 1;
+  const nums = e.markets.map(m=>pmNum(m.g));
+  const numeric = e.multi && nums.every(n=>n != null);
+  /* 「どれか1つが勝つ」形 (negRisk) は確率の高い順。価格の段階などの形は、数の大きい順 (↑が上・↓が下) */
+  e.ladder = e.multi && !e.markets.some(m=>m.neg) && (numeric || e.markets.every(m=>m.th != null && !isNaN(m.th)));
+  const up = m => /↑|above|over|more|>/i.test(m.g) ? 0 : 1;
+  if(e.ladder && numeric) e.markets.sort((a,b)=> pmNum(b.g) - pmNum(a.g) || up(a) - up(b));
+  else if(e.ladder) e.markets.sort((a,b)=> a.th - b.th);
+  else e.markets.sort((a,b)=> b.p[0]-a.p[0] || b.v24-a.v24);
+  /* イベントの動き: 一番大きく動いた選択肢 */
+  const mv = (k)=> e.markets.reduce((best,m)=> (m[k]!=null && Math.abs(m[k]) > Math.abs(best||0)) ? m[k] : best, null);
+  e.h1 = mv("h1"); e.d1 = mv("d1");
+}
+/* ---- イベントの全選択肢 (一覧は出来高の上位500市場だけなので、見えたカードから全部を取りに行く) ---- */
+const pmFullCache = {}, pmFullP = {};
+function pmApplyFull(e, list){
+  const open = list.filter(m=>!m.c), closed = list.filter(m=>m.c);
+  /* 同じ名前の選択肢が開いていれば、終わった古いほうは出さない */
+  const openNames = new Set(open.map(m=>m.g||m.q));
+  e.markets = open.length ? open : e.markets;
+  e.closed = closed.filter(m=>!openNames.has(m.g||m.q));
+  e.v24 = e.markets.reduce((n,m)=>n+m.v24, 0);
+  e.full = true;
+  pmShape(e);
+}
+function pmEnsureFull(e){
+  if(!e || e.full || /^m/.test(e.id) || pmFullP[e.id]) return pmFullP[e.id] || Promise.resolve();
+  pmFullP[e.id] = pmFetchJson(`${PM_GAMMA}/events/${encodeURIComponent(e.id)}`).then(d=>{
+    const evInfo = [{ id: e.id, title: d.title || e.t, slug: d.slug || e.s, endDate: d.endDate }];
+    const list = (d.markets||[]).filter(m=>!m.archived).map(m=>pmCompact(Object.assign({}, m, { events: evInfo }), true)).filter(Boolean);
+    if(!list.length) return;
+    pmFullCache[e.id] = list;
+    const cur = pm.events.find(x=>x.id === e.id) || e;
+    pmApplyFull(cur, list);
+    const card = pmCardEl(cur.id);
+    if(card){ card.outerHTML = pmCard(cur); const nc = pmCardEl(cur.id), svg = nc && nc.querySelector("svg[data-spark]"); if(svg && pm.spark[svg.dataset.spark]) pmSparkSvg(svg, pm.spark[svg.dataset.spark]); else if(svg){ pmSparkQ.push(svg); pmSparkPump(); } }
+    if(pm.sheet && pm.sheet.e.id === cur.id){ pm.sheet.e = cur; if(!cur.markets.includes(pm.sheet.m)) pm.sheet.m = cur.markets.find(x=>x.id === pm.sheet.m.id) || pmMain(cur); pmRenderOutcomes(); }
+    if(pmNeedsTr(cur)) pmAiFill();
+  }).catch(()=>{ delete pmFullP[e.id]; });
+  return pmFullP[e.id];
+}
+function pmCardEl(id){ return $$("#pmList .pm-card").find(c=>c.dataset.ev === id); }
+function pmNeedsTr(e){ return e.markets.concat(e.closed||[]).some(m=>m.g && !pm.tr[m.g] && /[A-Za-z]/.test(m.g)); }
+let pmFullQ = [], pmFullRunning = 0;
+function pmFullPump(){
+  while(pmFullRunning < 3 && pmFullQ.length){
+    const e = pmFullQ.shift(); if(e.full) continue;
+    pmFullRunning++;
+    pmEnsureFull(e).finally(()=>{ pmFullRunning--; pmFullPump(); });
+  }
 }
 async function pmFetchJson(url){
   const r = await fetch(url);
@@ -2145,9 +2203,11 @@ function pmFiltered(){
 /** 代表の市場: 段階の形なら確率が50%に一番近いもの、それ以外は一番確率の高いもの */
 function pmMain(e){ return e.ladder ? e.markets.reduce((b,m)=> Math.abs(m.p[0]-0.5) < Math.abs(b.p[0]-0.5) ? m : b, e.markets[0]) : e.markets[0]; }
 /** カードに出す3つ: 段階の形なら50%に近い3つを本来の並びで、それ以外は上位3つ */
-function pmTop3(e){
-  if(!e.ladder) return e.markets.slice(0,3);
-  const pick = new Set([...e.markets].sort((a,b)=>Math.abs(a.p[0]-0.5)-Math.abs(b.p[0]-0.5)).slice(0,3));
+const PM_CARD_ROWS = 5;
+/** カードに出す選択肢: 段階の形は出来高の多い5つを本来の並びで、それ以外は確率の高い5つ */
+function pmTopN(e){
+  if(!e.ladder) return e.markets.slice(0, PM_CARD_ROWS);
+  const pick = new Set([...e.markets].sort((a,b)=> (b.v24 - a.v24) || (b.liq - a.liq)).slice(0, PM_CARD_ROWS));
   return e.markets.filter(m=>pick.has(m));
 }
 function pmCard(e){
@@ -2160,9 +2220,9 @@ function pmCard(e){
     big = `<div class="pm-big"><b>${pmPct(m.p[yesIdx])}</b><small>${esc(label)}</small></div>`;
     body = `<div class="pm-pbar"><i style="width:${Math.round(m.p[yesIdx]*100)}%"></i></div>`;
   }else{
-    const top = pmTop3(e);
+    const top = pmTopN(e);
     body = `<div class="pm-opts">` + top.map(x=>`<div class="pm-opt"><span class="l">${esc(pmJa(x.g || x.q))}</span><span class="b"><i style="width:${Math.round(x.p[0]*100)}%"></i></span><span class="v">${pmPct(x.p[0])}</span></div>`).join("")
-      + (e.markets.length > 3 ? `<div class="hint" style="margin-top:2px">ほか ${e.markets.length-3}件</div>` : "") + `</div>`;
+      + (e.markets.length > top.length ? `<div class="hint" style="margin-top:2px">ほか ${e.markets.length-top.length}件 (押すとすべて見られます)</div>` : "") + `</div>`;
   }
   const d1 = e.multi ? e.d1 : m.d1, h1 = e.multi ? e.h1 : m.h1;
   return `<div class="pm-card ${sc===3?"you3":""}" data-ev="${esc(e.id)}">
@@ -2249,7 +2309,10 @@ function pmSparkSvg(svg, pts){
 let pmSparkQ = [], pmSparkRunning = 0;
 function pmSparkAll(){
   const svgs = $$("#pmList svg[data-spark]");
-  const run = svg => { const tok = svg.dataset.spark; if(!tok) return;
+  const run = svg => {
+    const card = svg.closest(".pm-card"), ev = card && pm.events.find(x=>x.id === card.dataset.ev);
+    if(ev && !ev.full){ pmFullQ.push(ev); pmFullPump(); }
+    const tok = svg.dataset.spark; if(!tok) return;
     if(pm.spark[tok]) { pmSparkSvg(svg, pm.spark[tok]); return; }
     pmSparkQ.push(svg); pmSparkPump(); };
   if(typeof IntersectionObserver === "undefined"){ svgs.slice(0, 12).forEach(run); return; }
@@ -2283,7 +2346,7 @@ function pmNeeds(){
   for(const e of order){
     if(done.has(e.id)) continue; done.add(e.id);
     addT(e.t);
-    e.markets.slice(0, 6).forEach(m=>{ addT(e.multi ? (m.g || m.q) : m.q); m.o.forEach(addT); });
+    e.markets.concat(e.closed||[]).slice(0, 40).forEach(m=>{ addT(e.multi ? (m.g || m.q) : m.q); m.o.forEach(addT); });
     if(!pm.sc[e.id]) events.push({ id:e.id, t:e.t, m:e.markets.slice(0,3).map(m=>m.g||m.q).join(" / ") });
   }
   return { texts, events };
@@ -2308,7 +2371,7 @@ async function pmAiFill(){
       pm.trv++;
       pmRenderCats(); pmRender();
       if(d.noKey){ pm.aiNote = "英語で表示中 (設定で Gemini のキーを登録すると日本語になります)"; break; }
-      if(d.error){ pm.aiNote = "和訳を一時停止: " + d.error; break; }
+      if(d.error){ pm.aiNote = "和訳を一時停止: " + String(d.error).slice(0, 90); break; }
       if(!nT && !nS) break;   /* 進まない時はやめる */
     }
   }catch(err){ pm.aiNote = "和訳できませんでした: " + err.message; }
@@ -2319,7 +2382,8 @@ async function pmAiFill(){
 function pmOpen(evId, mId){
   const e = pm.events.find(x=>x.id === evId); if(!e) return;
   const m = (mId && e.markets.find(x=>x.id === mId)) || pmMain(e);
-  pm.sheet = { e, m, range: "1w" };
+  pm.sheet = { e, m, range: "1w", all: false };
+  pmEnsureFull(e);
   const u = pmUntil(e.end);
   const title = pmJa(e.multi ? e.t : m.q), en = e.multi ? e.t : m.q;
   $("#pmSHead").innerHTML = `<div class="pm-sh-t" id="pmSTitle">${esc(title)}</div>${title!==en?`<div class="pm-sh-en">${esc(en)}</div>`:""}
@@ -2338,14 +2402,26 @@ function pmOpen(evId, mId){
   document.body.style.overflow = "hidden";
   pmChart(); pmLoadRule();
 }
+const PM_SHEET_ROWS = 20;
+function pmOptRow(x, sel){
+  const r = x.c ? (x.p[0] >= 0.5 ? "決着: はい" : "決着: いいえ") : pmPct(x.p[0]);
+  return `<div class="pm-opt ${x===sel?"sel":""} ${x.c?"closed":""}" data-m="${esc(x.id)}" style="cursor:pointer" title="出来高 ${pmMoney(x.v24)} ・ 流動性 ${pmMoney(x.liq)}"><span class="l">${esc(pmJa(x.g || x.q))}</span><span class="b"><i style="width:${Math.round(x.p[0]*100)}%"></i></span><span class="v">${r}</span></div>`;
+}
 function pmRenderOutcomes(){
   const { e, m } = pm.sheet;
   if(!e.multi){
     $("#pmSOutcomes").innerHTML = `<div class="pm-h">いまの確率</div><div class="pm-opts">` + m.o.map((o,i)=>`<div class="pm-opt"><span class="l">${esc(pmLabel(o))}</span><span class="b"><i style="width:${Math.round(m.p[i]*100)}%"></i></span><span class="v">${pmPct(m.p[i])}</span></div>`).join("")
-      + `</div><div class="pm-meta">${pmDelta(m.h1,"1時間")} ${pmDelta(m.d1,"24時間")} ${pmDelta(m.w1,"1週間")}</div>`;
-  }else{
-    $("#pmSOutcomes").innerHTML = `<div class="pm-h">選択肢 (押すとグラフが切り替わります)</div><div class="pm-opts">` + e.markets.map(x=>`<div class="pm-opt ${x===m?"sel":""}" data-m="${esc(x.id)}" style="cursor:pointer"><span class="l">${esc(pmJa(x.g || x.q))}</span><span class="b"><i style="width:${Math.round(x.p[0]*100)}%"></i></span><span class="v">${pmPct(x.p[0])}</span></div>`).join("") + `</div>`;
+      + `</div><div class="pm-meta">${pmDelta(m.h1,"1時間")} ${pmDelta(m.d1,"24時間")} ${pmDelta(m.w1,"1週間")} <span>出来高 ${pmMoney(m.v24)}</span></div>`
+      + (e.full ? "" : `<div class="hint" style="margin-top:4px"><span class="spin"></span> ほかの選択肢を確認中…</div>`);
+    return;
   }
+  const all = e.markets, showAll = pm.sheet.all || all.length <= PM_SHEET_ROWS + 3;
+  const list = showAll ? all : all.slice(0, PM_SHEET_ROWS);
+  const closed = e.closed || [];
+  $("#pmSOutcomes").innerHTML = `<div class="pm-h">選択肢 ${all.length}件 (押すとグラフが切り替わります)</div><div class="pm-opts">` + list.map(x=>pmOptRow(x, m)).join("") + `</div>`
+    + (showAll ? "" : `<div class="pm-more-opts"><button class="btn small" id="pmSAllOpts">残り ${all.length - list.length}件も表示</button></div>`)
+    + (closed.length ? `<details class="pm-closed"><summary>決着済みの選択肢 ${closed.length}件</summary><div class="pm-opts">${closed.map(x=>pmOptRow(x, m)).join("")}</div></details>` : "")
+    + (e.full ? "" : `<div class="hint" style="margin-top:4px"><span class="spin"></span> すべての選択肢を読み込み中…</div>`);
 }
 async function pmChart(){
   const { m, range } = pm.sheet, box = $("#pmSChart");
@@ -2432,7 +2508,8 @@ $("#pmMovers").addEventListener("click", e=>{ const c = e.target.closest(".pm-mv
 $("#pmSheet").addEventListener("click", e=>{
   if(e.target.closest("[data-close]")) return pmClose();
   const o = e.target.closest(".pm-opt[data-m]");
-  if(o && pm.sheet){ pm.sheet.m = pm.sheet.e.markets.find(x=>x.id === o.dataset.m) || pm.sheet.m; pmRenderOutcomes(); pmChart(); pmLoadRule(); return; }
+  if(e.target.id === "pmSAllOpts" && pm.sheet){ pm.sheet.all = true; pmRenderOutcomes(); return; }
+  if(o && pm.sheet){ pm.sheet.m = pm.sheet.e.markets.concat(pm.sheet.e.closed||[]).find(x=>x.id === o.dataset.m) || pm.sheet.m; pmRenderOutcomes(); pmChart(); pmLoadRule(); return; }
   const r = e.target.closest("#pmSRange .chip");
   if(r && pm.sheet){ pm.sheet.range = r.dataset.r; $$("#pmSRange .chip").forEach(c=>c.classList.toggle("active", c===r)); pmChart(); }
 });
@@ -2440,7 +2517,7 @@ document.addEventListener("keydown", e=>{ if(e.key === "Escape" && pm.sheet) pmC
 $("#pmSWatch").addEventListener("click", ()=>{
   const e = pm.sheet && pm.sheet.e; if(!e) return;
   if(pm.watch[e.id]) delete pm.watch[e.id];
-  else pm.watch[e.id] = { t: e.t, m: e.markets.slice(0, 5).map(m=>m.id), at: Date.now() };
+  else pm.watch[e.id] = { t: e.t, m: (e.multi ? pmTopN(e) : e.markets.slice(0, 1)).map(m=>m.id), at: Date.now() };
   $("#pmSWatch").textContent = pm.watch[e.id] ? "★ ウォッチ中" : "☆ ウォッチ";
   toast(pm.watch[e.id] ? "⭐ ウォッチに入れました (1時間ごとの記録にも入ります)" : "ウォッチから外しました");
   pmSyncWatch(); pmRenderCats(); pmRender();

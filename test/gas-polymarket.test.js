@@ -221,3 +221,28 @@ test('和訳・判定: キーが無い時は保存分だけ返す。興味を変
   assert.equal(gas.post({ action: 'pmWatch', ids: ['1', '2', 'bad', '3'], key: 'secret-pm-ai-1234' }).watch, 3);
   assert.equal(gas.props.getProperty('PM_WATCH'), '["1","2","3"]');
 });
+
+test('Gemini: モデルが使えない (404) 時は次のモデルを試し、使えたものを覚える', () => {
+  const clock = createClock('2026-11-08T10:00:00+09:00');
+  const tried = [];
+  const gem = (url, params) => {
+    const model = url.match(/models\/([^:]+):/)[1];
+    tried.push(model);
+    if (model === 'gemini-3.5-flash-lite' || model === 'gemini-2.5-flash-lite-old') return { getResponseCode: () => 404, getContentText: () => '{"error":{"code":404,"message":"This model is no longer available"}}' };
+    const input = JSON.parse(JSON.parse(params.payload).contents[0].parts[0].text);
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(input.map(x => ({ i: x.i, ja: 'J' + x.t }))) }] } }] }) };
+  };
+  const gas = loadGas({ clock, fetch: gem, props: { GEMINI_KEY: 'k', PM_MODEL: 'gemini-2.5-flash-lite-old' } });
+  // 覚えていたモデルが使えない → 一覧の先頭から順に
+  let r = gas.post({ action: 'pmAi', texts: ['A'] });
+  assert.equal(r.tr.A, 'JA');
+  assert.deepEqual(tried, ['gemini-2.5-flash-lite-old', 'gemini-3.5-flash-lite', 'gemini-3.5-flash']);
+  assert.equal(gas.props.getProperty('PM_MODEL'), 'gemini-3.5-flash');
+  tried.length = 0;
+  r = gas.post({ action: 'pmAi', texts: ['B'] });
+  assert.deepEqual(tried, ['gemini-3.5-flash'], '次からは覚えたモデルだけ');
+  // キーの誤り (400 で model 以外) は次を試さずに止める
+  const gas2 = loadGas({ clock, props: { GEMINI_KEY: 'bad' }, fetch: () => ({ getResponseCode: () => 400, getContentText: () => '{"error":{"message":"API key not valid"}}' }) });
+  r = gas2.post({ action: 'pmAi', texts: ['C'] });
+  assert.match(r.error, /API key not valid/);
+});

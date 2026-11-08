@@ -45,6 +45,16 @@ function fakeNet(list) {
       if (id) return reply([Object.assign({}, list.find(m => m.id === id), { description: 'This market resolves Yes if the Fed cuts rates at the December meeting.' })]);
       return reply(Number(u.searchParams.get('offset')) === 0 ? list : []);
     }
+    if (u.host === 'gamma-api.polymarket.com' && u.pathname.startsWith('/events/')) {
+      const id = decodeURIComponent(u.pathname.split('/')[2]);
+      if (id !== 'btc') return { ok: false, status: 404, json: async () => ({}) };
+      // 一覧 (出来高上位) に入っていない選択肢・決着済みの選択肢も含めた全部
+      const extra = [];
+      for (let k = 0; k < 10; k++) extra.push(mk(100 + k, { groupItemTitle: '↑ ' + (200 + k * 10) + ',000', outcomePrices: '["0.01","0.99"]', volume24hr: 10 + k, events: undefined }));
+      extra.push(mk(200, { groupItemTitle: '↓ 80,000', closed: true, outcomePrices: '["1","0"]', events: undefined }));
+      extra.push(mk(201, { groupItemTitle: '↑ 130,000', closed: true, outcomePrices: '["0","1"]', events: undefined }));   // 同じ名前の古い市場 → 出さない
+      return reply({ id: 'btc', title: 'What price will Bitcoin hit in 2026?', slug: 'slug-btc', markets: list.filter(m => m.events && m.events[0].id === 'btc').map(m => Object.assign({}, m, { events: undefined })).concat(extra) });
+    }
     if (u.host === 'clob.polymarket.com') return reply(HIST);
     throw new TypeError('想定外の通信: ' + url);
   };
@@ -72,9 +82,9 @@ test('一覧: イベントごとにまとめ、出来高の順。決着済みは
     assert.equal(app.run('pmMoney(345000000)'), '3.5億ドル');
     assert.equal(app.run('pmMoney(1234)'), '1,234ドル');
     assert.equal(app.run('pmPct(0.004)'), '1%未満');
-    // 段階の形は、しきい値の順に並べ、50%に近い3つを出す
+    // 段階の形は、数の大きい順 (↑が上・↓が下)
     const btc = cards(app)[2];
-    assert.deepEqual([...btc.querySelectorAll('.pm-opt .l')].map(x => x.textContent), ['↓ 70,000', '↑ 130,000', '↑ 150,000']);
+    assert.deepEqual([...btc.querySelectorAll('.pm-opt .l')].map(x => x.textContent), ['↑ 290,000', '↑ 280,000', '↑ 150,000', '↑ 130,000', '↓ 70,000'], '出来高の多い5つを本来の並びで');
     // どれか1つが勝つ形は、確率の高い順
     assert.deepEqual([...cards(app)[3].querySelectorAll('.pm-opt .l')].map(x => x.textContent), ['Bob', 'Alice']);
     // 推移グラフ (CLOB) が描かれる
@@ -120,7 +130,7 @@ test('詳細シート: 確率・チャート・選択肢の切り替え。ルー
     cards(app)[2].click();   // ビットコイン (段階の形)
     await app.settle(); await app.settle();
     assert.equal(app.doc.querySelector('#pmSheet').hidden, false);
-    assert.equal(app.doc.querySelectorAll('#pmSOutcomes .pm-opt').length, 3);
+    assert.equal(app.doc.querySelectorAll('#pmSOutcomes > .pm-opts .pm-opt').length, 13, '全選択肢');
     assert.match(app.text('#pmSChartLabel'), /↓ 70,000 の確率/, '代表は50%に近い市場');
     assert.ok(app.doc.querySelector('#pmSChart svg'), 'チャート');
     assert.match(app.text('#pmSChart'), /この期間: 50% → 63%/);
@@ -216,7 +226,7 @@ test('ウォッチと興味なし: ウォッチはサーバーの記録対象に
     cards(app).find(c => c.dataset.ev === 'btc').click();
     app.doc.querySelector('#pmSWatch').click();
     await app.settle();
-    assert.deepEqual(JSON.parse(gas.props.getProperty('PM_WATCH')).sort(), ['2', '3', '4']);
+    assert.deepEqual(JSON.parse(gas.props.getProperty('PM_WATCH')).sort(), ['108', '109', '2', '3', '4'], '出来高の多い5つ');
     assert.match(app.text('#pmCats [data-cat="watch"]'), /ウォッチ 1/);
     app.doc.querySelector('#pmCats [data-cat="watch"]').click();
     assert.deepEqual(cards(app).map(c => c.dataset.ev), ['btc']);
@@ -247,6 +257,31 @@ test('設定: Gemini のキーと興味を保存すると、サーバーに入�
     assert.equal(app.doc.querySelector('#pmGemKey').value, '');
     assert.doesNotMatch(app.win.localStorage.getItem('sakiyomi_v1') || '', /AIza-test-key/);
     assert.match(app.text('#pmAiState'), /登録済み/);
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
+
+test('全選択肢: 見えたカードはイベントの全部を取りに行き、カードは5行、詳細はすべて (決着済みは別に)', async () => {
+  const { app, net } = await open();
+  try {
+    for (let i = 0; i < 5; i++) await app.settle();
+    assert.ok(net.calls.some(u => /\/events\/btc/.test(u)), 'イベントの全部を取りに行く');
+    const btc = cards(app).find(c => c.dataset.ev === 'btc');
+    const rows = [...btc.querySelectorAll('.pm-opt .l')].map(x => x.textContent);
+    assert.equal(rows.length, 5, 'カードは5行');
+    assert.ok(rows.includes('↑ 150,000') && rows.includes('↓ 70,000'), '出来高の多い選択肢は必ず入る');
+    assert.match(btc.textContent, /ほか 8件/);
+    btc.click();
+    await app.settle();
+    const sheetRows = [...app.doc.querySelectorAll('#pmSOutcomes > .pm-opts .pm-opt .l')].map(x => x.textContent);
+    assert.equal(sheetRows.length, 13, '詳細はすべて');
+    assert.equal(sheetRows[0], '↑ 290,000');
+    assert.equal(sheetRows[sheetRows.length - 1], '↓ 70,000');
+    assert.match(app.text('#pmSOutcomes'), /選択肢 13件/);
+    const closed = app.doc.querySelector('#pmSOutcomes .pm-closed');
+    assert.match(closed.textContent, /決着済みの選択肢 1件/);
+    assert.match(closed.textContent, /↓ 80,000.*決着: はい/);
+    // ほかのイベント (取得できない) は今まで通り
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });

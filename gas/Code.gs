@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.09';
+const GAS_VERSION = '2026.11.10';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -1829,7 +1829,8 @@ function pmStatus_() {
 //    rule.json  … { 市場id: { ja: 要約, h: 原文の控え } }
 // =====================================================================
 
-const PM_AI_MODEL = 'gemini-2.5-flash-lite';
+/** 使う Gemini のモデル (上から順に試す。使えなかったら次へ。使えたものを PM_MODEL に覚える) */
+const PM_AI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 const PM_TR_BATCH = 40;          // 1回の Gemini で訳す数
 const PM_SC_BATCH = 30;          // 1回の Gemini で判定するイベント数
 const PM_AI_BUDGET = 25000;      // アプリからの1回の問い合わせで Gemini に使う時間の上限 (ms)
@@ -1869,18 +1870,26 @@ function pmGemini_(sys, input, maxTokens) {
   const key = props.getProperty('GEMINI_KEY');
   if (!key) throw new Error('GEMINI_KEY がありません');
   if (!pmAiDayOk_()) throw new Error('今日の Gemini の上限 (' + PM_AI_DAY_MAX + '回) に達しました');
-  const model = props.getProperty('PM_MODEL') || PM_AI_MODEL;
-  const res = UrlFetchApp.fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key),
-    {
-      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-      payload: JSON.stringify({
-        system_instruction: { parts: [{ text: sys }] },
-        contents: [{ role: 'user', parts: [{ text: typeof input === 'string' ? input : JSON.stringify(input) }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: maxTokens || 8192, responseMimeType: 'application/json' },
-      }),
-    });
-  if (res.getResponseCode() !== 200) throw new Error('Gemini ' + res.getResponseCode() + ': ' + String(res.getContentText()).slice(0, 200));
+  const saved = props.getProperty('PM_MODEL');
+  const models = (saved ? [saved] : []).concat(PM_AI_MODELS.filter(function (m) { return m !== saved; }));
+  const payload = JSON.stringify({
+    system_instruction: { parts: [{ text: sys }] },
+    contents: [{ role: 'user', parts: [{ text: typeof input === 'string' ? input : JSON.stringify(input) }] }],
+    generationConfig: { temperature: 0.1, maxOutputTokens: maxTokens || 8192, responseMimeType: 'application/json' },
+  });
+  let res = null, lastErr = '';
+  for (let i = 0; i < models.length; i++) {
+    res = UrlFetchApp.fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/' + models[i] + ':generateContent?key=' + encodeURIComponent(key),
+      { method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: payload });
+    const code = res.getResponseCode();
+    if (code === 200) { if (models[i] !== saved) props.setProperty('PM_MODEL', models[i]); break; }
+    lastErr = 'Gemini ' + code + ' (' + models[i] + '): ' + String(res.getContentText()).slice(0, 160);
+    // モデルが無い・使えない (404 / 400 の一部) 時だけ次のモデルを試す。キーの誤りや上限は止める
+    if (!(code === 404 || (code === 400 && /model/i.test(res.getContentText())))) throw new Error(lastErr);
+    res = null;
+  }
+  if (!res) throw new Error(lastErr || 'Gemini のモデルが見つかりません');
   const d = JSON.parse(res.getContentText());
   const out = d && d.candidates && d.candidates[0] && d.candidates[0].content
     && d.candidates[0].content.parts.map(function (p) { return p.text; }).join('');
