@@ -284,6 +284,11 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .pm-tag{font-size:11px; padding:1px 8px; border-radius:99px; background:var(--card2); color:var(--muted)}
 .pm-tag.you{background:var(--tint-accent); color:var(--accent)}
 .pm-tag.soon{background:var(--tint-warn); color:var(--warn)}
+.pm-tag.new{background:var(--tint-pin); color:var(--pin); font-weight:700}
+.pm-tag.since{background:var(--tint-accent); color:var(--text)}
+.pm-star{flex:none; border:none; background:transparent; font-size:22px; line-height:1; cursor:pointer; color:var(--dim); padding:2px 4px; margin:-4px -6px 0 0}
+.pm-star.on{color:#f5b301}
+.pm-star:hover{transform:scale(1.15)}
 .up{color:var(--ok)} .down{color:var(--danger)} .flat{color:var(--dim)}
 .pm-pbar{height:6px; border-radius:99px; background:var(--card2); overflow:hidden; margin-top:10px}
 .pm-pbar i{display:block; height:100%; border-radius:99px; background:var(--accent)}
@@ -473,6 +478,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
         <option value="d1">📈 24時間で動いた順</option>
         <option value="end">⏰ 締切が近い順</option>
         <option value="you">✨ あなた向けの順</option>
+        <option value="since">🆕 前回から動いた順</option>
       </select>
       <span id="pmInfo" class="pm-info"></span>
       <button class="btn small" id="pmReload" title="最新にする">↻</button>
@@ -803,7 +809,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.13";
+const APP_VERSION = "2026.11.14";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.12";
 const $ = s => document.querySelector(s);
@@ -1971,11 +1977,22 @@ const pmLS = {
   get(k, d){ try{ const v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ /* 容量オーバーは諦める */ } },
 };
+/* ---- 前回見た時の確率 (「前回から ▲6pt」「NEW」の表示用) ----
+   pm_seen_v1 = { t, p:{市場id:確率}, ev:{イベントid:1}, prev:{…一つ前…} }。
+   30分以内に開き直した時は、さらに前の状態と比べる (すぐ開き直しても変化が消えないように) */
+const PM_SEEN_GAP = 30*60000;
+function pmSeenBase(){
+  const s = pmLS.get("pm_seen_v1", null);
+  if(!s || !s.t) return null;
+  if(Date.now() - s.t >= PM_SEEN_GAP) return { t:s.t, p:s.p||{}, ev:s.ev||{} };
+  return s.prev || null;
+}
 const pm = {
   markets: [], events: [], at: 0, loading: false,
   tr: pmLS.get("pm_tr_v1", {}), sc: pmLS.get("pm_sc_v1", {}),
   watch: pmLS.get("pm_watch_v1", {}), hide: pmLS.get("pm_hide_v1", {}),
-  cat: "all", shown: PM_SHOW, aiBusy: false, aiNote: "", spark: {}, sheet: null,
+  base: pmSeenBase(),
+  cat: pmLS.get("pm_ui_v1", {}).cat || "all", shown: PM_SHOW, aiBusy: false, aiNote: "", spark: {}, sheet: null,
 };
 
 /* ---- 表示の形 ---- */
@@ -2101,6 +2118,30 @@ function pmEnsureFull(e){
   }).catch(()=>{ delete pmFullP[e.id]; });
   return pmFullP[e.id];
 }
+function pmSaveSeen(){
+  if(!pm.markets.length) return;
+  const p = {}, ev = {};
+  for(const e of pm.events){ ev[e.id] = 1; for(const m of e.markets) p[m.id] = Math.round(m.p[0]*1000)/1000; }
+  pmLS.set("pm_seen_v1", { t: Date.now(), p, ev, prev: pm.base });
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") pmSaveSeen(); });
+window.addEventListener("pagehide", pmSaveSeen);
+/** 前回から一番大きく動いた選択肢 {d, m} (前回の記録が無ければ null) */
+function pmSince(e){
+  if(!pm.base) return null;
+  let best = null;
+  for(const m of e.markets){ const b = pm.base.p[m.id]; if(b == null) continue; const d = m.p[0] - b; if(!best || Math.abs(d) > Math.abs(best.d)) best = { d, m }; }
+  return best;
+}
+function pmIsNew(e){ return !!(pm.base && !pm.base.ev[e.id] && !e.markets.some(m=>pm.base.p[m.id] != null)); }
+function pmSaveUi(){ pmLS.set("pm_ui_v1", { cat: pm.cat, sort: $("#pmSort").value }); }
+function pmToggleWatch(e){
+  if(pm.watch[e.id]) delete pm.watch[e.id];
+  else pm.watch[e.id] = { t: e.t, m: (e.multi ? pmTopN(e) : e.markets.slice(0, 1)).map(m=>m.id), at: Date.now() };
+  toast(pm.watch[e.id] ? "⭐ ウォッチに入れました (記録と通知の対象になります)" : "ウォッチから外しました");
+  pmSyncWatch(); pmRenderCats(); pmRender();
+  if(pm.sheet && pm.sheet.e.id === e.id) $("#pmSWatch").textContent = pm.watch[e.id] ? "★ ウォッチ中" : "☆ ウォッチ";
+}
 function pmCardEl(id){ return $$("#pmList .pm-card").find(c=>c.dataset.ev === id); }
 function pmNeedsTr(e){ return e.markets.concat(e.closed||[]).some(m=>m.g && !pm.tr[m.g] && /[A-Za-z]/.test(m.g)); }
 let pmFullQ = [], pmFullRunning = 0;
@@ -2140,6 +2181,7 @@ async function pmLoad(force){
     pmLS.set("pm_cache_v1", { t: pm.at, markets: list });
     pm.spark = {};
     pmRebuild();
+    pmSaveSeen();
   }catch(err){
     if(!pm.markets.length) $("#pmList").innerHTML = `<div class="empty">取得に失敗しました: ${esc(err.message)}<br>時間をおいて「↻」を押してください。</div>`;
     else toast("最新の取得に失敗しました。前回の内容を表示しています");
@@ -2236,6 +2278,7 @@ function pmFiltered(){
     d1: (a,b)=> abs(b.d1) - abs(a.d1) || b.v24 - a.v24,
     end: (a,b)=> (Date.parse(a.end)||9e15) - (Date.parse(b.end)||9e15),
     you: (a,b)=> (pmScore(b)??-1) - (pmScore(a)??-1) || b.v24 - a.v24,
+    since: (a,b)=> (pmIsNew(b) - pmIsNew(a)) || abs((pmSince(b)||{}).d) - abs((pmSince(a)||{}).d) || b.v24 - a.v24,
   }[sort] || ((a,b)=>b.v24-a.v24);
   if(sort === "end") list = list.filter(e=>e.end && Date.parse(e.end) > Date.now());
   return list.sort(by);
@@ -2253,7 +2296,7 @@ function pmTopN(e){
   return e.markets.filter(m=>pick.has(m));
 }
 function pmCard(e){
-  const m = pmMain(e), sc = pmScore(e), u = pmUntil(e.end), cat = pmCatOf(e);
+  const m = pmMain(e), sc = pmScore(e), u = pmUntil(e.end), cat = pmCatOf(e), since = pmSince(e);
   const title = pmJa(e.multi ? e.t : m.q), en = (e.multi ? e.t : m.q);
   let body = "";
   let big = "";
@@ -2268,12 +2311,13 @@ function pmCard(e){
   }
   const d1 = e.multi ? e.d1 : m.d1, h1 = e.multi ? e.h1 : m.h1;
   return `<div class="pm-card ${sc===3?"you3":""}" data-ev="${esc(e.id)}">
-    <div class="pm-row1"><div class="pm-title">${esc(title)}${title!==en?`<span class="en">${esc(en)}</span>`:""}</div>${big}</div>
+    <div class="pm-row1"><div class="pm-title">${esc(title)}${title!==en?`<span class="en">${esc(en)}</span>`:""}</div>${big}<button class="pm-star ${pm.watch[e.id]?"on":""}" data-star="${esc(e.id)}" title="${pm.watch[e.id]?"ウォッチから外す":"ウォッチに入れる"}" aria-label="ウォッチ">${pm.watch[e.id]?"★":"☆"}</button></div>
     ${body}
     <svg class="pm-spark" data-spark="${esc(m.tok[0]||"")}" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"></svg>
     <div class="pm-meta">
+      ${pmIsNew(e)?`<span class="pm-tag new">NEW</span>`:""}
+      ${since && Math.abs(since.d) >= 0.01 ? `<span class="pm-tag since">前回から ${pmDelta(since.d)}${e.multi ? " " + esc(pmJa(since.m.g || since.m.q).slice(0, 18)) : ""}</span>` : ""}
       ${sc>=2?`<span class="pm-tag you">✨ あなた向け</span>`:""}
-      ${pm.watch[e.id]?`<span class="pm-tag">⭐</span>`:""}
       <span class="pm-tag">${esc(cat)}</span>
       <span>${pmDelta(h1,"1時間")}</span><span>${pmDelta(d1,"24時間")}</span>
       <span>出来高 ${pmMoney(e.v24)}</span>
@@ -2321,7 +2365,8 @@ function pmRender(){
 function pmRenderInfo(){
   const el = $("#pmInfo"); if(!el) return;
   const t = pm.at ? new Date(pm.at).toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}) + " 時点" : "";
-  el.innerHTML = pm.loading ? `<span class="spin"></span> 更新中…` : esc([t, pm.aiNote].filter(Boolean).join(" ・ "));
+  const b = pm.base ? "前回 " + new Date(pm.base.t).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}) + " と比較" : "";
+  el.innerHTML = pm.loading ? `<span class="spin"></span> 更新中…` : esc([t, b, pm.aiNote].filter(Boolean).join(" ・ "));
 }
 
 /* ---- 推移グラフ (CLOB の価格の履歴) ---- */
@@ -2536,16 +2581,22 @@ async function pmSyncWatch(){
 /* ---- 操作 ---- */
 let pmQTimer = null;
 $("#pmQ").addEventListener("input", ()=>{ clearTimeout(pmQTimer); pmQTimer = setTimeout(()=>{ pm.shown = PM_SHOW; pmRender(); }, 60); });
-$("#pmSort").addEventListener("change", ()=>{ pm.shown = PM_SHOW; pmRender(); });
+$("#pmSort").addEventListener("change", ()=>{ pm.shown = PM_SHOW; pmSaveUi(); pmRender(); });
+{ const ui = pmLS.get("pm_ui_v1", {}); if(ui.sort && $(`#pmSort option[value="${ui.sort}"]`)) $("#pmSort").value = ui.sort; }
 $("#pmReload").addEventListener("click", ()=>pmLoad(true));
 $("#pmCats").addEventListener("click", e=>{
   const c = e.target.closest("[data-cat]"); if(!c) return;
   pm.cat = c.dataset.cat; pm.shown = PM_SHOW;
   if(pm.cat === "you" && $("#pmSort").value === "vol") $("#pmSort").value = "you";
+  pmSaveUi();
   pmRenderCats(); pmRender();
 });
 $("#pmMore").addEventListener("click", e=>{ if(e.target.id === "pmMoreBtn"){ pm.shown += PM_SHOW; pmRender(); } });
-$("#pmList").addEventListener("click", e=>{ const c = e.target.closest(".pm-card"); if(c) pmOpen(c.dataset.ev); });
+$("#pmList").addEventListener("click", ev=>{
+  const st = ev.target.closest("[data-star]");
+  if(st){ ev.stopPropagation(); const e = pm.events.find(x=>x.id === st.dataset.star); if(e) pmToggleWatch(e); return; }
+  const c = ev.target.closest(".pm-card"); if(c) pmOpen(c.dataset.ev);
+});
 $("#pmMovers").addEventListener("click", e=>{ const c = e.target.closest(".pm-mv"); if(c) pmOpen(c.dataset.ev, c.dataset.m); });
 $("#pmSheet").addEventListener("click", e=>{
   if(e.target.closest("[data-close]")) return pmClose();
@@ -2556,14 +2607,7 @@ $("#pmSheet").addEventListener("click", e=>{
   if(r && pm.sheet){ pm.sheet.range = r.dataset.r; $$("#pmSRange .chip").forEach(c=>c.classList.toggle("active", c===r)); pmChart(); }
 });
 document.addEventListener("keydown", e=>{ if(e.key === "Escape" && pm.sheet) pmClose(); });
-$("#pmSWatch").addEventListener("click", ()=>{
-  const e = pm.sheet && pm.sheet.e; if(!e) return;
-  if(pm.watch[e.id]) delete pm.watch[e.id];
-  else pm.watch[e.id] = { t: e.t, m: (e.multi ? pmTopN(e) : e.markets.slice(0, 1)).map(m=>m.id), at: Date.now() };
-  $("#pmSWatch").textContent = pm.watch[e.id] ? "★ ウォッチ中" : "☆ ウォッチ";
-  toast(pm.watch[e.id] ? "⭐ ウォッチに入れました (1時間ごとの記録にも入ります)" : "ウォッチから外しました");
-  pmSyncWatch(); pmRenderCats(); pmRender();
-});
+$("#pmSWatch").addEventListener("click", ()=>{ const e = pm.sheet && pm.sheet.e; if(e) pmToggleWatch(e); });
 $("#pmSHide").addEventListener("click", ()=>{
   const e = pm.sheet && pm.sheet.e; if(!e) return;
   if(pm.hide[e.id]) delete pm.hide[e.id]; else pm.hide[e.id] = e.t;

@@ -67,6 +67,7 @@ async function openApp(opts) {
       win.addEventListener('error', e => errors.push('window error: ' + (e.error && e.error.stack || e.message)));
       win.addEventListener('unhandledrejection', e => errors.push('unhandledrejection: ' + (e.reason && e.reason.stack || e.reason)));
       if (opts.state) win.localStorage.setItem('sakiyomi_v1', JSON.stringify(opts.state));
+      for (const [k, v] of Object.entries(opts.storage || {})) win.localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
     },
   });
   const win = dom.window;

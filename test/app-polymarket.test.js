@@ -334,3 +334,67 @@ test('設定: 通知メールの送り先・オン/オフを保存し、テス�
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });
+
+test('使いやすさ: カードの☆で直接ウォッチ (詳細は開かない)', async () => {
+  const { app } = await open();
+  try {
+    const star = () => cards(app).find(c => c.dataset.ev === 'fed').querySelector('[data-star]');
+    assert.equal(star().textContent, '☆');
+    star().click();
+    assert.equal(app.doc.querySelector('#pmSheet').hidden, true, '詳細は開かない');
+    assert.equal(star().textContent, '★');
+    assert.ok(star().classList.contains('on'));
+    assert.match(app.text('#pmCats [data-cat="watch"]'), /ウォッチ 1/);
+    assert.deepEqual(Object.keys(JSON.parse(app.win.localStorage.getItem('pm_watch_v1'))), ['fed']);
+    star().click();
+    assert.equal(star().textContent, '☆');
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
+
+test('使いやすさ: 選んだ分野と並び順を覚えていて、次に開いた時もそのまま', async () => {
+  let { app } = await open();
+  let saved;
+  try {
+    app.doc.querySelector('#pmCats [data-cat="暗号資産"]').click();
+    const sel = app.doc.querySelector('#pmSort');
+    sel.value = 'd1'; sel.dispatchEvent(new app.win.Event('change'));
+    saved = app.win.localStorage.getItem('pm_ui_v1');
+  } finally { app.close(); }
+  const net = fakeNet(markets());
+  app = await openApp({ fetch: net.fetch, storage: { pm_ui_v1: saved } });
+  try {
+    for (let i = 0; i < 5; i++) await app.settle();
+    assert.ok(app.doc.querySelector('#pmCats [data-cat="暗号資産"]').classList.contains('active'));
+    assert.equal(app.doc.querySelector('#pmSort').value, 'd1');
+    assert.ok(titles(app).every(t => /Bitcoin|Solana|FDV/.test(t)));
+  } finally { app.close(); }
+});
+
+test('使いやすさ: 前回見た時からの変化と NEW を出す。30分以内に開き直しても消えない', async () => {
+  const clock = createClock('2026-11-09T10:00:00+09:00');
+  const before = { t: clock.now - 3 * 3600000, p: { '1': 0.5, '2': 0.1, '3': 0.55, '4': 0.3, '7': 0.5, '10': 0.4, '5': 0.2, '6': 0.7 }, ev: { fed: 1, btc: 1, nba: 1, sol: 1, el: 1 } };
+  let app = await openApp({ clock, fetch: fakeNet(markets()).fetch, storage: { pm_seen_v1: before } });
+  let saved;
+  try {
+    for (let i = 0; i < 5; i++) await app.settle();
+    const fed = cards(app).find(c => c.dataset.ev === 'fed');
+    assert.match(fed.textContent, /前回から ▲13pt/);
+    assert.doesNotMatch(fed.textContent, /NEW/);
+    const tge = cards(app).find(c => c.dataset.ev === 'tge1');
+    assert.match(tge.textContent, /NEW/, '前回は無かったイベント');
+    assert.match(app.text('#pmInfo'), /前回 .* と比較/);
+    // 並び順「前回から動いた順」: NEW → 大きく動いた順
+    const sel = app.doc.querySelector('#pmSort');
+    sel.value = 'since'; sel.dispatchEvent(new app.win.Event('change'));
+    assert.deepEqual(cards(app).slice(0, 2).map(c => c.dataset.ev), ['tge1', 'fed']);
+    saved = app.win.localStorage.getItem('pm_seen_v1');
+  } finally { app.close(); }
+  // 10分後に開き直しても、3時間前の状態と比べる
+  clock.tick(10 * 60000);
+  app = await openApp({ clock, fetch: fakeNet(markets()).fetch, storage: { pm_seen_v1: saved } });
+  try {
+    for (let i = 0; i < 5; i++) await app.settle();
+    assert.match(cards(app).find(c => c.dataset.ev === 'fed').textContent, /前回から ▲13pt/);
+  } finally { app.close(); }
+});
