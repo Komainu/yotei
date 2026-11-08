@@ -294,6 +294,11 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .pm-pbar i{display:block; height:100%; border-radius:99px; background:var(--accent)}
 .pm-opts{margin-top:8px}
 .pm-opt{display:grid; grid-template-columns:minmax(0,1fr) 120px 50px; gap:8px; align-items:center; font-size:13px; padding:3px 0}
+.pm-opts.wide .pm-opt{grid-template-columns:minmax(0,1fr) 110px 50px 82px}
+.pm-opt .vv{text-align:right; font-size:11.5px; color:var(--dim); white-space:nowrap}
+.pm-dist{margin-top:10px; padding:8px 12px; border-radius:10px; background:var(--tint-accent); font-size:13px; line-height:1.6}
+.pm-dist b{font-size:15px}
+.pm-dist .hint{margin:0}
 .pm-opt .l{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .pm-opt .b{height:6px; border-radius:99px; background:var(--card2); overflow:hidden}
 .pm-opt .b i{display:block; height:100%; background:var(--accent); border-radius:99px}
@@ -809,7 +814,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.14";
+const APP_VERSION = "2026.11.15";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.12";
 const $ = s => document.querySelector(s);
@@ -2048,7 +2053,7 @@ function pmCompact(m, keep){
     h1: m.oneHourPriceChange != null ? Number(m.oneHourPriceChange) : null,
     d1: m.oneDayPriceChange != null ? Number(m.oneDayPriceChange) : null,
     w1: m.oneWeekPriceChange != null ? Number(m.oneWeekPriceChange) : null,
-    v24: Number(m.volume24hr)||0, liq: Number(m.liquidityNum != null ? m.liquidityNum : m.liquidity)||0,
+    v24: Number(m.volume24hr)||0, vol: Number(m.volumeNum != null ? m.volumeNum : m.volume)||0, liq: Number(m.liquidityNum != null ? m.liquidityNum : m.liquidity)||0,
     end: m.endDate || ev.endDate || null, tok: pmArr(m.clobTokenIds).map(String), slug: String(m.slug||""),
     c: !!m.closed, neg: !!m.negRisk, th: m.groupItemThreshold != null && m.groupItemThreshold !== "" ? Number(m.groupItemThreshold) : null,
     ev: { id: String(ev.id != null ? ev.id : "m" + m.id), t: String(ev.title || m.question || ""), s: String(ev.slug || m.slug || "") },
@@ -2060,7 +2065,7 @@ function pmGroup(markets){
   for(const m of markets){
     let e = map.get(m.ev.id);
     if(!e){ e = { id:m.ev.id, t:m.ev.t, s:m.ev.s, markets:[], v24:0, end:null }; map.set(e.id, e); }
-    e.markets.push(m); e.v24 += m.v24;
+    e.markets.push(m); e.v24 += m.v24; e.vol = (e.vol||0) + (m.vol||0);
     if(m.end && (!e.end || m.end < e.end)) e.end = m.end;
   }
   for(const e of map.values()){
@@ -2099,6 +2104,7 @@ function pmApplyFull(e, list){
   e.markets = open.length ? open : e.markets;
   e.closed = closed.filter(m=>!openNames.has(m.g||m.q));
   e.v24 = e.markets.reduce((n,m)=>n+m.v24, 0);
+  e.vol = e.markets.concat(e.closed||[]).reduce((n,m)=>n+(m.vol||0), 0);
   e.full = true;
   pmShape(e);
 }
@@ -2288,6 +2294,75 @@ function pmFiltered(){
 /** 代表の市場: 段階の形なら確率が50%に一番近いもの、それ以外は一番確率の高いもの */
 function pmMain(e){ return e.ladder ? e.markets.reduce((b,m)=> Math.abs(m.p[0]-0.5) < Math.abs(b.p[0]-0.5) ? m : b, e.markets[0]) : e.markets[0]; }
 /** カードに出す3つ: 段階の形なら50%に近い3つを本来の並びで、それ以外は上位3つ */
+/* ---- 分布の中央値・範囲 (TGE初日のFDV、価格が○○を上回るか、などの市場) ----
+   ① 「○○を上回るか」の段階: 各選択肢の確率 = その値を上回る確率 (残存関数 S(x))。S が 50% をまたぐ所が中央値
+   ② 「○○〜○○」の区間 (どれか1つが勝つ形): 各区間の確率を足していき、50% に達した区間の中で中央値を求める
+   値の間は対数で補間する (金額は桁で動くため)。平均は端の外の確率が小さい時だけ「目安」として出す */
+function pmRange(label){
+  const t = String(label||"").replace(/,/g,"");
+  const nums = [...t.matchAll(/(\d+(?:\.\d+)?)\s*([kKmMbBtT](?![a-z]))?/g)].map(m=>Number(m[1]) * ({k:1e3,m:1e6,b:1e9,t:1e12}[(m[2]||"").toLowerCase()] || 1));
+  if(!nums.length) return null;
+  if(nums.length >= 2) return { lo: Math.min(nums[0], nums[1]), hi: Math.max(nums[0], nums[1]) };
+  const x = nums[0];
+  if(/<|under|below|less|fewer|未満|以下/i.test(t)) return { lo: 0, hi: x, open: "lo" };
+  if(/>|\+|above|over|more|or higher|以上|超/i.test(t)) return { lo: x, hi: Infinity, open: "hi" };
+  return { lo: x, hi: x };
+}
+function pmLogLerp(x0, x1, f){ return (x0 > 0 && x1 > 0) ? Math.exp(Math.log(x0) + (Math.log(x1) - Math.log(x0)) * f) : x0 + (x1 - x0) * f; }
+function pmDist(e){
+  if(!e.multi || e.markets.length < 3) return null;
+  const labels = e.markets.map(m=>m.g || "");
+  if(labels.some(l=>/[↑↓]|dip|reach|hit/i.test(l)) || /\bhit\b|\breach\b|\bdip\b/i.test(e.t)) return null;   /* 「到達するか」は分布ではない */
+  const unit = labels.some(l=>/\$/.test(l)) ? "$" : "";
+  const pts = [];
+  const q = (e.t + " " + e.markets[0].q).toLowerCase();
+  if(!e.markets.some(m=>m.neg) && /above|over|greater|more than|at least|exceed|higher than|>|≥/.test(q)){
+    /* ① 残存関数 */
+    for(const m of e.markets){ const x = pmNum(m.g); if(x == null) return null; pts.push({ x, s: m.p[0] }); }
+    pts.sort((a,b)=>a.x-b.x);
+    for(let i=1;i<pts.length;i++) pts[i].s = Math.min(pts[i].s, pts[i-1].s);   /* 値が大きいほど上回る確率は下がる (ずれを直す) */
+    const at = level => {   /* S(x) = level となる x */
+      if(pts[0].s < level) return { x: pts[0].x, below: true };
+      if(pts[pts.length-1].s > level) return { x: pts[pts.length-1].x, above: true };
+      for(let i=0;i<pts.length-1;i++){ const a = pts[i], b = pts[i+1];
+        if(a.s >= level && b.s <= level){ const f = a.s === b.s ? 0.5 : (a.s - level) / (a.s - b.s); return { x: pmLogLerp(a.x, b.x, f) }; } }
+      return null;
+    };
+    const lowTail = 1 - pts[0].s, highTail = pts[pts.length-1].s;
+    let mean = null;
+    if(lowTail <= 0.1 && highTail <= 0.1){
+      mean = lowTail * pts[0].x + highTail * pts[pts.length-1].x;
+      for(let i=0;i<pts.length-1;i++) mean += (pts[i].s - pts[i+1].s) * pmLogLerp(pts[i].x, pts[i+1].x, 0.5);
+    }
+    return { unit, med: at(0.5), p25: at(0.75), p75: at(0.25), mean, kind: "above", lowTail, highTail };
+  }
+  if(e.markets.some(m=>m.neg)){
+    /* ② 区間 */
+    const bk = [];
+    for(const m of e.markets){ const r = pmRange(m.g); if(!r) return null; bk.push(Object.assign({ p: m.p[0] }, r)); }
+    bk.sort((a,b)=>a.lo-b.lo || a.hi-b.hi);
+    const tot = bk.reduce((n,b)=>n+b.p, 0); if(tot <= 0) return null;
+    bk.forEach(b=>{ b.p /= tot; if(b.open === "lo") b.lo = b.hi / 2; if(b.open === "hi") b.hi = b.lo * 2; });
+    const at = level => { let c = 0;
+      for(const b of bk){ if(c + b.p >= level){ const f = b.p ? (level - c) / b.p : 0.5; return { x: pmLogLerp(b.lo, b.hi, f), open: b.open }; } c += b.p; }
+      return null; };
+    const tails = bk.filter(b=>b.open).reduce((n,b)=>n+b.p, 0);
+    const mean = tails <= 0.1 ? bk.reduce((n,b)=>n + b.p * pmLogLerp(b.lo, b.hi, 0.5), 0) : null;
+    return { unit, med: at(0.5), p25: at(0.25), p75: at(0.75), mean, kind: "range" };
+  }
+  return null;
+}
+function pmFmtVal(x, unit){
+  if(x == null || !isFinite(x)) return "-";
+  if(unit === "$") return pmMoney(x);
+  if(x >= 1e8) return (x/1e8).toFixed(1).replace(/\.0$/,"") + "億";
+  if(x >= 1e4 && x % 1 === 0 && x >= 1e6) return Math.round(x/1e4).toLocaleString() + "万";
+  return (x >= 100 ? Math.round(x) : Math.round(x*100)/100).toLocaleString();
+}
+function pmDistText(d){
+  const v = r => !r ? "-" : r.below ? pmFmtVal(r.x, d.unit) + " 未満" : r.above ? pmFmtVal(r.x, d.unit) + " 超" : pmFmtVal(r.x, d.unit);
+  return { med: v(d.med), range: v(d.p25) + " 〜 " + v(d.p75), mean: d.mean != null ? pmFmtVal(d.mean, d.unit) : null };
+}
 const PM_CARD_ROWS = 5;
 /** カードに出す選択肢: 段階の形は出来高の多い5つを本来の並びで、それ以外は確率の高い5つ */
 function pmTopN(e){
@@ -2310,6 +2385,8 @@ function pmCard(e){
       + (e.markets.length > top.length ? `<div class="hint" style="margin-top:2px">ほか ${e.markets.length-top.length}件 (押すとすべて見られます)</div>` : "") + `</div>`;
   }
   const d1 = e.multi ? e.d1 : m.d1, h1 = e.multi ? e.h1 : m.h1;
+  const dist = pmDist(e);
+  if(dist){ const t = pmDistText(dist); body += `<div class="pm-dist">📊 予想の中央値 <b>${esc(t.med)}</b> <span style="color:var(--muted)">(50%の確率で ${esc(t.range)})</span></div>`; }
   return `<div class="pm-card ${sc===3?"you3":""}" data-ev="${esc(e.id)}">
     <div class="pm-row1"><div class="pm-title">${esc(title)}${title!==en?`<span class="en">${esc(en)}</span>`:""}</div>${big}<button class="pm-star ${pm.watch[e.id]?"on":""}" data-star="${esc(e.id)}" title="${pm.watch[e.id]?"ウォッチから外す":"ウォッチに入れる"}" aria-label="ウォッチ">${pm.watch[e.id]?"★":"☆"}</button></div>
     ${body}
@@ -2320,7 +2397,7 @@ function pmCard(e){
       ${sc>=2?`<span class="pm-tag you">✨ あなた向け</span>`:""}
       <span class="pm-tag">${esc(cat)}</span>
       <span>${pmDelta(h1,"1時間")}</span><span>${pmDelta(d1,"24時間")}</span>
-      <span>出来高 ${pmMoney(e.v24)}</span>
+      <span title="これまでに賭けられた金額の合計 (Polymarket の出来高)">💰 賭け金 ${pmMoney(e.vol||0)}</span><span>24時間 ${pmMoney(e.v24)}</span>
       <span class="${u.soon?"pm-tag soon":""}">${esc(u.txt)}</span>
     </div></div>`;
 }
@@ -2476,8 +2553,8 @@ function pmOpen(evId, mId){
   $("#pmSHead").innerHTML = `<div class="pm-sh-t" id="pmSTitle">${esc(title)}</div>${title!==en?`<div class="pm-sh-en">${esc(en)}</div>`:""}
     <div class="pm-stats">
       <div class="pm-stat"><small>締切</small><b>${esc(u.txt)}</b><small>${esc(e.end ? pmDate(e.end) : "")}</small></div>
-      <div class="pm-stat"><small>24時間の出来高</small><b>${pmMoney(e.v24)}</b></div>
-      <div class="pm-stat"><small>流動性</small><b>${pmMoney(e.markets.reduce((n,x)=>n+x.liq,0))}</b></div>
+      <div class="pm-stat"><small>💰 賭け金の合計</small><b>${pmMoney(e.vol||0)}</b><small>24時間 ${pmMoney(e.v24)}</small></div>
+      <div class="pm-stat" title="いま売り買いの注文として置かれている金額"><small>流動性 (注文の厚み)</small><b>${pmMoney(e.markets.reduce((n,x)=>n+x.liq,0))}</b></div>
       <div class="pm-stat"><small>分野</small><b>${esc(pmCatOf(e))}</b>${pmScore(e)>=2?`<small>✨ あなた向け</small>`:""}</div>
     </div>`;
   pmRenderOutcomes();
@@ -2492,22 +2569,25 @@ function pmOpen(evId, mId){
 const PM_SHEET_ROWS = 20;
 function pmOptRow(x, sel){
   const r = x.c ? (x.p[0] >= 0.5 ? "決着: はい" : "決着: いいえ") : pmPct(x.p[0]);
-  return `<div class="pm-opt ${x===sel?"sel":""} ${x.c?"closed":""}" data-m="${esc(x.id)}" style="cursor:pointer" title="出来高 ${pmMoney(x.v24)} ・ 流動性 ${pmMoney(x.liq)}"><span class="l">${esc(pmJa(x.g || x.q))}</span><span class="b"><i style="width:${Math.round(x.p[0]*100)}%"></i></span><span class="v">${r}</span></div>`;
+  return `<div class="pm-opt ${x===sel?"sel":""} ${x.c?"closed":""}" data-m="${esc(x.id)}" style="cursor:pointer" title="賭け金 ${pmMoney(x.vol||0)} ・ 24時間 ${pmMoney(x.v24)} ・ 流動性 ${pmMoney(x.liq)}"><span class="l">${esc(pmJa(x.g || x.q))}</span><span class="b"><i style="width:${Math.round(x.p[0]*100)}%"></i></span><span class="v">${r}</span><span class="vv">${pmMoney(x.vol||0)}</span></div>`;
 }
 function pmRenderOutcomes(){
   const { e, m } = pm.sheet;
   if(!e.multi){
     $("#pmSOutcomes").innerHTML = `<div class="pm-h">いまの確率</div><div class="pm-opts">` + m.o.map((o,i)=>`<div class="pm-opt"><span class="l">${esc(pmLabel(o))}</span><span class="b"><i style="width:${Math.round(m.p[i]*100)}%"></i></span><span class="v">${pmPct(m.p[i])}</span></div>`).join("")
-      + `</div><div class="pm-meta">${pmDelta(m.h1,"1時間")} ${pmDelta(m.d1,"24時間")} ${pmDelta(m.w1,"1週間")} <span>出来高 ${pmMoney(m.v24)}</span></div>`
+      + `</div><div class="pm-meta">${pmDelta(m.h1,"1時間")} ${pmDelta(m.d1,"24時間")} ${pmDelta(m.w1,"1週間")} <span>💰 賭け金 ${pmMoney(m.vol||0)}</span> <span>24時間 ${pmMoney(m.v24)}</span></div>`
       + (e.full ? "" : `<div class="hint" style="margin-top:4px"><span class="spin"></span> ほかの選択肢を確認中…</div>`);
     return;
   }
   const all = e.markets, showAll = pm.sheet.all || all.length <= PM_SHEET_ROWS + 3;
   const list = showAll ? all : all.slice(0, PM_SHEET_ROWS);
   const closed = e.closed || [];
-  $("#pmSOutcomes").innerHTML = `<div class="pm-h">選択肢 ${all.length}件 (押すとグラフが切り替わります)</div><div class="pm-opts">` + list.map(x=>pmOptRow(x, m)).join("") + `</div>`
+  const dist = pmDist(e), dt = dist && pmDistText(dist);
+  $("#pmSOutcomes").innerHTML = (dt ? `<div class="pm-dist">📊 予想の中央値 <b>${esc(dt.med)}</b><br>50%の確率で ${esc(dt.range)} の間${dt.mean ? ` ／ 平均の目安 ${esc(dt.mean)}` : ""}
+      <div class="hint">${dist.kind === "above" ? "各選択肢の「上回る確率」をつないで計算しています" : "各区間の確率を足し合わせて計算しています"} (値の間は対数で補間)。${dt.mean ? "" : "端の外の確率が大きいため平均は出していません。"}</div></div>` : "")
+    + `<div class="pm-h">選択肢 ${all.length}件 (押すとグラフが切り替わります) <span style="float:right; font-weight:400; font-size:11.5px; color:var(--dim)">賭け金</span></div><div class="pm-opts wide">` + list.map(x=>pmOptRow(x, m)).join("") + `</div>`
     + (showAll ? "" : `<div class="pm-more-opts"><button class="btn small" id="pmSAllOpts">残り ${all.length - list.length}件も表示</button></div>`)
-    + (closed.length ? `<details class="pm-closed"><summary>決着済みの選択肢 ${closed.length}件</summary><div class="pm-opts">${closed.map(x=>pmOptRow(x, m)).join("")}</div></details>` : "")
+    + (closed.length ? `<details class="pm-closed"><summary>決着済みの選択肢 ${closed.length}件</summary><div class="pm-opts wide">${closed.map(x=>pmOptRow(x, m)).join("")}</div></details>` : "")
     + (e.full ? "" : `<div class="hint" style="margin-top:4px"><span class="spin"></span> すべての選択肢を読み込み中…</div>`);
 }
 async function pmChart(){

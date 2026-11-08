@@ -9,7 +9,7 @@ const { createClock } = require('./helpers/clock');
 const reply = obj => ({ ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(obj)) });
 const mk = (id, f) => Object.assign({
   id: String(id), question: 'Q' + id, groupItemTitle: '', outcomes: '["Yes","No"]', outcomePrices: '["0.4","0.6"]',
-  oneHourPriceChange: 0, oneDayPriceChange: 0, oneWeekPriceChange: 0, volume24hr: 50000, liquidityNum: 1000,
+  oneHourPriceChange: 0, oneDayPriceChange: 0, oneWeekPriceChange: 0, volume24hr: 50000, volumeNum: 1200000, liquidityNum: 1000,
   endDate: '2026-11-20T00:00:00Z', clobTokenIds: `["tok${id}","tokn${id}"]`, slug: 's' + id, closed: false, negRisk: false,
   events: [{ id: 'e' + id, title: 'Event ' + id, slug: 'ev' + id }],
 }, f);
@@ -85,7 +85,8 @@ test('一覧: イベントごとにまとめ、出来高の順。決着済みは
     assert.match(fed.querySelector('.pm-big').textContent, /63%\s*はい/);
     assert.match(fed.textContent, /▲8\.0pt 1時間/);
     assert.match(fed.textContent, /▲12pt 24時間/);
-    assert.match(fed.textContent, /出来高 250万ドル/);
+    assert.match(fed.textContent, /24時間 250万ドル/);
+    assert.match(fed.textContent, /💰 賭け金 \d/);
     assert.match(fed.textContent, /あと12日/);
     assert.equal(app.run('pmMoney(345000000)'), '3.5億ドル');
     assert.equal(app.run('pmMoney(1234)'), '1,234ドル');
@@ -396,5 +397,48 @@ test('使いやすさ: 前回見た時からの変化と NEW を出す。30分�
   try {
     for (let i = 0; i < 5; i++) await app.settle();
     assert.match(cards(app).find(c => c.dataset.ev === 'fed').textContent, /前回から ▲13pt/);
+  } finally { app.close(); }
+});
+
+test('分布: 「上回るか」の段階と区間の市場から、中央値・50%の範囲・平均の目安を計算する', async () => {
+  const { app } = await open();
+  try {
+    const dist = (title, q, rows, neg) => app.run(`(()=>{ const e = { t: ${JSON.stringify(title)}, multi: true, markets: ${JSON.stringify(rows)}.map(([g,p])=>({ g, q: ${JSON.stringify(q)}, p:[p], neg: ${!!neg} })) };
+      const d = pmDist(e); return d && Object.assign(pmDistText(d), { kind: d.kind }); })()`);
+    // TGE 初日の FDV: $100M を上回る 90%、$200M 60%、$500M 30%、$1B 8%
+    let d = dist('Puffpaw FDV above ___ one day after launch?', 'Puffpaw FDV above $100M one day after launch?', [['$1B', 0.08], ['$100M', 0.9], ['$500M', 0.3], ['$200M', 0.6]]);
+    assert.equal(d.kind, 'above');
+    assert.equal(d.med, '2.7億ドル', '60%(2億)と30%(5億)の間を対数で補間: 2億 × 2.5^(1/3)');
+    assert.equal(d.range, '1.4億ドル 〜 5.9億ドル');
+    assert.match(d.mean, /億ドル$/, '端の外の確率が10%以下なので平均の目安を出す');
+    // 端の外の確率が大きい時は、平均を出さず「未満/超」で示す
+    d = dist('Token FDV above ___?', 'Token FDV above $1B?', [['$1B', 0.4], ['$2B', 0.3], ['$5B', 0.2]]);
+    assert.equal(d.med, '10億ドル 未満');
+    assert.equal(d.mean, null);
+    // 区間 (どれか1つが勝つ形): <$100M 10% / $100M-$300M 50% / $300M-$1B 30% / >$1B 10%
+    d = dist('Launch FDV', 'FDV range', [['<$100M', 0.1], ['$100M-$300M', 0.5], ['$300M-$1B', 0.3], ['>$1B', 0.1]], true);
+    assert.equal(d.kind, 'range');
+    assert.match(d.med, /^2\.\d億ドル$/);
+    // 「到達するか」(↑↓) は分布ではないので出さない
+    d = dist('What price will Bitcoin hit in 2026?', 'Will Bitcoin reach $150k?', [['↑ 150,000', 0.1], ['↑ 130,000', 0.3], ['↓ 70,000', 0.55]]);
+    assert.equal(d, null);
+    // 価格 (ドル記号なし)
+    d = dist('Bitcoin above ___ on November 8?', 'Bitcoin above 80,000 on November 8?', [['78,000', 0.95], ['80,000', 0.7], ['82,000', 0.35], ['84,000', 0.05]]);
+    assert.match(d.med, /^81,\d{3}$/);
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
+
+test('分布と賭け金: TGE のカードに中央値、詳細に選択肢ごとの賭け金を出す', async () => {
+  const { app } = await open();
+  try {
+    app.doc.querySelector('#pmCats [data-cat="tge"]').click();
+    const card = cards(app)[0];
+    assert.match(card.textContent, /💰 賭け金 240万ドル/, '選択肢の賭け金の合計');
+    card.click();
+    await app.settle();
+    const rows = [...app.doc.querySelectorAll('#pmSOutcomes > .pm-opts .pm-opt .vv')].map(x => x.textContent);
+    assert.deepEqual(rows, ['120万ドル', '120万ドル']);
+    assert.match(app.text('#pmSHead'), /賭け金の合計240万ドル/);
   } finally { app.close(); }
 });
