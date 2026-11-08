@@ -439,7 +439,7 @@ test('分布と賭け金: TGE のカードに中央値、詳細に選択肢ご�
     await app.settle();
     const rows = [...app.doc.querySelectorAll('#pmSOutcomes > .pm-opts .pm-opt .vv')].map(x => x.textContent);
     assert.deepEqual(rows, ['120万ドル', '120万ドル']);
-    assert.match(app.text('#pmSHead'), /賭け金の合計240万ドル/);
+    assert.match(app.text('#pmSHead'), /賭け金の合計 \?240万ドル/);
   } finally { app.close(); }
 });
 

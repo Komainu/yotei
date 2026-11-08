@@ -16,6 +16,8 @@
 > - 急変の帯: 1時間で2pt以上 → 24時間で5pt以上の順。スポーツ・eスポーツは除く。推移グラフ・チャートは CLOB `/prices-history`
 > - 和訳・あなた向け: アプリ → GAS `pmAi` (Gemini。訳は tr.json、点数と分野は score.json に保存して使い回す)。ルールの要約は `pmRule` (rule.json)。設定は `pmConfig`、ウォッチは `pmWatch` (→ `PM_WATCH`)。`pm*` の操作は doPost の入口で予定データのロックを取らずに処理する
 > - 通知メール (gas/Code.gs 末尾): `pmAlert` 10分おき (あなた向け=点数2以上とウォッチだけ。1時間10pt/24時間15pt/出来高3倍、ウォッチは1時間5pt。同じ市場は6時間に1回) と `pmDigest` 毎朝8時。送り先 `MAIL_TO`、オン/オフ `PM_ALERT_ON` `PM_DIGEST_ON`。本文はテキスト中心 (MUSE が読む)
+> - マクロ (gas/Code.gs 末尾 `macroData_`): FRED (fredgraph.csv・キー不要)・Hyperliquid・DefiLlama・alternative.me をサーバーで取り、ドライブの macro.json に保存 (FRED 6時間・価格30分)。`doGet ?action=macro`。`pmRecord` の後に `macroRefresh` で温める。画面は index.html の `MC_DEFS` (テーマ・計算・信号)
+> - 用語集: index.html の `GLOSS` (n 名前 / a 別名=自動リンクする言葉 / s ひとことで / w なぜ大事か / u・d 上がると・下がると / r 関連)。`linkTerms()` で本文に下線リンク、`termBtn()` で ? ボタン。用語を足す時は GLOSS に1つ足すだけ (テストで関連先と別名の重複を確認)
 > - 端末の保存: `pm_tr_v1` `pm_sc_v1` `pm_watch_v1` `pm_hide_v1` (予定の `sakiyomi_v1` とは別)
 
 AIエージェント／開発者向けの全体像。変更前に必ず読むこと。利用者は日本語話者なので、画面の文言・コミット説明・PR本文は日本語で書く。

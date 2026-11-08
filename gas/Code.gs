@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.12';
+const GAS_VERSION = '2026.11.19';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -556,7 +556,11 @@ function doGet(e) {
   catch (err) { return json({ ok: false, version: GAS_VERSION, error: String(err) }); }   // ドライブが読めない時など
 }
 
-function doGetInner_(e) {  const props = PropertiesService.getScriptProperties();
+function doGetInner_(e) {
+  if (e && e.parameter && e.parameter.action === 'macro') {
+    return json({ ok: true, version: GAS_VERSION, macro: macroData_(e.parameter.force === '1') });
+  }
+  const props = PropertiesService.getScriptProperties();
   const list = getProjects_();
   const base = {
     ok: true,
@@ -1760,6 +1764,7 @@ function pmRecord() {
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
+  macroRefresh();   // マクロの指標も1時間ごとに取り直しておく (アプリを開いた時にすぐ出るように)
 }
 
 /** 決着を確認する市場: 結果が未記録で、締切を過ぎたか・上位から外れて6時間以上たったもの (締切の古い順) */
@@ -2319,3 +2324,98 @@ function pmMailTest_() {
     htmlBody: pmMailHtml_('✅ テスト送信', '<tr><td style="font-size:14px">このメールが届いていれば、急変の通知と毎朝のまとめもここに届きます。</td></tr>') });
   return { ok: true, to: to };
 }
+
+// =====================================================================
+//  マクロ — 金利・お金の量・ドル・不安・物価景気・株商品・暗号資産の指標をまとめて取る
+//  (ブラウザから直接取ると不安定なので、サーバーで取ってドライブ「ポリマーケット記録」の macro.json に保存)
+//    FRED (fredgraph.csv, キー不要) / Hyperliquid (価格・ファンディング) / DefiLlama (ステーブルコイン) / alternative.me (恐怖と強欲指数)
+// =====================================================================
+
+const MACRO_FRED = ['DFF', 'DFEDTARU', 'SOFR', 'IORB', 'DGS2', 'DGS10', 'T10Y2Y', 'WALCL', 'RRPONTSYD', 'WRESBAL', 'WTREGEN',
+  'DTWEXBGS', 'DEXJPUS', 'VIXCLS', 'BAMLH0A0HYM2', 'CPIAUCSL', 'CPILFESL', 'UNRATE', 'SP500', 'NASDAQCOM', 'DCOILWTICO'];
+const MACRO_DAYS = 500;                 // 取る期間 (日)。前年比・200日平均・サームルール (15か月) に足りる長さ
+const MACRO_FRED_TTL = 6 * 3600000;     // FRED は6時間ごとに取り直す (多くは1日1回の更新)
+const MACRO_FAST_TTL = 30 * 60000;      // 価格などは30分ごと
+const MACRO_COINS = ['BTC', 'ETH', 'HYPE', 'PAXG'];
+
+function macroFetchText_(url, opt) {
+  let err;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const res = UrlFetchApp.fetch(url, Object.assign({ muteHttpExceptions: true }, opt || {}));
+      if (res.getResponseCode() === 200) return res.getContentText();
+      err = new Error(res.getResponseCode() + ': ' + url);
+    } catch (e) { err = e; }
+    Utilities.sleep(800);
+  }
+  throw err;
+}
+/** FRED の CSV → [[日付, 値], ...] (空の値は飛ばす) */
+function macroParseCsv_(text) {
+  return String(text || '').split(/\r?\n/).slice(1).map(function (l) {
+    const c = l.split(',');
+    const v = Number(c[1]);
+    return c[0] && c[1] && c[1] !== '.' && !isNaN(v) ? [c[0], v] : null;
+  }).filter(Boolean);
+}
+function macroFred_(id) {
+  const since = Utilities.formatDate(new Date(Date.now() - MACRO_DAYS * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd');
+  return macroParseCsv_(macroFetchText_('https://fred.stlouisfed.org/graph/fredgraph.csv?id=' + id + '&cosd=' + since));
+}
+function macroHl_(body) {
+  return JSON.parse(macroFetchText_('https://api.hyperliquid.xyz/info', { method: 'post', contentType: 'application/json', payload: JSON.stringify(body) }));
+}
+/** 暗号資産: 日足の終値 (Hyperliquid) と、いまの価格・ファンディング */
+function macroCrypto_() {
+  const out = { series: {}, now: {} };
+  const meta = macroHl_({ type: 'metaAndAssetCtxs' });
+  const names = meta[0].universe.map(function (u) { return u.name; });
+  MACRO_COINS.forEach(function (c) {
+    const i = names.indexOf(c);
+    if (i < 0) return;
+    const x = meta[1][i];
+    out.now[c] = { px: Number(x.markPx), prev: Number(x.prevDayPx), funding: Number(x.funding), oi: Number(x.openInterest) * Number(x.markPx) };
+    try {
+      const cs = macroHl_({ type: 'candleSnapshot', req: { coin: c, interval: '1d', startTime: Date.now() - MACRO_DAYS * 86400000, endTime: Date.now() } });
+      out.series[c] = cs.map(function (k) { return [Utilities.formatDate(new Date(k.t), 'Asia/Tokyo', 'yyyy-MM-dd'), Number(k.c)]; });
+    } catch (e) { Logger.log(c + ' の日足を取得できません: ' + e); }
+  });
+  return out;
+}
+function macroStable_() {
+  const a = JSON.parse(macroFetchText_('https://stablecoins.llama.fi/stablecoincharts/all'));
+  return a.slice(-MACRO_DAYS).map(function (r) {
+    return [Utilities.formatDate(new Date(Number(r.date) * 1000), 'Asia/Tokyo', 'yyyy-MM-dd'), Math.round((r.totalCirculating || r.totalCirculatingUSD || {}).peggedUSD || 0)];
+  }).filter(function (r) { return r[1] > 0; });
+}
+function macroFng_() {
+  const d = JSON.parse(macroFetchText_('https://api.alternative.me/fng/?limit=' + MACRO_DAYS));
+  return (d.data || []).map(function (r) { return [Utilities.formatDate(new Date(Number(r.timestamp) * 1000), 'Asia/Tokyo', 'yyyy-MM-dd'), Number(r.value)]; }).reverse();
+}
+
+/** 保存してあるものが古ければ取り直す。force なら必ず取り直す。失敗した部分は前回の値を使う */
+function macroData_(force) {
+  let cur = {};
+  try { cur = pmLoadJson_('macro.json') || {}; } catch (e) { cur = {}; }
+  const now = Date.now();
+  const errors = [];
+  let changed = false;
+  if (force || !cur.fredAt || now - cur.fredAt > MACRO_FRED_TTL) {
+    const fred = cur.fred || {};
+    MACRO_FRED.forEach(function (id) {
+      try { const s = macroFred_(id); if (s.length) fred[id] = s; } catch (e) { errors.push('FRED ' + id); }
+    });
+    try { const s = macroStable_(); if (s.length) cur.stable = s; } catch (e) { errors.push('ステーブルコイン'); }
+    cur.fred = fred; cur.fredAt = now; changed = true;
+  }
+  if (force || !cur.fastAt || now - cur.fastAt > MACRO_FAST_TTL) {
+    try { cur.crypto = macroCrypto_(); } catch (e) { errors.push('暗号資産 (Hyperliquid)'); }
+    try { const f = macroFng_(); if (f.length) cur.fng = f; } catch (e) { errors.push('恐怖と強欲指数'); }
+    cur.fastAt = now; changed = true;
+  }
+  if (errors.length) cur.errors = errors; else delete cur.errors;
+  if (changed) { try { pmWrite_('macro.json', JSON.stringify(cur)); } catch (e) { Logger.log('macro.json を保存できません: ' + e); } }
+  return cur;
+}
+/** トリガー (1時間ごとの記録) からも温めておく */
+function macroRefresh() { try { macroData_(false); } catch (e) { Logger.log('マクロの取得に失敗: ' + e); } }

@@ -18,9 +18,9 @@ function fakeGamma(n) {
   }
   const calls = [];
   const fetch = (url) => {
-    calls.push(url);
     const u = new URL(url);
-    if (u.origin !== 'https://gamma-api.polymarket.com' || u.pathname !== '/markets') throw new Error('想定外のURL: ' + url);
+    if (u.origin !== 'https://gamma-api.polymarket.com' || u.pathname !== '/markets') throw new Error('想定外のURL: ' + url);   // マクロの取得など (このテストでは失敗させる)
+    calls.push(url);
     const ids = u.searchParams.getAll('id');
     let list;
     if (ids.length) list = ids.map(id => markets.get(id)).filter(Boolean);

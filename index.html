@@ -347,21 +347,31 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
   .pm-title{font-size:14.5px}
 }
 
-/* ---------- BTC macro ---------- */
-.grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-bottom:14px}
-.kpi{
-  background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px;
-}
-.kpi .k-label{font-size:12px; color:var(--muted); letter-spacing:.05em}
-.kpi .k-value{font-size:26px; font-weight:800; margin-top:4px}
-.kpi .k-sub{font-size:12.5px; color:var(--muted); margin-top:2px}
-.k-up{color:var(--ok)} .k-down{color:var(--danger)}
-.chart-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:18px}
-.chart-card h3{font-size:14px; color:var(--muted); font-weight:600; margin-bottom:10px}
-canvas{width:100%; height:auto; display:block}
-.fng-bar{height:10px; border-radius:99px; margin-top:10px;
-  background:linear-gradient(90deg,#ff6b81,#ffb454,#e8e35a,#8fd460,#3ecf8e)}
-.fng-cursor{width:3px; height:18px; background:#fff; border-radius:2px; position:relative; top:-14px}
+/* ---------- マクロ ---------- */
+.mc-theme{margin-bottom:18px}
+.mc-theme h3{font-size:15px; margin:4px 2px 10px}
+.mc-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr)); gap:10px}
+@media (max-width:560px){ .mc-v{font-size:20px} .mc-card{padding:10px 12px} }
+.mc-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px}
+.mc-card.mc-none{opacity:.6}
+.mc-h{display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:12.5px; color:var(--muted); font-weight:600}
+.mc-v{font-size:24px; font-weight:800; margin-top:4px; font-variant-numeric:tabular-nums}
+.mc-sub{font-size:12px; color:var(--muted); margin-top:2px}
+.mc-spark{display:block; width:100%; height:36px; margin-top:6px}
+.mc-sig{font-size:12.5px; margin-top:6px; padding:4px 8px; border-radius:8px; background:var(--card2)}
+.mc-g{background:var(--tint-ok)} .mc-y{background:var(--tint-warn)} .mc-r{background:var(--tint-danger)}
+.mc-date{font-size:11px; color:var(--dim); margin-top:6px; text-align:right}
+/* ---------- 用語 ---------- */
+.gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
+.gq:hover{border-color:var(--accent); color:var(--accent)}
+.term{border-bottom:1px dashed var(--accent); cursor:pointer}
+.term:hover{color:var(--accent)}
+.term-p{font-size:14px; line-height:1.8}
+.gloss-list{display:grid; gap:8px}
+.gloss-item{display:block; width:100%; text-align:left; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 14px; cursor:pointer; color:var(--text); font:inherit}
+.gloss-item:hover{border-color:var(--hover)}
+.gloss-item b{display:block; font-size:14px}
+.gloss-item span{display:block; font-size:12.5px; color:var(--muted); margin-top:2px}
 
 /* ---------- settings ---------- */
 .set-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:14px; max-width:640px}
@@ -427,7 +437,8 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <button data-tab="home" class="legacy">🏠 HOME</button>
       <button data-tab="projects" class="legacy">📋 よてい</button>
       <button data-tab="poly" class="active">📊 Polymarket</button>
-      <button data-tab="btc">₿ BTCマクロ</button>
+      <button data-tab="btc">🌐 マクロ</button>
+      <button data-tab="gloss">📖 用語集</button>
       <button data-tab="settings">⚙️ 設定</button>
       <button id="themeBtn" title="配色を切り替え" style="margin-left:auto">🌙</button>
     </nav>
@@ -513,34 +524,22 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   <p class="hint" id="pmFoot">ソース: <a href="https://polymarket.com" target="_blank" rel="noopener">Polymarket</a> (Gamma API・CLOB API)。表示だけで、売買はしません。</p>
 </section>
 
-<!-- ============ btc macro ============ -->
+<!-- ============ マクロ ============ -->
 <section class="tab" id="tab-btc">
   <div class="toolbar">
-    <span style="color:var(--muted); font-size:13.5px" id="btcUpdated">—</span>
-    <button class="btn" id="btcReload" style="margin-left:auto">↻ 更新</button>
+    <span class="hint" style="margin:0">金利・お金の量・ドル・不安・物価・株・暗号資産の主な指標です。<b>?</b> や<span class="term" data-term="netliq">下線の言葉</span>を押すと解説が出ます。</span>
+    <span id="mcInfo" class="pm-info" style="margin-left:auto"></span>
+    <button class="btn small" id="mcReload" title="最新にする">↻</button>
   </div>
-  <div class="grid">
-    <div class="kpi"><div class="k-label">BTC / USD</div><div class="k-value" id="kPrice">—</div><div class="k-sub" id="kChange">—</div></div>
-    <div class="kpi"><div class="k-label">BTC / JPY</div><div class="k-value" id="kJpy">—</div><div class="k-sub">参考換算</div></div>
-    <div class="kpi"><div class="k-label">Fear & Greed Index</div><div class="k-value" id="kFng">—</div><div class="k-sub" id="kFngClass">—</div>
-      <div class="fng-bar"></div><div class="fng-cursor" id="fngCur" style="margin-left:0%"></div></div>
-  </div>
-  <div class="chart-card">
-    <h3>BTC/USD 30日チャート</h3>
-    <canvas id="btcChart" width="960" height="300"></canvas>
-  </div>
-  <div class="chart-card" style="margin-top:14px">
-    <h3>🏦 米国流動性・マクロ指標 (FRED)</h3>
-    <div class="row" style="margin-bottom:6px">
-      <input id="fredKey" type="password" placeholder="FRED API Key (任意 — 未入力でも取得できます)">
-      <button class="btn small" id="fredEye">👁</button>
-      <button class="btn" id="fredLoad" style="white-space:nowrap">取得</button>
-    </div>
-    <p class="hint" style="margin-bottom:12px">キー未入力でも公開CSV経由で取得します。キーがある場合は公式APIを優先 (取得: <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank">fred.stlouisfed.org</a>)。キーはこの端末にのみ保存。</p>
-    <div class="grid" id="fredGrid" style="margin-bottom:0"></div>
-    <p class="hint" id="fredStatus" style="margin-top:10px"></p>
-  </div>
-  <p class="hint" style="margin-top:10px">ソース: <a href="https://www.coingecko.com" target="_blank">CoinGecko</a> / <a href="https://www.binance.com" target="_blank">Binance</a>(フォールバック) / <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank">alternative.me</a> / <a href="https://fred.stlouisfed.org" target="_blank">FRED (St. Louis Fed)</a></p>
+  <div id="mcBody"></div>
+  <input id="fredKey" type="hidden">
+  <p class="hint" style="margin-top:10px">ソース: FRED (セントルイス連銀) / Hyperliquid / DefiLlama / alternative.me。信号 (🟢🟡🔴) は一般的な目安で、売買の判断ではありません。</p>
+</section>
+
+<!-- ============ 用語集 ============ -->
+<section class="tab" id="tab-gloss">
+  <input class="search" id="glossQ" placeholder="🔍 用語を検索 (例: 逆イールド / FDV / 流動性)" autocomplete="off" style="width:100%">
+  <div id="glossList" class="gloss-list" style="margin-top:12px"></div>
 </section>
 
 <!-- ============ settings ============ -->
@@ -714,6 +713,16 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 </div>
 
+<!-- ============ 用語の解説シート ============ -->
+<div id="termSheet" class="pm-sheet" hidden style="z-index:60">
+  <div class="pm-sheet-bg" data-close="1"></div>
+  <div class="pm-sheet-body" role="dialog" aria-modal="true">
+    <div class="pm-grip" data-close="1"></div>
+    <button class="pm-x" data-close="1" aria-label="閉じる">✕</button>
+    <div id="termBody"></div>
+  </div>
+</div>
+
 <!-- ============ project dialog ============ -->
 <dialog id="pDialog">
   <div class="dlg-head" id="dlgTitle">プロジェクトを追加</div>
@@ -849,9 +858,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.18";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.19";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.12";
+const MIN_GAS_VERSION = "2026.11.19";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -2662,8 +2671,8 @@ function pmOpen(evId, mId){
   $("#pmSHead").innerHTML = `<div class="pm-sh-t" id="pmSTitle">${esc(title)}</div>${title!==en?`<div class="pm-sh-en">${esc(en)}</div>`:""}
     <div class="pm-stats">
       <div class="pm-stat"><small>締切</small><b>${esc(u.txt)}</b><small>${esc(e.end ? pmDate(e.end) : "")}</small></div>
-      <div class="pm-stat"><small>💰 賭け金の合計</small><b>${pmMoney(e.vol||0)}</b><small>24時間 ${pmMoney(e.v24)}</small></div>
-      <div class="pm-stat" title="いま売り買いの注文として置かれている金額"><small>流動性 (注文の厚み)</small><b>${pmMoney(e.markets.reduce((n,x)=>n+x.liq,0))}</b></div>
+      <div class="pm-stat"><small>💰 賭け金の合計 ${termBtn("pmvol")}</small><b>${pmMoney(e.vol||0)}</b><small>24時間 ${pmMoney(e.v24)}</small></div>
+      <div class="pm-stat"><small>流動性 (注文の厚み) ${termBtn("pmliq")}</small><b>${pmMoney(e.markets.reduce((n,x)=>n+x.liq,0))}</b></div>
       <div class="pm-stat"><small>分野</small><b>${esc(pmCatOf(e))}</b>${pmScore(e)>=2?`<small>✨ あなた向け</small>`:""}</div>
     </div>`;
   pmRenderOutcomes();
@@ -2693,7 +2702,7 @@ function pmRenderOutcomes(){
   const list = showAll ? all : all.slice(0, PM_SHEET_ROWS);
   const closed = e.closed || [];
   const dist = pmDist(e), dt = dist && pmDistText(dist);
-  $("#pmSOutcomes").innerHTML = (dt ? `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(dt.med)}</b><br>50%の確率で ${esc(dt.range)} の間${dt.mean ? ` ／ 平均の目安 ${esc(dt.mean)}` : ""}
+  $("#pmSOutcomes").innerHTML = (dt ? `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(dt.med)}</b> ${termBtn("median")}<br>50%の確率で ${esc(dt.range)} の間${dt.mean ? ` ／ 平均の目安 ${esc(dt.mean)}` : ""}
       ${dist.cond ? `<br>ローンチする確率 <b>約${Math.round(dist.cond*100)}%</b> ${dist.condSrc === "launch" ? "(セットのローンチ日の市場より)" : `(一番下の選択肢「${esc(pmFmtVal(e.markets.map(x=>pmNum(x.g)).reduce((a,b)=>Math.min(a,b)), dist.unit))}を上回る」の確率から推定)`}` : ""}
       ${dist.conf ? `<br>信頼度 <b>${dist.conf}</b>${dist.conf === "低" ? " — ローンチする確率が低く、FDV の数字は参考程度です (割り戻すと値段の誤差が大きくなるため)" : dist.conf === "中" ? " — ローンチするかどうかの不確かさが残っています" : ""}` : ""}
       ${pmLaunchHtml(e)}
@@ -2761,7 +2770,7 @@ async function pmLoadRule(){
     }else note = "設定でサーバーを登録すると、日本語の要約が出ます";
     if(pm.sheet.m !== m) return;
     pm.sheet.rule = { ja, en: desc };
-    box.innerHTML = ja ? `${esc(ja)}${orig}` : `<span class="hint">${esc(note)}</span><div style="margin-top:6px">${esc(desc)}</div>`;
+    box.innerHTML = ja ? `${linkTerms(esc(ja))}${orig}` : `<span class="hint">${esc(note)}</span><div style="margin-top:6px">${esc(desc)}</div>`;
   }catch(err){ box.innerHTML = `<span class="hint">ルールを取得できませんでした (${esc(err.message)})</span>`; }
 }
 /* ---- 🤖 AIに聞く: 詳細の内容を文章にしてコピー (MUSE・Claude などに貼る) ---- */
@@ -2913,222 +2922,271 @@ $("#pmAiSave") && $("#pmAiSave").addEventListener("click", async ()=>{
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
 
-/* ================= BTC macro ================= */
-async function fetchJson(url){
-  const r = await fetch(url);
-  if(!r.ok) throw new Error("HTTP " + r.status);
-  return r.json();
-}
-async function loadBtc(){
-  $("#btcUpdated").innerHTML = `<span class="spin"></span> 取得中…`;
-  /* price: CoinGecko → Binance fallback */
-  try{
-    let usd, jpy, chg;
-    try{
-      const d = await fetchJson("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,jpy&include_24hr_change=true");
-      usd = d.bitcoin.usd; jpy = d.bitcoin.jpy; chg = d.bitcoin.usd_24h_change;
-    }catch(e){
-      const t = await fetchJson("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT");
-      usd = parseFloat(t.lastPrice); chg = parseFloat(t.priceChangePercent);
-      jpy = null;
-    }
-    $("#kPrice").textContent = "$" + Math.round(usd).toLocaleString();
-    $("#kJpy").textContent = jpy ? "¥" + Math.round(jpy).toLocaleString() : "—";
-    const c = $("#kChange");
-    if(chg!=null && !isNaN(chg)){
-      c.textContent = (chg>=0?"▲ +":"▼ ") + chg.toFixed(2) + "% (24h)";
-      c.className = "k-sub " + (chg>=0?"k-up":"k-down");
-    }
-  }catch(err){ $("#kPrice").textContent = "取得失敗"; }
-  /* fear & greed */
-  try{
-    const f = await fetchJson("https://api.alternative.me/fng/?limit=1");
-    const v = parseInt(f.data[0].value);
-    $("#kFng").textContent = v;
-    const jp = {"Extreme Fear":"極度の恐怖","Fear":"恐怖","Neutral":"中立","Greed":"強欲","Extreme Greed":"極度の強欲"};
-    $("#kFngClass").textContent = jp[f.data[0].value_classification] || f.data[0].value_classification;
-    $("#fngCur").style.marginLeft = `calc(${v}% - 2px)`;
-  }catch(err){ $("#kFng").textContent = "—"; }
-  /* chart: CoinGecko → Binance klines fallback */
-  try{
-    let points;
-    try{
-      const d = await fetchJson("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=30&interval=daily");
-      points = d.prices.map(p=>({t:p[0], v:p[1]}));
-    }catch(e){
-      const k = await fetchJson("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=30");
-      points = k.map(r=>({t:r[0], v:parseFloat(r[4])}));
-    }
-    drawChart(points);
-  }catch(err){}
-  $("#btcUpdated").textContent = "最終更新: " + nowJa();
-}
-function drawChart(points){
-  const cv = $("#btcChart"), ctx = cv.getContext("2d");
-  const W = cv.width, H = cv.height, padL = 70, padB = 26, padT = 12, padR = 12;
-  ctx.clearRect(0,0,W,H);
-  if(!points || points.length < 2) return;
-  const vs = points.map(p=>p.v);
-  const min = Math.min(...vs)*0.995, max = Math.max(...vs)*1.005;
-  const x = i => padL + (W-padL-padR) * i/(points.length-1);
-  const y = v => padT + (H-padT-padB) * (1 - (v-min)/(max-min));
-  const css = getComputedStyle(document.documentElement);
-  ctx.strokeStyle = css.getPropertyValue("--border").trim() || "#26324e";
-  ctx.fillStyle = css.getPropertyValue("--muted").trim() || "#8d9ab9";
-  ctx.font = "12px sans-serif"; ctx.lineWidth = 1;
-  for(let i=0;i<=4;i++){
-    const v = min + (max-min)*i/4, yy = y(v);
-    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W-padR, yy); ctx.stroke();
-    ctx.fillText("$"+Math.round(v/1000)+"k", 8, yy+4);
+/* ================= 用語集 ================= */
+/* 用語の解説 (アプリに組み込み。AI に毎回作らせると内容がぶれるため)。
+   キー: { n: 名前, a: 別名 (本文から自動でリンクする言葉), s: ひとことで, w: なぜ大事か, u: 上がると, d: 下がると, r: 関連する用語 } */
+const GLOSS = {
+  frb: { n:"FRB (米連邦準備制度理事会)", a:["FRB","Fed","連邦準備制度","米中央銀行"], s:"アメリカの中央銀行。お金の量と金利を決め、物価と雇用の安定を目指します。", w:"世界中のお金の流れに影響するため、株・債券・ドル・暗号資産のすべてが FRB の動きに反応します。", r:["fomc","ffrate","walcl","qt"] },
+  fomc: { n:"FOMC (連邦公開市場委員会)", a:["FOMC","連邦公開市場委員会"], s:"FRB の中で政策金利を決める会議。年8回、およそ6週間ごとに開かれます。", w:"利上げ・据え置き・利下げが決まる日で、発表の前後は相場が大きく動きやすくなります。Polymarket にも毎回の予想市場があります。", r:["frb","ffrate","cut"] },
+  ffrate: { n:"政策金利 (FF金利)", a:["政策金利","FF金利","フェデラルファンド金利","FFレート"], s:"銀行どうしが一晩お金を貸し借りする時の金利で、FRB が目標の幅を決めます。アメリカの金利全体の土台です。", w:"住宅ローンから企業の借入まで、あらゆる金利の基準になります。", u:"お金を借りにくくなり、景気と物価を冷やします。株や暗号資産には逆風になりやすいです。", d:"お金を借りやすくなり、景気を温めます。リスク資産には追い風になりやすいです。", r:["fomc","cut","sofr","iorb"] },
+  cut: { n:"利下げ・利上げ", a:["利下げ","利上げ","rate cut","rate hike"], s:"中央銀行が政策金利を下げること (利下げ) と上げること (利上げ)。0.25% (25bp) ずつ動かすのが普通です。", w:"市場は先回りして動くので、「どれくらい利下げが予想されているか」と実際の決定の差が相場を動かします。", r:["ffrate","fomc","bp"] },
+  sofr: { n:"SOFR (担保付翌日物調達金利)", a:["SOFR"], s:"国債を担保にして一晩お金を借りる時の金利。短期のお金のやり取り (レポ市場) の実際の値段です。", w:"お金が足りなくなると SOFR が上がります。政策金利や IORB と比べると、短期資金のひっ迫が分かります。", u:"短期のお金が足りていないサイン。行き過ぎると市場が不安定になります。", r:["iorb","rrp","reserves","ffrate"] },
+  iorb: { n:"IORB (準備預金への付利)", a:["IORB","準備預金の金利"], s:"銀行が FRB に預けているお金 (準備預金) に付く金利。FRB が決めています。", w:"銀行は IORB より低い金利では貸したがらないので、短期金利の目安になります。SOFR が IORB を上回るとお金がひっ迫している合図です。", r:["sofr","reserves","ffrate"] },
+  rrp: { n:"リバースレポ (RRP)", a:["リバースレポ","RRP","翌日物リバースレポ"], s:"お金が余っている金融機関 (主に投資信託) が、FRB に一晩お金を預ける仕組み。その残高です。", w:"市場に余っているお金の「たまり場」。残高が減ると、そのお金が市場に出ていったことになります。", u:"市場からお金が引き上げられて眠っている状態。", d:"眠っていたお金が国債などに流れ、市場のお金が増えます (ゼロに近いと、この余力はもうありません)。", r:["netliq","reserves","tga"] },
+  reserves: { n:"準備預金", a:["準備預金","Reserves","準備預金残高"], s:"銀行が FRB に預けているお金。銀行システムの手元資金です。", w:"少なくなりすぎると、2019年のようにレポ金利が急騰することがあります。FRB は「十分な量」を保とうとします。", u:"銀行に余裕があり、お金が回りやすくなります。", d:"銀行の余裕が減ります。急に減るとお金がひっ迫します。", r:["walcl","rrp","sofr"] },
+  walcl: { n:"FRB 総資産 (バランスシート)", a:["FRB総資産","FRB 総資産","バランスシート","B/S"], s:"FRB が持っている国債などの合計。量的緩和で増え、量的引き締めで減ります。", w:"FRB が市場に出しているお金の量の目安です。", u:"量的緩和。お金が増え、リスク資産に追い風になりやすいです。", d:"量的引き締め (QT)。お金が減り、逆風になりやすいです。", r:["qt","netliq","reserves"] },
+  qt: { n:"量的緩和 (QE)・量的引き締め (QT)", a:["量的引き締め","量的緩和","QT","QE"], s:"FRB が国債などを買ってお金を増やすのが QE、持っている国債を減らしてお金を減らすのが QT です。", w:"金利と並ぶ、FRB のもう1つの道具。お金の量に直接効きます。", r:["walcl","netliq"] },
+  tga: { n:"財務省口座 (TGA)", a:["財務省口座","TGA"], s:"アメリカ政府 (財務省) が FRB に持っている預金口座。税金や国債で集めたお金がここに入ります。", w:"ここにお金が貯まると、その分だけ市場からお金が吸い上げられます。", u:"市場のお金が減ります (国債の大量発行の時など)。", d:"政府の支払いで市場にお金が戻ります。", r:["netliq","rrp"] },
+  netliq: { n:"正味の流動性", a:["正味の流動性","ネット流動性","Net Liquidity"], s:"FRB 総資産 − 財務省口座 − リバースレポ。市場で実際に使えるお金の量の目安としてよく使われます。", w:"株や暗号資産の値動きと連動しやすいと言われ、多くの投資家が見ています (ただし必ず連動するわけではありません)。", u:"市場のお金が増え、リスク資産に追い風。", d:"市場のお金が減り、逆風。", r:["walcl","tga","rrp"] },
+  yield: { n:"国債利回り", a:["国債利回り","利回り","長期金利"], s:"国にお金を貸した時にもらえる利息の割合。2年債は政策金利の予想、10年債は景気と物価の長い見通しを映します。", w:"10年債利回りは、住宅ローンや株の値段の計算の基準になります。", u:"借りる費用が上がり、株 (特に成長株) や暗号資産には逆風になりやすいです。", d:"追い風になりやすいですが、景気悪化の心配で下がっている時もあります。", r:["curve","ffrate"] },
+  curve: { n:"長短金利差・逆イールド", a:["長短金利差","逆イールド","イールドカーブ","10年−2年"], s:"10年債と2年債の利回りの差。普通は長いほうが高い (プラス) ですが、逆になる (マイナス) のを逆イールドと言います。", w:"逆イールドは景気後退の前触れとして知られています。ただし、逆イールドが解消してプラスに戻る頃に景気後退が始まることも多いです。", u:"プラス幅が広がる = 普通の形に戻る動き。", d:"マイナス = 逆イールド。景気後退を心配する見方が強いサイン。", r:["yield","recession"] },
+  recession: { n:"景気後退 (リセッション)", a:["景気後退","リセッション","recession"], s:"経済活動が広い範囲で落ち込む状態。アメリカでは NBER という機関が後から判定します。", w:"株や暗号資産は大きく下がりやすく、FRB は利下げで支えようとします。Polymarket にも「年内に景気後退するか」の市場があります。", r:["curve","sahm","unrate"] },
+  dxy: { n:"ドル指数", a:["ドル指数","DXY","ドルインデックス"], s:"いろいろな通貨に対するドルの強さを1つの数字にしたもの (このアプリは FRB の広義ドル指数を使っています)。", w:"ドル高は世界のお金がドルに集まっている状態で、新興国・商品・暗号資産には逆風になりやすいです。", u:"ドル高。リスク資産には逆風になりやすい。", d:"ドル安。リスク資産や金には追い風になりやすい。", r:["usdjpy"] },
+  usdjpy: { n:"ドル円", a:["ドル円","USD/JPY"], s:"1ドルが何円かを表す為替レート。", w:"日米の金利差で大きく動きます。急な円高は、円で借りて他に投資する取引 (円キャリートレード) の巻き戻しで、世界の相場を揺らすことがあります。", u:"円安。", d:"円高。急な円高は世界的な株安のきっかけになることも。", r:["dxy"] },
+  vix: { n:"VIX (恐怖指数)", a:["VIX","恐怖指数"], s:"S&P500 の今後30日の値動きの大きさについての予想。不安が強いほど高くなります。", w:"目安は 15 以下が落ち着き、20〜25 でやや不安、30 を超えると強い不安です。", u:"市場の不安が強まっている。", d:"落ち着いている (低すぎると油断のサインと見る人も)。", r:["hy","sp500"] },
+  hy: { n:"ハイイールド債スプレッド", a:["ハイイールド債スプレッド","ハイイールド","HYスプレッド","信用スプレッド"], s:"信用の低い会社の社債の利回りが、国債をどれだけ上回っているか。", w:"会社がお金を返せなくなる心配の大きさを表します。広がる時は、株より先に危険を知らせることがあります。", u:"倒産への心配が強まっている (リスクオフ)。", d:"心配が小さく、お金が借りやすい (リスクオン)。", r:["vix","recession"] },
+  cpi: { n:"CPI (消費者物価指数)", a:["CPI","消費者物価指数","インフレ率","インフレ"], s:"買い物の値段がどれだけ上がったか。前年比 (1年前と比べて何%上がったか) で見ます。", w:"FRB は物価上昇を2%程度に抑えるのが目標です。CPI の発表日は相場が大きく動きます。", u:"物価が上がり続け、利下げが遠のく (リスク資産に逆風)。", d:"物価が落ち着き、利下げしやすくなる。", r:["core","ffrate","fomc"] },
+  core: { n:"コアCPI", a:["コアCPI","コア CPI"], s:"CPI から値動きの大きい食品とエネルギーを除いたもの。物価の基調を見るのに使います。", w:"FRB は一時的な値動きより基調を重視するので、コアの動きが注目されます。", r:["cpi"] },
+  unrate: { n:"失業率", a:["失業率"], s:"働きたいのに仕事がない人の割合。毎月の雇用統計で発表されます。", w:"上がり始めると景気後退が近いサイン。FRB の利下げの理由にもなります。", u:"雇用が弱まっている。", d:"雇用が強い。", r:["sahm","recession"] },
+  sahm: { n:"サームルール", a:["サームルール","Sahm"], s:"失業率の直近3か月の平均が、過去12か月の一番低い値より 0.5% 以上上がると、景気後退が始まっているとみなす経験則。", w:"過去の景気後退ではよく当たってきましたが、外れることもあります。このアプリでは 0.3% 以上で 🟡、0.5% 以上で 🔴 にしています。", r:["unrate","recession"] },
+  sp500: { n:"S&P500", a:["S&P500","S&P 500","エスアンドピー"], s:"アメリカの大企業500社の株価をまとめた指数。アメリカ株全体の代表です。", w:"世界の投資家の気分を表す一番の目安。暗号資産も同じ方向に動くことが多いです。", r:["nasdaq","ma200","vix"] },
+  nasdaq: { n:"ナスダック", a:["ナスダック","NASDAQ","Nasdaq"], s:"IT・ハイテク企業が多い株式市場の総合指数。", w:"金利の変化に敏感で、暗号資産と似た動きをしやすいです。", r:["sp500","yield"] },
+  ma200: { n:"200日移動平均", a:["200日移動平均","200日平均","200日線"], s:"直近200日の終値の平均。長い目で見た流れの目安です。", w:"値段がこれより上なら上昇の流れ、下なら下落の流れと見るのが一般的です。", r:["sp500","btc"] },
+  wti: { n:"原油 (WTI)", a:["原油","WTI"], s:"アメリカの代表的な原油の値段 (1バレルあたりのドル)。", w:"上がると物価を押し上げ、利下げを遠ざけます。中東情勢などで急に動きます。", r:["cpi"] },
+  gold: { n:"金 (ゴールド)", a:["金価格","ゴールド","PAXG"], s:"安全な資産の代表。このアプリでは金と1対1で交換できるトークン PAXG の値段で見ています。", w:"不安な時やドル安の時に買われやすく、「デジタルゴールド」と呼ばれるビットコインと比べられます。", r:["dxy","btc"] },
+  btc: { n:"ビットコイン (BTC)", a:["ビットコイン","BTC","Bitcoin"], s:"最初で最大の暗号資産。発行量の上限が2,100万枚と決まっています。", w:"暗号資産全体の相場を引っ張ります。お金の量 (流動性) やナスダックとの連動がよく指摘されます。", r:["ma200","funding","fng","stable"] },
+  stable: { n:"ステーブルコイン", a:["ステーブルコイン","USDT","USDC"], s:"1ドルなどと同じ値段になるよう作られた暗号資産 (USDT・USDC など)。その発行額の合計です。", w:"暗号資産の世界に入ってきているお金の量の目安。増えている時は買う力が増えていると見られます。", u:"新しいお金が入ってきている (追い風)。", d:"お金が出ていっている (逆風)。", r:["btc","netliq"] },
+  fng: { n:"恐怖と強欲指数", a:["恐怖と強欲指数","Fear & Greed","Fear and Greed"], s:"暗号資産の投資家の気分を 0 (極端な恐怖) 〜 100 (極端な強欲) で表した指数 (alternative.me)。", w:"極端な恐怖は売られすぎ、極端な強欲は買われすぎの目安にされます (逆張りの参考)。", r:["btc","funding"] },
+  funding: { n:"ファンディングレート", a:["ファンディングレート","資金調達率","funding"], s:"先物 (無期限先物) の値段を現物に近づけるため、買い手と売り手の間で定期的にやり取りするお金の率。", w:"プラスで大きいと買いが過熱、マイナスだと売りが優勢。このアプリは Hyperliquid の値を8時間あたりに直して表示します。", u:"買いが混み合っている (急落の燃料になることも)。", d:"売りが混み合っている (急騰の燃料になることも)。", r:["btc","fng"] },
+  bp: { n:"bp・pt", a:["bp","ベーシスポイント"], s:"bp は金利の 0.01% のこと (25bp = 0.25%)。pt はこのアプリでは確率の「ポイント」(40% → 50% は 10pt) の意味で使っています。", r:["cut"] },
+  riskon: { n:"リスクオン・リスクオフ", a:["リスクオン","リスクオフ"], s:"投資家が値動きの大きい資産 (株・暗号資産) を積極的に買う気分がリスクオン、安全な資産 (国債・金・ドル) に逃げる気分がリスクオフです。", r:["vix","hy","dxy"] },
+  pm: { n:"予測市場 (Polymarket)", a:["予測市場","Polymarket"], s:"「○○は起きるか」に「はい/いいえ」でお金を賭ける市場。値段 (0〜1ドル) がそのまま、市場が考える確率になります。", w:"お金がかかっているので、アンケートより正直な予想になりやすいと言われます。ただし取引が少ない市場は値段が当てになりません。", r:["pmspread","pmliq","pmvol"] },
+  pmspread: { n:"スプレッド (買値と売値の差)", a:["スプレッド","買値と売値"], s:"今すぐ買える値段と、今すぐ売れる値段の差。", w:"狭いほど、表示されている確率が今の市場の見方に近いです。広いと、表示の確率は最後の取引の値にすぎないことがあります。", r:["pm","pmliq"] },
+  pmliq: { n:"流動性 (注文の厚み)", a:["流動性","注文の厚み"], s:"今、売り買いの注文として置かれている金額。", w:"多いほど、少し大きな金額を売り買いしても値段が動きにくく、確率が当てになります。", r:["pmspread","pmvol"] },
+  pmvol: { n:"出来高・賭け金", a:["出来高","賭け金"], s:"実際に売り買いされた金額。このアプリでは「賭け金」とも呼んでいます (合計と直近24時間)。", w:"関心の大きさの目安。ただし過去の取引の合計なので、今の値段の確かさはスプレッドで見るのが確実です。", r:["pmliq","pmspread"] },
+  fdv: { n:"FDV (完全希薄化時価総額)", a:["FDV","完全希薄化時価総額"], s:"トークンの値段 × 最終的に発行される全部の枚数。まだ出回っていない分も含めた「会社全体の値段」のようなものです。", w:"新しいトークンの評価の比べ方の基本。Polymarket では「上場1日後の FDV」の予想市場がよくあります。", r:["mcap","tge"] },
+  mcap: { n:"時価総額", a:["時価総額","market cap"], s:"トークン (株) の値段 × 出回っている枚数。", w:"FDV との差が大きいと、今後出回る分 (売り圧力) が多いことになります。", r:["fdv"] },
+  tge: { n:"TGE (トークン生成イベント)", a:["TGE","トークン発行","トークン生成"], s:"プロジェクトが自分のトークンを初めて発行し、取引できるようにすること。", w:"多くの場合エアドロップと同時に行われます。「いつ TGE するか」「初日の FDV は」が Polymarket でよく賭けられます。", r:["fdv","airdrop"] },
+  airdrop: { n:"エアドロップ", a:["エアドロップ","airdrop"], s:"プロジェクトが、使ってくれた人などにトークンを無料で配ること。", r:["tge"] },
+  median: { n:"中央値と50%の範囲", a:["中央値"], s:"「それより上と下が半々」になる値。50%の範囲は、その値の間に入る確率が50%という幅です。", w:"このアプリでは、Polymarket の「○○を上回るか」の各選択肢の確率をつないで計算しています。ローンチしないと全部「いいえ」になる市場は、ローンチした場合に直しています。", r:["fdv","pm"] },
+};
+const GLOSS_ALIAS = (()=>{   /* 本文の自動リンク用: 長い言葉から先に */
+  const list = [];
+  for(const [k, g] of Object.entries(GLOSS)) for(const a of (g.a||[])) list.push([a, k]);
+  return list.sort((x,y)=>y[0].length - x[0].length);
+})();
+/** すでに esc 済みの文に、用語へのリンクを付ける (それぞれ最初の1回だけ) */
+function linkTerms(html, skip){
+  const used = new Set(skip ? [skip] : []), parts = [];
+  let out = html;
+  for(const [a, k] of GLOSS_ALIAS){
+    if(used.has(k)) continue;
+    const ea = esc(a);
+    const re = new RegExp((/^[A-Za-z]/.test(a) ? "(?<![A-Za-z])" : "") + ea.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + (/[A-Za-z]$/.test(a) ? "(?![A-Za-z])" : ""));
+    const m = out.match(re);
+    if(!m) continue;
+    used.add(k);
+    parts.push(`<span class="term" data-term="${k}" tabindex="0">${m[0]}</span>`);
+    out = out.slice(0, m.index) + "\u0000" + (parts.length-1) + "\u0000" + out.slice(m.index + m[0].length);
   }
-  for(let i=0;i<points.length;i+=Math.ceil(points.length/6)){
-    const d = new Date(points[i].t);
-    ctx.fillText(`${d.getMonth()+1}/${d.getDate()}`, x(i)-14, H-6);
-  }
-  const grad = ctx.createLinearGradient(0,padT,0,H-padB);
-  grad.addColorStop(0,"rgba(91,140,255,.35)"); grad.addColorStop(1,"rgba(91,140,255,0)");
-  ctx.beginPath(); ctx.moveTo(x(0), y(points[0].v));
-  points.forEach((p,i)=>ctx.lineTo(x(i), y(p.v)));
-  ctx.lineTo(x(points.length-1), H-padB); ctx.lineTo(x(0), H-padB); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
-  ctx.beginPath(); ctx.moveTo(x(0), y(points[0].v));
-  points.forEach((p,i)=>ctx.lineTo(x(i), y(p.v)));
-  ctx.strokeStyle = css.getPropertyValue("--accent").trim() || "#5b8cff"; ctx.lineWidth = 2.2; ctx.stroke();
+  return out.replace(/\u0000(\d+)\u0000/g, (_, i)=>parts[i]);
 }
-$("#btcReload").addEventListener("click", loadBtc);
+function termBtn(k){ return GLOSS[k] ? `<button class="gq" data-term="${k}" aria-label="${esc(GLOSS[k].n)} の解説" title="解説">?</button>` : ""; }
+function openTerm(k){
+  const g = GLOSS[k]; if(!g) return;
+  const sec = (t, v) => v ? `<div class="pm-h">${t}</div><div class="term-p">${linkTerms(esc(v), k)}</div>` : "";
+  $("#termBody").innerHTML = `<div class="pm-sh-t">${esc(g.n)}</div>`
+    + sec("ひとことで", g.s) + sec("なぜ大事か", g.w) + sec("⬆ 上がると", g.u) + sec("⬇ 下がると", g.d)
+    + (g.r && g.r.length ? `<div class="pm-h">関連する用語</div><div class="chips">${g.r.filter(x=>GLOSS[x]).map(x=>`<button class="chip" data-term="${x}">${esc(GLOSS[x].n)}</button>`).join("")}</div>` : "")
+    + `<div class="pm-actions"><button class="btn" id="termAsk" data-k="${k}">🤖 AIに詳しく聞く (コピー)</button><button class="btn" data-go-gloss="1">📖 用語集を開く</button></div>`;
+  $("#termSheet").hidden = false; document.body.style.overflow = "hidden";
+  $("#termSheet .pm-sheet-body").scrollTop = 0;
+}
+function closeTerm(){ $("#termSheet").hidden = true; if(!pm.sheet) document.body.style.overflow = ""; }
+document.addEventListener("click", ev=>{
+  const t = ev.target.closest("[data-term]");
+  if(t){ ev.preventDefault(); ev.stopPropagation(); openTerm(t.dataset.term); return; }
+  if(ev.target.closest("#termSheet [data-close]")){ closeTerm(); return; }
+  if(ev.target.closest("[data-go-gloss]")){ closeTerm(); if(pm.sheet) pmClose(); switchTab("gloss"); return; }
+  const ask = ev.target.closest("#termAsk");
+  if(ask){ const g = GLOSS[ask.dataset.k];
+    copyText(`「${g.n}」について、投資の初心者にも分かるように、具体的な例や最近の動きを交えて教えてください。\n\n参考 (今の理解): ${g.s}${g.w ? "\n" + g.w : ""}`, "🤖 コピーしました。MUSE や Claude に貼り付けて聞いてください"); }
+}, true);
+document.addEventListener("keydown", e=>{ if(e.key === "Escape" && !$("#termSheet").hidden) closeTerm(); });
+function renderGloss(){
+  const q = ($("#glossQ").value || "").trim().toLowerCase();
+  const list = Object.entries(GLOSS).filter(([k,g])=> !q || [g.n, g.s, g.w || "", ...(g.a||[])].join(" ").toLowerCase().includes(q));
+  $("#glossList").innerHTML = list.length ? list.map(([k,g])=>`<button class="gloss-item" data-term="${k}"><b>${esc(g.n)}</b><span>${esc(g.s)}</span></button>`).join("")
+    : `<div class="empty">該当する用語がありません</div>`;
+}
+$("#glossQ").addEventListener("input", renderGloss);
 
-/* ================= FRED macro ================= */
-/* CORS回避: 直接→各種プロキシの順で試行し、成功したルートを記憶して再利用 */
-let fredRoute = null;
-const FRED_ROUTES = [
-  u => u,
-  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
-  u => "https://api.allorigins.win/get?url=" + encodeURIComponent(u),
-  u => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u),
-  u => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+/* ================= マクロ (金利・お金の量・ドル・不安・物価景気・株商品・暗号資産) ================= */
+/* データはサーバー (Apps Script) がまとめて取って保存している (action=macro)。ここでは計算して並べるだけ */
+const MC = { data: null, at: 0, loading: false };
+const mcLast = s => s && s.length ? s[s.length-1] : null;
+/** n日前 (以前で一番近い) の値 */
+function mcAgo(s, days){
+  if(!s || !s.length) return null;
+  const t = Date.parse(mcLast(s)[0]) - days*86400000;
+  for(let i=s.length-1;i>=0;i--) if(Date.parse(s[i][0]) <= t) return s[i];
+  return null;
+}
+function mcYoY(s){ const l = mcLast(s), a = mcAgo(s, 360); return l && a ? (l[1]/a[1]-1)*100 : null; }
+function mcMA(s, n){ if(!s || s.length < n) return null; let x = 0; for(let i=s.length-n;i<s.length;i++) x += s[i][1]; return x/n; }
+/** 単位を「10億ドル」にそろえる (FRED は系列によって100万ドル単位) */
+function mcBil(s){ if(!s || !s.length) return s; const v = Math.abs(mcLast(s)[1]); return v > 100000 ? s.map(r=>[r[0], r[1]/1000]) : s; }
+function mcMoney(bil){
+  if(bil == null || isNaN(bil)) return "-";
+  const v = bil*1e9, a = Math.abs(v);
+  if(a >= 1e12) return (v/1e12).toFixed(2) + "兆ドル";
+  if(a >= 1e8) return Math.round(v/1e8).toLocaleString() + "億ドル";
+  return Math.round(v).toLocaleString() + "ドル";
+}
+const mcPct = (x, d) => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "") + x.toFixed(d == null ? 1 : d) + "%";
+const mcBp = x => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "") + Math.round(x*100) + "bp";
+const mcNum = (x, d) => x == null || isNaN(x) ? "-" : Number(x).toLocaleString(undefined, { minimumFractionDigits: d||0, maximumFractionDigits: d||0 });
+const mcDate = s => { const d = new Date(s + "T00:00:00Z"); return isNaN(d) ? "" : `${d.getUTCMonth()+1}/${d.getUTCDate()}`; };
+/** 正味の流動性 = FRB総資産 − 財務省口座 − リバースレポ (週ごと) */
+function mcNetLiq(f){
+  const w = mcBil(f.WALCL), t = mcBil(f.WTREGEN), r = mcBil(f.RRPONTSYD);
+  if(!w || !t || !r) return null;
+  const at = (s, d) => { let v = null; for(const x of s){ if(x[0] <= d) v = x[1]; else break; } return v; };
+  return w.map(([d, v])=>{ const a = at(t, d), b = at(r, d); return a == null || b == null ? null : [d, v - a - b]; }).filter(Boolean);
+}
+/* 指標の定義: id, テーマ, 名前, 用語, 計算 (データ → {v 値, sub 変化, s 推移, d 日付, sig 'g'|'y'|'r', why 理由}) */
+const MC_THEMES = [["rate","🏦 金利"],["money","💧 お金の量"],["fx","💱 ドルと円"],["fear","😨 不安の度合い"],["econ","📊 物価と景気"],["mkt","📈 株と商品"],["crypto","🪙 暗号資産"]];
+const MC_DEFS = [
+  { id:"ff", th:"rate", n:"政策金利 (FF金利)", t:"ffrate", f:D=>{ const s = D.fred.DFF, l = mcLast(s), a = mcAgo(s, 91), up = mcLast(D.fred.DFEDTARU);
+      return l && { v: l[1].toFixed(2) + "%", sub: (up ? `目標の上限 ${up[1].toFixed(2)}%` : "") + (a ? ` ／ 3か月 ${mcBp(l[1]-a[1])}` : ""), s, d: l[0] }; } },
+  { id:"sofr", th:"rate", n:"SOFR − IORB", t:"sofr", f:D=>{ const s = D.fred.SOFR, i = mcLast(D.fred.IORB), l = mcLast(s); if(!l || !i) return null;
+      const sp = l[1] - i[1];
+      return { v: mcBp(sp), sub: `SOFR ${l[1].toFixed(2)}% ／ IORB ${i[1].toFixed(2)}%`, s, d: l[0],
+        sig: sp > 0 ? "r" : sp > -0.05 ? "y" : "g", why: sp > 0 ? "SOFR が IORB を上回っている: 短期のお金がひっ迫気味" : sp > -0.05 ? "差が小さい: 短期のお金にやや余裕が少ない" : "短期のお金は落ち着いている" }; } },
+  { id:"dgs2", th:"rate", n:"2年国債利回り", t:"yield", f:D=>{ const s = D.fred.DGS2, l = mcLast(s), a = mcAgo(s, 30);
+      return l && { v: l[1].toFixed(2) + "%", sub: a ? `1か月 ${mcBp(l[1]-a[1])} (政策金利の予想を映す)` : "", s, d: l[0] }; } },
+  { id:"dgs10", th:"rate", n:"10年国債利回り", t:"yield", f:D=>{ const s = D.fred.DGS10, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: l[1].toFixed(2) + "%", sub: a ? `1か月 ${mcBp(ch)}` : "", s, d: l[0],
+        sig: ch > 0.3 ? "r" : ch < -0.3 ? "g" : "y", why: ch > 0.3 ? "1か月で大きく上昇: 株や暗号資産には逆風になりやすい" : ch < -0.3 ? "1か月で大きく低下: 借りる費用が下がる (景気不安の場合も)" : "大きな動きはない" }; } },
+  { id:"curve", th:"rate", n:"長短金利差 (10年−2年)", t:"curve", f:D=>{ const s = D.fred.T10Y2Y, l = mcLast(s), a = mcAgo(s, 91); if(!l) return null;
+      return { v: mcBp(l[1]).replace("+",""), sub: a ? `3か月前 ${Math.round(a[1]*100)}bp` : "", s, d: l[0],
+        sig: l[1] < 0 ? "r" : l[1] < 0.5 ? "y" : "g", why: l[1] < 0 ? "逆イールド: 景気後退の前触れとされる形" : l[1] < 0.5 ? "差が小さい: 逆イールドからの戻り途中など、景気の転換点に注意" : "普通の形 (長期のほうが高い)" }; } },
+  { id:"netliq", th:"money", n:"正味の流動性", t:"netliq", f:D=>{ const s = mcNetLiq(D.fred), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: mcMoney(l[1]), sub: a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "", s, d: l[0],
+        sig: ch > 50 ? "g" : ch < -50 ? "r" : "y", why: ch > 50 ? "市場のお金が増えている: リスク資産に追い風" : ch < -50 ? "市場のお金が減っている: リスク資産に逆風" : "大きな変化はない" }; } },
+  { id:"walcl", th:"money", n:"FRB 総資産", t:"walcl", f:D=>{ const s = mcBil(D.fred.WALCL), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null;
+      return { v: mcMoney(l[1]), sub: a ? `4週 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < a[1] ? " (量的引き締め中)" : "") : "", s, d: l[0] }; } },
+  { id:"rrp", th:"money", n:"リバースレポ残高", t:"rrp", f:D=>{ const s = mcBil(D.fred.RRPONTSYD), l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
+      return { v: mcMoney(l[1]), sub: a ? `1か月 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < 50 ? " ・ ほぼ使い切り" : "") : "", s, d: l[0] }; } },
+  { id:"res", th:"money", n:"準備預金", t:"reserves", f:D=>{ const s = mcBil(D.fred.WRESBAL), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null;
+      return { v: mcMoney(l[1]), sub: a ? `4週 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` : "", s, d: l[0] }; } },
+  { id:"tga", th:"money", n:"財務省口座 (TGA)", t:"tga", f:D=>{ const s = mcBil(D.fred.WTREGEN), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: mcMoney(l[1]), sub: a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "", s, d: l[0],
+        sig: ch > 150 ? "r" : ch < -150 ? "g" : null, why: ch > 150 ? "政府の口座にお金が集まり、市場から吸い上げている" : ch < -150 ? "政府の支払いで市場にお金が戻っている" : "" }; } },
+  { id:"dxy", th:"fx", n:"ドル指数 (広義)", t:"dxy", f:D=>{ const s = D.fred.DTWEXBGS, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? (l[1]/a[1]-1)*100 : 0;
+      return { v: mcNum(l[1], 1), sub: a ? `1か月 ${mcPct(ch)}` : "", s, d: l[0],
+        sig: ch > 2 ? "r" : ch < -2 ? "g" : "y", why: ch > 2 ? "ドル高が進んでいる: リスク資産に逆風" : ch < -2 ? "ドル安が進んでいる: リスク資産に追い風" : "大きな動きはない" }; } },
+  { id:"jpy", th:"fx", n:"ドル円", t:"usdjpy", f:D=>{ const s = D.fred.DEXJPUS, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? (l[1]/a[1]-1)*100 : 0;
+      return { v: mcNum(l[1], 2) + "円", sub: a ? `1か月 ${mcPct(ch)} (${ch >= 0 ? "円安" : "円高"})` : "", s, d: l[0],
+        sig: ch < -4 ? "r" : null, why: ch < -4 ? "急な円高: 円キャリートレードの巻き戻しで相場が揺れることがある" : "" }; } },
+  { id:"vix", th:"fear", n:"VIX (恐怖指数)", t:"vix", f:D=>{ const s = D.fred.VIXCLS, l = mcLast(s); if(!l) return null;
+      return { v: mcNum(l[1], 1), sub: "15以下: 落ち着き ／ 30超: 強い不安", s, d: l[0],
+        sig: l[1] < 15 ? "g" : l[1] <= 25 ? "y" : "r", why: l[1] < 15 ? "市場は落ち着いている" : l[1] <= 25 ? "やや不安" : "強い不安 (リスクオフ)" }; } },
+  { id:"hy", th:"fear", n:"ハイイールド債スプレッド", t:"hy", f:D=>{ const s = D.fred.BAMLH0A0HYM2, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
+      return { v: l[1].toFixed(2) + "%", sub: a ? `1か月 ${mcBp(l[1]-a[1])}` : "", s, d: l[0],
+        sig: l[1] < 3.5 ? "g" : l[1] <= 5 ? "y" : "r", why: l[1] < 3.5 ? "倒産の心配は小さい" : l[1] <= 5 ? "やや心配が出ている" : "倒産の心配が強い (リスクオフ)" }; } },
+  { id:"cpi", th:"econ", n:"CPI (前年比)", t:"cpi", f:D=>{ const s = D.fred.CPIAUCSL; if(!s || s.length < 14) return null;
+      const y = s.slice(12).map((r,i)=>[r[0], (r[1]/s[i][1]-1)*100]), l = mcLast(y), p = y[y.length-2];
+      return { v: l[1].toFixed(1) + "%", sub: p ? `前の月 ${p[1].toFixed(1)}% ／ FRB の目標 2%` : "", s: y, d: l[0], mon: true,
+        sig: l[1] <= 2.5 ? "g" : l[1] <= 3.5 ? "y" : "r", why: l[1] <= 2.5 ? "物価は目標に近い" : l[1] <= 3.5 ? "目標よりやや高い" : "物価が高い: 利下げしにくい" }; } },
+  { id:"core", th:"econ", n:"コアCPI (前年比)", t:"core", f:D=>{ const s = D.fred.CPILFESL; if(!s || s.length < 14) return null;
+      const y = s.slice(12).map((r,i)=>[r[0], (r[1]/s[i][1]-1)*100]), l = mcLast(y), p = y[y.length-2];
+      return { v: l[1].toFixed(1) + "%", sub: p ? `前の月 ${p[1].toFixed(1)}%` : "", s: y, d: l[0], mon: true }; } },
+  { id:"unrate", th:"econ", n:"失業率", t:"unrate", f:D=>{ const s = D.fred.UNRATE; if(!s || s.length < 15) return null;
+      const l = mcLast(s), avg3 = (s[s.length-1][1] + s[s.length-2][1] + s[s.length-3][1]) / 3;
+      const min12 = Math.min(...s.slice(-15, -3).map(r=>r[1])), sahm = avg3 - min12;
+      return { v: l[1].toFixed(1) + "%", sub: `サームルールの値 ${sahm >= 0 ? "+" : ""}${sahm.toFixed(2)} (0.5で景気後退のサイン)`, s, d: l[0], mon: true,
+        sig: sahm >= 0.5 ? "r" : sahm >= 0.3 ? "y" : "g", why: sahm >= 0.5 ? "サームルールに達した: 景気後退のサイン" : sahm >= 0.3 ? "失業率がじわりと上昇" : "雇用は安定" }; } },
+  ...[["sp500","S&P500","SP500","sp500"],["nasdaq","ナスダック","NASDAQCOM","nasdaq"]].map(([id,n,k,t])=>({ id, th:"mkt", n, t, f:D=>{
+      const s = D.fred[k], l = mcLast(s), a = mcAgo(s, 30), ma = mcMA(s, 200); if(!l) return null;
+      return { v: mcNum(l[1]), sub: (a ? `1か月 ${mcPct((l[1]/a[1]-1)*100)}` : "") + (ma ? ` ／ 200日平均 ${mcNum(ma)}` : ""), s, d: l[0],
+        sig: ma ? (l[1] >= ma ? "g" : "r") : null, why: ma ? (l[1] >= ma ? "200日平均より上: 上昇の流れ" : "200日平均より下: 下落の流れ") : "" }; } })),
+  { id:"wti", th:"mkt", n:"原油 (WTI)", t:"wti", f:D=>{ const s = D.fred.DCOILWTICO, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
+      return { v: "$" + mcNum(l[1], 2), sub: a ? `1か月 ${mcPct((l[1]/a[1]-1)*100)}` : "", s, d: l[0] }; } },
+  ...[["btc","ビットコイン","BTC","btc"],["eth","イーサリアム","ETH","btc"],["hype","HYPE","HYPE","btc"],["gold","金 (PAXG)","PAXG","gold"]].map(([id,n,k,t])=>({ id, th: id === "gold" ? "mkt" : "crypto", n, t, f:D=>{
+      const c = D.crypto || {}, s = (c.series||{})[k], now = (c.now||{})[k]; if(!s && !now) return null;
+      const px = now ? now.px : mcLast(s)[1], a = mcAgo(s, 30), ma = mcMA(s, 200);
+      const dd = now && now.prev ? (px/now.prev-1)*100 : null;
+      return { v: "$" + mcNum(px, px < 100 ? 2 : 0), sub: [dd != null ? `24時間 ${mcPct(dd)}` : "", a ? `1か月 ${mcPct((px/a[1]-1)*100)}` : ""].filter(Boolean).join(" ／ "), s, d: s ? mcLast(s)[0] : "",
+        sig: id === "gold" ? null : ma ? (px >= ma ? "g" : "r") : null, why: id === "gold" || !ma ? "" : px >= ma ? `200日平均 ($${mcNum(ma)}) より上: 上昇の流れ` : `200日平均 ($${mcNum(ma)}) より下: 下落の流れ` }; } })),
+  { id:"stable", th:"crypto", n:"ステーブルコインの総額", t:"stable", f:D=>{ const s = D.stable && D.stable.map(r=>[r[0], r[1]/1e9]), l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? (l[1]/a[1]-1)*100 : 0;
+      return { v: mcMoney(l[1]), sub: a ? `30日 ${mcPct(ch)}` : "", s, d: l[0],
+        sig: ch > 1 ? "g" : ch < -1 ? "r" : "y", why: ch > 1 ? "暗号資産にお金が入ってきている" : ch < -1 ? "暗号資産からお金が出ていっている" : "大きな変化はない" }; } },
+  { id:"fng", th:"crypto", n:"恐怖と強欲指数", t:"fng", f:D=>{ const s = D.fng, l = mcLast(s); if(!l) return null;
+      const lab = l[1] <= 24 ? "極端な恐怖" : l[1] <= 44 ? "恐怖" : l[1] <= 55 ? "中立" : l[1] <= 74 ? "強欲" : "極端な強欲";
+      return { v: l[1] + " " + lab, sub: "0: 極端な恐怖 〜 100: 極端な強欲", s, d: l[0],
+        sig: l[1] <= 24 ? "y" : l[1] >= 75 ? "r" : "g", why: l[1] <= 24 ? "売られすぎの目安にされる水準 (逆張りの参考)" : l[1] >= 75 ? "買われすぎ・過熱" : "極端ではない" }; } },
+  { id:"funding", th:"crypto", n:"ファンディングレート (BTC)", t:"funding", f:D=>{ const n = ((D.crypto||{}).now||{}).BTC; if(!n || n.funding == null) return null;
+      const r8 = n.funding*8*100, yr = n.funding*24*365*100, h = ((D.crypto||{}).now||{}).HYPE, e = ((D.crypto||{}).now||{}).ETH;
+      return { v: (r8 >= 0 ? "+" : "") + r8.toFixed(4) + "%", sub: `8時間あたり ／ 年率 ${mcPct(yr)}` + (e ? ` ／ ETH ${(e.funding*800).toFixed(4)}%` : "") + (h ? ` ／ HYPE ${(h.funding*800).toFixed(4)}%` : ""), d: "",
+        sig: r8 > 0.03 ? "r" : r8 < 0 ? "y" : "g", why: r8 > 0.03 ? "買いが過熱気味" : r8 < 0 ? "売りが優勢" : "落ち着いた水準" }; } },
 ];
-async function viaProxies(url){
-  const idx = [...FRED_ROUTES.keys()];
-  const order = fredRoute==null ? idx : [fredRoute, ...idx.filter(i=>i!==fredRoute)];
-  let lastErr;
-  for(const i of order){
-    try{
-      const r = await fetch(FRED_ROUTES[i](url), { signal: AbortSignal.timeout(10000) });
-      if(!r.ok) throw new Error("HTTP " + r.status);
-      let text = await r.text();
-      if(i===2){ /* allorigins /get はJSONラッパー形式 */
-        const w = JSON.parse(text);
-        if(w.status && w.status.http_code >= 400) throw new Error("HTTP " + w.status.http_code);
-        text = w.contents || "";
-        if(text.startsWith("data:")) text = atob(text.slice(text.indexOf(",")+1));
-      }
-      if(!text.trim()) throw new Error("空応答");
-      fredRoute = i;
-      return text;
-    }catch(e){ lastErr = e; }
-  }
-  throw lastErr || new Error("全ルート失敗");
+const MC_SIG = { g:"🟢", y:"🟡", r:"🔴" };
+function mcSpark(s, mon){
+  if(!s || s.length < 2) return "";
+  const pts = s.slice(mon ? -24 : -180);
+  const vs = pts.map(r=>r[1]); let lo = Math.min(...vs), hi = Math.max(...vs); if(hi === lo){ hi += 1; lo -= 1; }
+  const W = 300, H = 36;
+  const d = pts.map((r,i)=>(i?"L":"M") + (i/(pts.length-1)*W).toFixed(1) + " " + (H-2-(r[1]-lo)/(hi-lo)*(H-4)).toFixed(1)).join("");
+  const col = vs[vs.length-1] >= vs[0] ? "var(--accent)" : "var(--warn)";
+  return `<svg class="mc-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
 }
-async function fredSeries(id, limit){
-  const key = state.settings.fredKey;
-  /* 1) キーがあれば公式APIを優先 */
-  if(key){
-    try{
-      const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${encodeURIComponent(key)}&file_type=json&sort_order=desc&limit=${limit}`;
-      const d = JSON.parse(await viaProxies(url));
-      if(d.observations) return d.observations.filter(o=>o.value!==".").map(o=>({date:o.date, v:parseFloat(o.value)})).reverse();
-    }catch(e){ /* CSV方式へフォールバック */ }
-  }
-  /* 2) fredgraph.csv (APIキー不要) */
-  const start = new Date(Date.now() - 450*86400000).toISOString().slice(0,10);
-  const csv = await viaProxies(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${id}&cosd=${start}`);
-  if(csv.trimStart().startsWith("<")) throw new Error(id+": 不正な応答 (HTML)");
-  const rows = csv.trim().split(/\r?\n/).slice(1)
-    .map(l=>l.split(","))
-    .filter(c=>c.length>=2 && c[1]!=="." && c[1].trim()!=="" && !isNaN(parseFloat(c[1])))
-    .map(c=>({date:c[0].replace(/"/g,""), v:parseFloat(c[1])}));
-  if(!rows.length) throw new Error(id+": データなし");
-  return rows.slice(-limit);
+function mcCard(def, D){
+  let r = null;
+  try{ r = def.f(D); }catch(e){ r = null; }
+  if(!r) return `<div class="mc-card mc-none"><div class="mc-h"><span>${esc(def.n)}</span>${termBtn(def.t)}</div><div class="hint">データを取得できませんでした</div></div>`;
+  return `<div class="mc-card" data-mc="${def.id}">
+    <div class="mc-h"><span>${esc(def.n)}</span>${termBtn(def.t)}</div>
+    <div class="mc-v">${esc(r.v)}</div>
+    <div class="mc-sub">${esc(r.sub || "")}</div>
+    ${mcSpark(r.s, r.mon)}
+    ${r.sig ? `<div class="mc-sig mc-${r.sig}">${MC_SIG[r.sig]} ${linkTerms(esc(r.why || ""))}</div>` : r.why ? `<div class="mc-sig">${linkTerms(esc(r.why))}</div>` : ""}
+    ${r.d ? `<div class="mc-date">${esc(mcDate(r.d))} 時点${r.mon ? " (月次)" : ""}</div>` : ""}
+  </div>`;
 }
-const last = a => a[a.length-1];
-const stdev = a => { const m = a.reduce((s,x)=>s+x,0)/a.length; return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/a.length); };
-const bp = x => (x>=0?"+":"") + (x*100).toFixed(1) + " bp";
-const pct = x => (x>=0?"+":"") + x.toFixed(2) + "%";
-
-function kpiCard(label, value, sub, cls){
-  return `<div class="kpi"><div class="k-label">${label}</div><div class="k-value" style="font-size:22px">${value}</div><div class="k-sub ${cls||""}">${sub||""}</div></div>`;
+function renderMacro(){
+  const box = $("#mcBody");
+  if(!MC.data){ return; }
+  const D = MC.data;
+  D.fred = D.fred || {};
+  box.innerHTML = MC_THEMES.map(([th, name])=>{
+    const defs = MC_DEFS.filter(d=>d.th === th);
+    return `<section class="mc-theme"><h3>${esc(name)}</h3><div class="mc-grid">${defs.map(d=>mcCard(d, D)).join("")}</div></section>`;
+  }).join("");
+  const t = D.fastAt ? new Date(D.fastAt).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
+  $("#mcInfo").textContent = (t ? t + " 時点" : "") + (D.errors && D.errors.length ? ` ・ 取得できなかったもの: ${D.errors.join("、")}` : "");
 }
-
-async function loadFred(){
-  const grid = $("#fredGrid"), st = $("#fredStatus");
-  state.settings.fredKey = $("#fredKey").value.trim();
-  save({silent:true});
-  grid.innerHTML = "";
-  const defs = [
-    ["SOFR", 45], ["IORB", 5], ["DFEDTARU", 5],
-    ["RRPONTSYD", 45], ["WRESBAL", 10], ["WALCL", 10],
-    ["M2SL", 14], ["SP500", 45],
-  ];
-  /* プロキシのレート制限を避けるため直列で取得 */
-  const res = [];
-  for(let i=0; i<defs.length; i++){
-    st.innerHTML = `<span class="spin"></span> FREDから取得中… (${i+1}/${defs.length}: ${defs[i][0]})`;
-    try{ res.push({status:"fulfilled", value: await fredSeries(defs[i][0], defs[i][1])}); }
-    catch(e){ res.push({status:"rejected", reason:e}); }
-  }
-  const S = {};
-  defs.forEach((d,i)=>{ if(res[i].status==="fulfilled" && res[i].value.length) S[d[0]] = res[i].value; });
-  const cards = [];
-  /* --- 短期金融市場 --- */
-  if(S.SOFR){
-    const s = S.SOFR, cur = last(s).v, prev = s.length>1 ? s[s.length-2].v : cur;
-    cards.push(kpiCard("SOFR", cur.toFixed(2)+"%", "前日差 "+bp(cur-prev)+" ・ "+last(s).date));
-    if(S.IORB){
-      const sp = cur - last(S.IORB).v;
-      cards.push(kpiCard("SOFR − IORB スプレッド", bp(sp), sp>0 ? "⚠ プラス圏 = レポ市場逼迫シグナル" : "マイナス圏 = 平常", sp>0?"k-down":"k-up"));
-    }
-    if(S.DFEDTARU){
-      const ex = cur - last(S.DFEDTARU).v;
-      cards.push(kpiCard("SOFR − FF金利上限", bp(ex), ex>0 ? "⛔ 上限超過 = 資金供給不足" : "上限内 ("+last(S.DFEDTARU).v.toFixed(2)+"%)", ex>0?"k-down":"k-up"));
-    }
-    const vol = stdev(s.slice(-30).map(o=>o.v))*100;
-    cards.push(kpiCard("SOFR ボラティリティ (30日σ)", vol.toFixed(1)+" bp", vol>5 ? "⚠ 上昇 = レポ金利が不安定化" : "落ち着いた水準", vol>5?"k-down":""));
-  }
-  /* --- バランスシート・残高系 --- */
-  if(S.RRPONTSYD){
-    const r = S.RRPONTSYD, cur = last(r).v, ago = r[0].v;
-    cards.push(kpiCard("リバースレポ (RRP) 残高", "$"+cur.toFixed(0)+"B",
-      (cur<50 ? "⚠ 枯渇圏 = 過剰流動性バッファ消滅" : "30営業日前比 "+(cur-ago>=0?"+":"")+(cur-ago).toFixed(0)+"B"), cur<50?"k-down":""));
-  }
-  if(S.WRESBAL){
-    const w = S.WRESBAL, cur = last(w).v, prev = w.length>1 ? w[w.length-2].v : cur;
-    cards.push(kpiCard("準備預金 (Reserves)", "$"+(cur/1000).toFixed(2)+"T", "前週比 "+(cur-prev>=0?"+":"")+(cur-prev).toFixed(0)+"B", cur<prev?"k-down":"k-up"));
-  }
-  if(S.WALCL){
-    const w = S.WALCL, cur = last(w).v, m4 = w[Math.max(0,w.length-5)].v;
-    cards.push(kpiCard("Fed 総資産 (B/S)", "$"+(cur/1e6).toFixed(2)+"T", "4週前比 "+((cur-m4)/1000>=0?"+":"")+((cur-m4)/1000).toFixed(0)+"B", cur<m4?"k-down":"k-up"));
-  }
-  if(S.M2SL){
-    const m = S.M2SL, cur = last(m).v, yoyBase = m.length>=13 ? m[m.length-13].v : null;
-    cards.push(kpiCard("M2 マネーサプライ", "$"+(cur/1000).toFixed(1)+"T", yoyBase ? "前年比 "+pct((cur/yoyBase-1)*100) : last(m).date, yoyBase && cur<yoyBase?"k-down":"k-up"));
-  }
-  if(S.SP500){
-    const p = S.SP500, cur = last(p).v, prev = p.length>1 ? p[p.length-2].v : cur;
-    cards.push(kpiCard("S&P 500", cur.toLocaleString(undefined,{maximumFractionDigits:0}), "前日比 "+pct((cur/prev-1)*100), cur>=prev?"k-up":"k-down"));
-  }
-  const firstErr = res.find(r=>r.status==="rejected");
-  if(!cards.length){
-    st.textContent = "❌ 取得できませんでした: " + (firstErr ? firstErr.reason.message : "不明なエラー");
-    return;
-  }
-  grid.innerHTML = cards.join("");
-  const failed = defs.filter((d,i)=>res[i].status!=="fulfilled").map(d=>d[0]);
-  st.textContent = "最終更新: " + nowJa() + (failed.length ? ` ／ 取得失敗: ${failed.join(", ")} (${firstErr.reason.message})` : "");
+async function loadMacro(force){
+  if(MC.loading) return;
+  const box = $("#mcBody");
+  if(!state.settings.gasUrl){ box.innerHTML = `<div class="empty">設定で「サーバー (Apps Script)」の URL を入れると表示されます。<br>(データはサーバーがまとめて取ってきます)</div>`; return; }
+  const cache = pmLS.get("mc_cache_v1", null);
+  if(cache && !MC.data){ MC.data = cache; renderMacro(); }
+  if(!MC.data) box.innerHTML = Array.from({length:4}, ()=>`<div class="pm-skel"></div>`).join("");
+  MC.loading = true; $("#mcInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=macro" + (force ? "&force=1" : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !d.macro) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    MC.data = d.macro; pmLS.set("mc_cache_v1", d.macro);
+    renderMacro();
+  }catch(err){
+    if(!MC.data) box.innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`;
+    else $("#mcInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ MC.loading = false; }
 }
-$("#fredLoad").addEventListener("click", loadFred);
-$("#fredEye").addEventListener("click", ()=>{
-  const k = $("#fredKey"); k.type = k.type==="password" ? "text" : "password";
-});
+$("#mcReload").addEventListener("click", ()=>loadMacro(true));
 
 /* ================= Telegram 通知 ================= */
 async function tgApi(method, params){
@@ -4258,7 +4316,8 @@ function switchTab(t){
   if(t==="home") renderHome();
   if(t==="settings" && !loaded.settings){ loaded.settings=1; renderTgIngestStatus(); pmAiSettingsLoad(); }
   if(t==="poly" && !loaded.poly){ loaded.poly=1; pmLoad(); }
-  if(t==="btc" && !loaded.btc){ loaded.btc=1; loadBtc(); loadFred(); }
+  if(t==="btc" && !loaded.btc){ loaded.btc=1; loadMacro(); }
+  if(t==="gloss"){ renderGloss(); }
 }
 $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
 
