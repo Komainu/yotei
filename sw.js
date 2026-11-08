@@ -4,7 +4,7 @@
    ・新しい版: VERSION が変わると新しい service worker が入り、ページに「新しい版があります」と出る。
      「読み込み直す」が押されたら切り替える (勝手には切り替えない)
    ※ VERSION は index.html の APP_VERSION と必ず同じにする (テストで確認している) */
-const VERSION = "2026.11.16";
+const VERSION = "2026.11.17";
 const CACHE = "yotei-" + VERSION;
 const ASSETS = [
   "./",

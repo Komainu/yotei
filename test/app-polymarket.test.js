@@ -303,7 +303,7 @@ test('TGE: 出来高が小さくても検索で集めて「🚀 TGE」に出す�
     chip.click();
     assert.deepEqual(cards(app).map(c => c.dataset.ev), ['tge1']);
     const rows = [...cards(app)[0].querySelectorAll('.pm-opt .l')].map(x => x.textContent);
-    assert.deepEqual(rows, ['$200M', '$100M'], '決着済みは出さず、数の大きい順');
+    assert.deepEqual(rows, ['2億ドル', '1億ドル'], '決着済みは出さず、数の大きい順。金額はそろえて表示');
     // 「すべて」にも入る
     app.doc.querySelector('#pmCats [data-cat="all"]').click();
     assert.ok(cards(app).some(c => c.dataset.ev === 'tge1'));
@@ -457,7 +457,7 @@ test('🤖 AIに聞く: 詳細の内容 (確率・賭け金・中央値・推移
     assert.match(copied, /■ 市場: Puffpaw FDV above ___ one day after launch\?/);
     assert.match(copied, /■ URL: https:\/\/polymarket\.com\/event\/puffpaw-fdv/);
     assert.match(copied, /■ 賭け金の合計: 240万ドル/);
-    assert.match(copied, /- \$200M: 40% ／ 賭け金 120万ドル/);
+    assert.match(copied, /- 2億ドル \(\$200M\): 40% ／ 賭け金 120万ドル/);
     assert.match(copied, /■ 直近1週間の推移 .*: 50% → 63%/);
     assert.match(copied, /■ 決着ルール \(原文\):\nThis market resolves Yes/);
     assert.match(app.text('#toast'), /コピーしました/);
@@ -470,5 +470,25 @@ test('🤖 AIに聞く: 詳細の内容 (確率・賭け金・中央値・推移
     for (let i = 0; i < 5; i++) await app.settle();
     assert.match(copied, /■ いまの確率: はい 63% ／ いいえ 37% \(1時間 ▲8pt ／ 24時間 ▲12pt/);
     assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
+
+test('分布: ローンチしないと全部「いいえ」の市場は、ローンチした場合に直して計算する (Base の例)', async () => {
+  const { app } = await open();
+  try {
+    const rows = [['$500M', 0.38, 60000], ['$1B', 0.40, 20000], ['$2B', 0.38, 300000], ['$3B', 0.37, 1586], ['$4B', 0.36, 90000],
+      ['$5B', 0.26, 8864], ['$6B', 0.26, 150000], ['$8B', 0.17, 100000], ['$10B', 0.18, 60000], ['$12B', 0.18, 130000]];
+    const d = app.run(`(()=>{ const e = { t: 'Base FDV above ___ one day after launch?', multi: true,
+      markets: ${JSON.stringify(rows)}.map(([g,p,vol])=>({ g, q: 'Base FDV above ' + g + ' one day after launch?', p:[p], vol, neg:false })) };
+      const d = pmDist(e); return Object.assign(pmDistText(d), { cond: d.cond }); })()`);
+    assert.ok(d.cond > 0.37 && d.cond < 0.40, 'ローンチする確率 ≒ 一番下の選択肢 (5億ドルと10億ドルの逆転は賭け金の重みでならす): ' + d.cond);
+    assert.match(d.med, /^[67]\d億ドル$/, 'ローンチした場合の中央値は60〜70億ドル台: ' + d.med);
+    assert.match(d.range, /^\d\d億ドル 〜 120億ドル 超$/);
+    // 金額の選択肢は和訳に任せず、そろえて表示
+    assert.equal(app.run('pmJa("$5B")'), '50億ドル');
+    assert.equal(app.run('pmJa("$500M")'), '5億ドル');
+    assert.equal(app.run('pmJa(">$1B")'), '10億ドル 以上');
+    assert.equal(app.run('pmJa("$100M-$300M")'), '1億ドル〜3億ドル');
+    assert.equal(app.run('pmJa("Base")'), 'Base');
   } finally { app.close(); }
 });

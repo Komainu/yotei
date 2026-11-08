@@ -849,7 +849,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.16";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.17";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.12";
 const $ = s => document.querySelector(s);
@@ -2072,7 +2072,17 @@ function pmDate(iso){
   return d.toLocaleString("ja-JP", { timeZone:"Asia/Tokyo", year:"numeric", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" });
 }
 /** 訳があれば訳、無ければ原文 */
-function pmJa(s){ return s ? (pm.tr[s] || s) : ""; }
+/** 金額だけの選択肢 ("$5B" "$500M" ">$1B" "<$100M" "$100M-$300M") は和訳に任せず「50億ドル」の形にそろえる */
+const PM_MONEY_RE = /^\s*([<>≥≤]|under |over |above |below )?\s*\$\s*\d[\d,]*(\.\d+)?\s*[kKmMbBtT]?\s*(\+|or more|or less)?\s*(([-–~]|to)\s*\$?\s*\d[\d,]*(\.\d+)?\s*[kKmMbBtT]?)?\s*$/i;
+function pmMoneyLabel(s){
+  if(!PM_MONEY_RE.test(s)) return null;
+  const r = pmRange(s); if(!r) return null;
+  if(r.open === "lo") return pmMoney(r.hi) + " 未満";
+  if(r.open === "hi") return pmMoney(r.lo) + " 以上";
+  if(r.lo !== r.hi) return pmMoney(r.lo) + "〜" + pmMoney(r.hi);
+  return pmMoney(r.lo);
+}
+function pmJa(s){ if(!s) return ""; const ml = pmMoneyLabel(s); return ml || pm.tr[s] || s; }
 function pmLabel(o){ return o === "Yes" ? "はい" : o === "No" ? "いいえ" : pmJa(o); }
 
 /* ---- 取得と整理 ---- */
@@ -2344,6 +2354,19 @@ function pmRange(label){
   return { lo: x, hi: x };
 }
 function pmLogLerp(x0, x1, f){ return (x0 > 0 && x1 > 0) ? Math.exp(Math.log(x0) + (Math.log(x1) - Math.log(x0)) * f) : x0 + (x1 - x0) * f; }
+/** 重み付きで「右に行くほど下がる」列にそろえる (隣どうしの逆転を、重みの平均で平らにする) */
+function pmIsotonicDown(pts){
+  const bl = [];
+  for(const p of pts){
+    bl.push({ s: p.s, w: p.w, n: 1 });
+    while(bl.length > 1 && bl[bl.length-2].s < bl[bl.length-1].s){
+      const b = bl.pop(), a = bl.pop();
+      bl.push({ s: (a.s*a.w + b.s*b.w) / (a.w + b.w), w: a.w + b.w, n: a.n + b.n });
+    }
+  }
+  let i = 0; for(const b of bl) for(let k=0;k<b.n;k++) pts[i++].s = b.s;
+  return pts;
+}
 function pmDist(e){
   if(!e.multi || e.markets.length < 3) return null;
   const labels = e.markets.map(m=>m.g || "");
@@ -2353,9 +2376,18 @@ function pmDist(e){
   const q = (e.t + " " + e.markets[0].q).toLowerCase();
   if(!e.markets.some(m=>m.neg) && /above|over|greater|more than|at least|exceed|higher than|>|≥/.test(q)){
     /* ① 残存関数 */
-    for(const m of e.markets){ const x = pmNum(m.g); if(x == null) return null; pts.push({ x, s: m.p[0] }); }
+    for(const m of e.markets){ const x = pmNum(m.g); if(x == null) return null; pts.push({ x, s: m.p[0], w: Math.max(1, m.vol||0) }); }
     pts.sort((a,b)=>a.x-b.x);
-    for(let i=1;i<pts.length;i++) pts[i].s = Math.min(pts[i].s, pts[i-1].s);   /* 値が大きいほど上回る確率は下がる (ずれを直す) */
+    pmIsotonicDown(pts);   /* 値が大きいほど上回る確率は下がるはず。逆転は賭け金の重みで平らにならす */
+    /* 「ローンチの1日後」などは、締切までにローンチしないと全部「いいえ」になる。
+       一番下の選択肢の確率が低い時は、それを「ローンチする確率」とみなし、ローンチした場合の分布に直す */
+    let cond = null;
+    /* 判定: 下の方の選択肢が同じくらいの確率で平ら (5pt以内) = 「ローンチしない」分の確率が下に積もっている形 */
+    const launchy = /launch|tge|token|airdrop|listing/.test(q);
+    if(launchy && pts.length >= 3 && pts[0].s < 0.9 && pts[0].s > 0.02 && pts[1].s >= pts[0].s - 0.05){
+      cond = pts[0].s;
+      pts.forEach(p=>{ p.s = Math.min(1, p.s / cond); });
+    }
     const at = level => {   /* S(x) = level となる x */
       if(pts[0].s < level) return { x: pts[0].x, below: true };
       if(pts[pts.length-1].s > level) return { x: pts[pts.length-1].x, above: true };
@@ -2363,13 +2395,13 @@ function pmDist(e){
         if(a.s >= level && b.s <= level){ const f = a.s === b.s ? 0.5 : (a.s - level) / (a.s - b.s); return { x: pmLogLerp(a.x, b.x, f) }; } }
       return null;
     };
-    const lowTail = 1 - pts[0].s, highTail = pts[pts.length-1].s;
+    const lowTail = cond ? 0 : 1 - pts[0].s, highTail = pts[pts.length-1].s;
     let mean = null;
     if(lowTail <= 0.1 && highTail <= 0.1){
       mean = lowTail * pts[0].x + highTail * pts[pts.length-1].x;
       for(let i=0;i<pts.length-1;i++) mean += (pts[i].s - pts[i+1].s) * pmLogLerp(pts[i].x, pts[i+1].x, 0.5);
     }
-    return { unit, med: at(0.5), p25: at(0.75), p75: at(0.25), mean, kind: "above", lowTail, highTail };
+    return { unit, med: at(0.5), p25: at(0.75), p75: at(0.25), mean, kind: "above", lowTail, highTail, cond, launchy };
   }
   if(e.markets.some(m=>m.neg)){
     /* ② 区間 */
@@ -2421,7 +2453,7 @@ function pmCard(e){
   }
   const d1 = e.multi ? e.d1 : m.d1, h1 = e.multi ? e.h1 : m.h1;
   const dist = pmDist(e);
-  if(dist){ const t = pmDistText(dist); body += `<div class="pm-dist">📊 予想の中央値 <b>${esc(t.med)}</b> <span style="color:var(--muted)">(50%の確率で ${esc(t.range)})</span></div>`; }
+  if(dist){ const t = pmDistText(dist); body += `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(t.med)}</b> <span style="color:var(--muted)">(50%の確率で ${esc(t.range)})</span>${dist.cond ? `<br><span style="color:var(--muted)">ローンチする確率 約${Math.round(dist.cond*100)}% (締切までにローンチしないと全部「いいえ」)</span>` : ""}</div>`; }
   return `<div class="pm-card ${sc===3?"you3":""}" data-ev="${esc(e.id)}">
     <div class="pm-row1"><div class="pm-title">${esc(title)}${title!==en?`<span class="en">${esc(en)}</span>`:""}</div>${big}<button class="pm-star ${pm.watch[e.id]?"on":""}" data-star="${esc(e.id)}" title="${pm.watch[e.id]?"ウォッチから外す":"ウォッチに入れる"}" aria-label="ウォッチ">${pm.watch[e.id]?"★":"☆"}</button></div>
     ${body}
@@ -2538,7 +2570,7 @@ async function pmGasPost(obj){
 }
 function pmNeeds(){
   const texts = [], events = [], seenT = new Set();
-  const addT = s => { if(s && !pm.tr[s] && !/^(Yes|No)$/.test(s) && !seenT.has(s) && /[A-Za-z]/.test(s)){ seenT.add(s); texts.push(s); } };
+  const addT = s => { if(s && !pm.tr[s] && !/^(Yes|No)$/.test(s) && !seenT.has(s) && /[A-Za-z]/.test(s) && !PM_MONEY_RE.test(s)){ seenT.add(s); texts.push(s); } };
   /* 見えやすい順 (今の並び → 出来高順) */
   const order = pmFiltered().concat([...pm.events].sort((a,b)=>b.v24-a.v24));
   const done = new Set();
@@ -2618,8 +2650,9 @@ function pmRenderOutcomes(){
   const list = showAll ? all : all.slice(0, PM_SHEET_ROWS);
   const closed = e.closed || [];
   const dist = pmDist(e), dt = dist && pmDistText(dist);
-  $("#pmSOutcomes").innerHTML = (dt ? `<div class="pm-dist">📊 予想の中央値 <b>${esc(dt.med)}</b><br>50%の確率で ${esc(dt.range)} の間${dt.mean ? ` ／ 平均の目安 ${esc(dt.mean)}` : ""}
-      <div class="hint">${dist.kind === "above" ? "各選択肢の「上回る確率」をつないで計算しています" : "各区間の確率を足し合わせて計算しています"} (値の間は対数で補間)。${dt.mean ? "" : "端の外の確率が大きいため平均は出していません。"}</div></div>` : "")
+  $("#pmSOutcomes").innerHTML = (dt ? `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(dt.med)}</b><br>50%の確率で ${esc(dt.range)} の間${dt.mean ? ` ／ 平均の目安 ${esc(dt.mean)}` : ""}
+      ${dist.cond ? `<br>ローンチする確率 <b>約${Math.round(dist.cond*100)}%</b> (一番下の選択肢「${esc(pmFmtVal(e.markets.map(x=>pmNum(x.g)).reduce((a,b)=>Math.min(a,b)), dist.unit))}を上回る」の確率から推定)` : ""}
+      <div class="hint">${dist.kind === "above" ? "各選択肢の「上回る確率」をつないで計算しています" : "各区間の確率を足し合わせて計算しています"} (値の間は対数で補間・確率の逆転は賭け金の重みでならす)。${dist.cond ? "締切までにローンチしないと全選択肢が「いいえ」になる市場なので、ローンチした場合に直して計算しています。" : dist.launchy ? "※ ローンチしない可能性も含んだ値です。" : ""}${dt.mean ? "" : "端の外の確率が大きいため平均は出していません。"}</div></div>` : "")
     + `<div class="pm-h">選択肢 ${all.length}件 (押すとグラフが切り替わります) <span style="float:right; font-weight:400; font-size:11.5px; color:var(--dim)">賭け金</span></div><div class="pm-opts wide">` + list.map(x=>pmOptRow(x, m)).join("") + `</div>`
     + (showAll ? "" : `<div class="pm-more-opts"><button class="btn small" id="pmSAllOpts">残り ${all.length - list.length}件も表示</button></div>`)
     + (closed.length ? `<details class="pm-closed"><summary>決着済みの選択肢 ${closed.length}件</summary><div class="pm-opts wide">${closed.map(x=>pmOptRow(x, m)).join("")}</div></details>` : "")
