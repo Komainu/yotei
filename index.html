@@ -258,9 +258,8 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .pm-top{padding:2px 0 10px; margin-bottom:6px}
 .pm-mvh:empty{display:none}
 .pm-top .search{width:100%}
-.pm-cats{margin-top:10px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:none}
-.pm-cats::-webkit-scrollbar{display:none}
-.pm-cats .chip{white-space:nowrap; flex:none}
+.pm-cats{margin-top:10px; flex-wrap:wrap}
+.pm-cats .chip{white-space:nowrap}
 .pm-bar{display:flex; gap:8px; align-items:center; margin-top:10px}
 .pm-bar select{width:auto; padding:6px 10px; font-size:13px}
 .pm-info{flex:1; font-size:12px; color:var(--dim); text-align:right; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
@@ -793,7 +792,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.11";
+const APP_VERSION = "2026.11.12";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.09";
 const $ = s => document.querySelector(s);
@@ -2116,10 +2115,15 @@ async function pmLoad(force){
   pm.loading = true; pmRenderInfo();
   if(!pm.markets.length) $("#pmList").innerHTML = Array.from({length:6}, ()=>`<div class="pm-skel"></div>`).join("");
   try{
-    const pages = await Promise.all(Array.from({length:PM_PAGES}, (_,i)=>
-      pmFetchJson(`${PM_GAMMA}/markets?closed=false&active=true&order=volume24hr&ascending=false&limit=100&offset=${i*100}`).catch(()=>[])));
+    const [pages, tge] = await Promise.all([
+      Promise.all(Array.from({length:PM_PAGES}, (_,i)=>
+        pmFetchJson(`${PM_GAMMA}/markets?closed=false&active=true&order=volume24hr&ascending=false&limit=100&offset=${i*100}`).catch(()=>[]))),
+      pmLoadTge(),
+    ]);
     const seen = new Set(), list = [];
     for(const page of pages) for(const m of (page||[])){ const c = pmCompact(m); if(c && !seen.has(c.id)){ seen.add(c.id); list.push(c); } }
+    /* TGE (トークン発行) の市場は出来高が小さく上位に入りにくいので、検索で別に集めて足す */
+    for(const c of tge){ const x = list.find(m=>m.id === c.id); if(x) x.tge = true; else { seen.add(c.id); list.push(c); } }
     if(!list.length) throw new Error("市場を取得できませんでした");
     pm.markets = list; pm.at = Date.now();
     pmLS.set("pm_cache_v1", { t: pm.at, markets: list });
@@ -2132,6 +2136,31 @@ async function pmLoad(force){
     pm.loading = false; pmRenderInfo();
   }
   pmAiFill();
+}
+/** TGE・トークン発行の市場を検索で集める (以前の「🚀 TGE価格予測」と同じ探し方) */
+const PM_TGE_QUERIES = ["token launch", "token price", "TGE", "FDV", "market cap of", "airdrop"];
+async function pmLoadTge(){
+  const out = [], seen = new Set();
+  const res = await Promise.all(PM_TGE_QUERIES.map(q=>
+    pmFetchJson(`${PM_GAMMA}/public-search?q=${encodeURIComponent(q)}&limit_per_type=20&events_status=active`).catch(()=>null)));
+  for(const d of res){
+    for(const ev of ((d && d.events) || [])){
+      if(ev.closed || ev.archived) continue;
+      for(const m of (ev.markets || [])){
+        if(m.closed || m.active === false || m.archived || seen.has(String(m.id))) continue;
+        const c = pmCompact(Object.assign({}, m, { events: [{ id: ev.id, title: ev.title, slug: ev.slug, endDate: ev.endDate }] }));
+        if(!c) continue;
+        if(c.end && Date.parse(c.end) < Date.now()) continue;
+        c.tge = true; seen.add(c.id); out.push(c);
+      }
+    }
+  }
+  return out;
+}
+const PM_TGE_RE = /\b(fdv|tge|token launch|launch (a|its) token|airdrop|one day after launch)\b/i;
+function pmIsTge(e){
+  if(e._tge != null) return e._tge;
+  return (e._tge = e.markets.some(m=>m.tge) || PM_TGE_RE.test(e.t + " " + e.markets.slice(0,3).map(m=>m.q).join(" ")));
 }
 function pmRebuild(){ pm.events = pmGroup(pm.markets); pmRenderCats(); pmRender(); }
 
@@ -2161,7 +2190,8 @@ function pmRenderCats(){
   pm.events.forEach(e=>{ const c = pmCatOf(e); counts[c] = (counts[c]||0) + 1; });
   const you = pm.events.filter(e=>pmScore(e) >= 2).length;
   const nw = Object.keys(pm.watch).length;
-  const chips = [["all","🔥 すべて"], ["you", `✨ あなた向け${you?" "+you:""}`], ["watch", `⭐ ウォッチ${nw?" "+nw:""}`]]
+  const nt = pm.events.filter(pmIsTge).length;
+  const chips = [["all","🔥 すべて"], ["you", `✨ あなた向け${you?" "+you:""}`], ["watch", `⭐ ウォッチ${nw?" "+nw:""}`], ["tge", `🚀 TGE${nt?" "+nt:""}`]]
     .concat(PM_CATS.filter(c=>counts[c]).map(c=>[c, `${c} ${counts[c]}`]));
   $("#pmCats").innerHTML = chips.map(([k,l])=>`<button class="chip ${pm.cat===k?"active":""}" data-cat="${esc(k)}">${esc(l)}</button>`).join("");
 }
@@ -2182,6 +2212,7 @@ function pmFiltered(){
     if(pm.cat === "watch") { if(!pm.watch[e.id]) return false; }
     else if(pm.hide[e.id]) return false;
     if(pm.cat === "you" && !(pmScore(e) >= 2)) return false;
+    if(pm.cat === "tge" && !pmIsTge(e)) return false;
     if(PM_CATS.includes(pm.cat) && pmCatOf(e) !== pm.cat) return false;
     if(words.length){ const st = pmSearchText(e); if(!words.every(w=>st.includes(w))) return false; }
     return true;
@@ -2269,7 +2300,7 @@ function pmRender(){
   if(!pm.events.length){ return; }
   if(!list.length){
     box.innerHTML = `<div class="empty">${pm.cat==="watch" ? "⭐ ウォッチしている市場はまだありません。<br>カードを押して「☆ ウォッチ」を選ぶと、ここに集まります。"
-      : pm.cat==="you" ? (pm.aiNote || "あなた向けの判定はまだありません") : "該当する市場がありません"}</div>`;
+      : pm.cat==="you" ? (pm.aiNote || "あなた向けの判定はまだありません") : pm.cat==="tge" ? "いま募集中の TGE (トークン発行) の市場は見つかりませんでした" : "該当する市場がありません"}</div>`;
     $("#pmMore").innerHTML = ""; return;
   }
   box.innerHTML = list.slice(0, pm.shown).map(pmCard).join("");

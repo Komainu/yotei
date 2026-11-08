@@ -55,6 +55,14 @@ function fakeNet(list) {
       extra.push(mk(201, { groupItemTitle: '↑ 130,000', closed: true, outcomePrices: '["0","1"]', events: undefined }));   // 同じ名前の古い市場 → 出さない
       return reply({ id: 'btc', title: 'What price will Bitcoin hit in 2026?', slug: 'slug-btc', markets: list.filter(m => m.events && m.events[0].id === 'btc').map(m => Object.assign({}, m, { events: undefined })).concat(extra) });
     }
+    if (u.host === 'gamma-api.polymarket.com' && u.pathname === '/public-search') {
+      if (u.searchParams.get('q') !== 'FDV') return reply({ events: [] });
+      return reply({ events: [{ id: 'tge1', title: 'Puffpaw FDV above ___ one day after launch?', slug: 'puffpaw-fdv', markets: [
+        mk(300, { groupItemTitle: '$100M', outcomePrices: '["0.7","0.3"]', volume24hr: 500, events: undefined }),
+        mk(301, { groupItemTitle: '$200M', outcomePrices: '["0.4","0.6"]', volume24hr: 300, events: undefined }),
+        mk(302, { groupItemTitle: '$1B', closed: true, events: undefined }),
+      ] }] });
+    }
     if (u.host === 'clob.polymarket.com') return reply(HIST);
     throw new TypeError('想定外の通信: ' + url);
   };
@@ -72,7 +80,7 @@ const titles = app => cards(app).map(c => c.querySelector('.pm-title').firstChil
 test('一覧: イベントごとにまとめ、出来高の順。決着済みは出さない。金額・締切は日本語', async () => {
   const { app } = await open({ start: '2026-11-08T10:00:00+09:00' });
   try {
-    assert.deepEqual(titles(app), ['Lakers vs. Celtics', 'Will the Fed cut rates in December?', 'What price will Bitcoin hit in 2026?', 'Mayor election winner', 'Will Solana flip Ethereum?']);
+    assert.deepEqual(titles(app), ['Lakers vs. Celtics', 'Will the Fed cut rates in December?', 'What price will Bitcoin hit in 2026?', 'Mayor election winner', 'Will Solana flip Ethereum?', 'Puffpaw FDV above ___ one day after launch?']);
     const fed = cards(app)[1];
     assert.match(fed.querySelector('.pm-big').textContent, /63%\s*はい/);
     assert.match(fed.textContent, /▲8\.0pt 1時間/);
@@ -118,7 +126,7 @@ test('検索と分野: 文字を打つとすぐ絞り込む。分野のボタン
     q.value = ''; q.dispatchEvent(new app.win.Event('input'));
     await new Promise(r => setTimeout(r, 100));
     app.doc.querySelector('#pmCats [data-cat="暗号資産"]').click();
-    assert.deepEqual(titles(app), ['What price will Bitcoin hit in 2026?', 'Will Solana flip Ethereum?']);
+    assert.deepEqual(titles(app), ['What price will Bitcoin hit in 2026?', 'Will Solana flip Ethereum?', 'Puffpaw FDV above ___ one day after launch?']);
     app.doc.querySelector('#pmCats [data-cat="スポーツ"]').click();
     assert.deepEqual(titles(app), ['Lakers vs. Celtics']);
   } finally { app.close(); }
@@ -282,6 +290,23 @@ test('全選択肢: 見えたカードはイベントの全部を取りに行き
     assert.match(closed.textContent, /決着済みの選択肢 1件/);
     assert.match(closed.textContent, /↓ 80,000.*決着: はい/);
     // ほかのイベント (取得できない) は今まで通り
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
+
+test('TGE: 出来高が小さくても検索で集めて「🚀 TGE」に出す。分野のボタンは折り返して全部見える', async () => {
+  const { app } = await open();
+  try {
+    const chip = app.doc.querySelector('#pmCats [data-cat="tge"]');
+    assert.match(chip.textContent, /TGE 1/);
+    chip.click();
+    assert.deepEqual(cards(app).map(c => c.dataset.ev), ['tge1']);
+    const rows = [...cards(app)[0].querySelectorAll('.pm-opt .l')].map(x => x.textContent);
+    assert.deepEqual(rows, ['$200M', '$100M'], '決着済みは出さず、数の大きい順');
+    // 「すべて」にも入る
+    app.doc.querySelector('#pmCats [data-cat="all"]').click();
+    assert.ok(cards(app).some(c => c.dataset.ev === 'tge1'));
+    assert.match(app.doc.querySelector('style').textContent, /\.pm-cats\{margin-top:10px; flex-wrap:wrap\}/);
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });
