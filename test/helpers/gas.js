@@ -176,7 +176,7 @@ function loadGas(opts) {
       deleteTrigger(t) { sandbox.ScriptApp.triggers = sandbox.ScriptApp.triggers.filter(x => x !== t); },
       newTrigger(fn) {
         const t = { fn, getHandlerFunction: () => fn };
-        const b = { timeBased: () => b, atHour: h => { t.hour = h; return b; }, onWeekDay: d => { t.weekDay = d; return b; }, everyDays: () => b, everyMinutes: m => { t.minutes = m; return b; }, inTimezone: () => b, create: () => { sandbox.ScriptApp.triggers.push(t); return t; } };
+        const b = { timeBased: () => b, atHour: h => { t.hour = h; return b; }, onWeekDay: d => { t.weekDay = d; return b; }, everyDays: () => b, everyMinutes: m => { t.minutes = m; return b; }, everyHours: h => { t.hours = h; return b; }, inTimezone: () => b, create: () => { sandbox.ScriptApp.triggers.push(t); return t; } };
         return b;
       },
     },

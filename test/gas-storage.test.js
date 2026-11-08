@@ -70,10 +70,10 @@ test('移行: 既存の31件・削除記録・記録・受信箱・ゲームが�
   gas.ctx.setup();
   assert.equal(gas.drive.writes, writes);
   const trig = gas.ctx.ScriptApp.triggers.map(t => t.fn).sort();
-  assert.deepEqual(trig, ['pollTelegram', 'sendDailyMail', 'weeklyBackup']);
-  const wb = gas.ctx.ScriptApp.triggers.find(t => t.fn === 'weeklyBackup');
-  assert.equal(wb.weekDay, 'SUNDAY');
-  assert.equal(wb.hour, 2, '日曜の深夜2時');
+  // 予定管理の通知は止め、Polymarket の記録だけを登録する
+  assert.deepEqual(trig, ['pmRecord', 'pmResolve']);
+  assert.equal(gas.ctx.ScriptApp.triggers.find(t => t.fn === 'pmRecord').hours, 1, '1時間ごと');
+  assert.equal(gas.ctx.ScriptApp.triggers.find(t => t.fn === 'pmResolve').hour, 5, '毎日5時');
 });
 
 test('移行後もアプリから31件を読み込め、同期・Telegram・メールが動く', async () => {
@@ -122,7 +122,7 @@ test('移行に失敗しても元のデータは残り、今まで通り動く�
     assert.equal(gas.get({ key: 'secret-for-backup-test' }).store, 'props');
     // 失敗したまま setup() しても、トリガーは登録される
     gas.ctx.setup();
-    assert.ok(gas.ctx.ScriptApp.triggers.some(t => t.fn === 'weeklyBackup'));
+    assert.ok(gas.ctx.ScriptApp.triggers.some(t => t.fn === 'pmRecord'));
     // 今まで通り保存できる
     clock.tick(60000);
     const r = gas.post({ key: 'secret-for-backup-test', all: gas.ctx.getProjects_().concat([project(clock, { id: 'N1' })]), deleted: {}, syncedAt: clock.iso() });

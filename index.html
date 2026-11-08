@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>予定管理</title>
+<title>ポリマーケット記録</title>
 <script>
 /* 読み込み直後に配色を決めて、一瞬だけ濃紺が見えるのを防ぐ */
 try{ const s = JSON.parse(localStorage.getItem("sakiyomi_v1") || "{}");
@@ -146,6 +146,10 @@ details.grp-done[open] > summary::before{transform:rotate(90deg)}
 
 /* ---------- 部屋の背景 (手帳の線画) ---------- */
 #roomBg{position:fixed; inset:0; z-index:0; pointer-events:none}
+/* 予定管理は MUSE に移したので画面に出さない (データとコードは残してある) */
+body.pm-mode .legacy, body.pm-mode #roomBg{display:none !important}
+body.pm-mode.room-on{background:radial-gradient(1200px 600px at 80% -10%, #16224a 0%, var(--bg) 55%)}
+:root[data-theme="light"] body.pm-mode.room-on{background:var(--bg)}
 #roomBg svg{display:block}
 #roomBg .rbox, #roomBg .revent{pointer-events:auto; cursor:pointer}
 #roomBg .rnew{animation:rdraw 1.4s ease both}
@@ -316,24 +320,24 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 }
 </style>
 </head>
-<body>
+<body class="pm-mode">
 <div id="roomBg" aria-hidden="true"></div>
 
 <header>
   <div class="head-inner">
     <div class="brand">
       <div class="logo">🔮</div>
-      <h1>予定管理<small id="appVer"></small></h1>
-      <div class="stats">
+      <h1>ポリマーケット記録<small id="appVer"></small></h1>
+      <div class="stats legacy">
         <span class="stat">未完了<b id="stOpen">-</b></span>
         <span class="stat alert">7日以内・超過<b id="stSoon">-</b></span>
         <span class="stat">ピン<b id="stPin">-</b></span>
       </div>
     </div>
     <nav class="tabs">
-      <button data-tab="home" class="active">🏠 HOME</button>
-      <button data-tab="projects">📋 よてい</button>
-      <button data-tab="poly">📊 Polymarket</button>
+      <button data-tab="home" class="legacy">🏠 HOME</button>
+      <button data-tab="projects" class="legacy">📋 よてい</button>
+      <button data-tab="poly" class="active">📊 Polymarket</button>
       <button data-tab="btc">₿ BTCマクロ</button>
       <button data-tab="settings">⚙️ 設定</button>
       <button id="themeBtn" title="配色を切り替え" style="margin-left:auto">🌙</button>
@@ -344,7 +348,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 <main>
 
 <!-- ============ HOME ============ -->
-<section class="tab active" id="tab-home">
+<section class="tab legacy" id="tab-home">
   <div class="hcard hello">
     <div class="face">🔮</div>
     <div><div class="sub" id="hDate"></div><div class="say" id="hSay"></div><div class="sub" id="hEvent" style="margin-top:4px"></div><div class="sub story-line" id="hStory" style="margin-top:2px"></div></div>
@@ -378,7 +382,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 </section>
 
 <!-- ============ projects ============ -->
-<section class="tab" id="tab-projects">
+<section class="tab legacy" id="tab-projects">
   <div class="toolbar">
     <input class="search" id="pSearch" placeholder="🔍 プロジェクト検索…">
     <div class="chips" id="pFilters">
@@ -396,7 +400,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 </section>
 
 <!-- ============ polymarket ============ -->
-<section class="tab" id="tab-poly">
+<section class="tab active" id="tab-poly">
   <div class="toolbar">
     <input class="search" id="polySearch" placeholder="🔍 キーワードで絞り込み (例: bitcoin)…">
     <div class="chips" id="polyChips">
@@ -445,13 +449,13 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 
 <!-- ============ settings ============ -->
 <section class="tab" id="tab-settings">
-  <div class="set-card">
+  <div class="set-card legacy">
     <h3>🏠 部屋</h3>
     <label class="check"><input type="checkbox" id="roomOn" style="width:auto">部屋を背景に表示する</label>
     <p class="hint">予定をこなすと家具が届き、部屋が豪華になります。期限切れの予定は床の段ボール箱として現れ、片付けると消えます。窓の外の景色は連続記録で変わり、3日続くと猫が遊びに来ます。手帳に描いたような線画の部屋です。</p>
   </div>
 
-  <div class="set-card">
+  <div class="set-card legacy">
     <h3>✈️ Telegram連携</h3>
     <p class="hint" style="margin-top:0">⏰ <b>毎朝9時のまとめ通知</b>: 期限が7日以内・期限切れの案件と、📌ピン留め案件の一覧を送ります (Googleのサーバーが送信するのでPCを閉じていてもOK)。Botに <code>/alert</code> と送ればいつでも同じ内容を呼び出せます。<br>通知先はこのChat IDではなく、下の「📲 Telegram登録を有効化」でGoogle側に登録したものです。</p>
     <label>Bot Token</label>
@@ -497,7 +501,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 
   <div class="set-card">
-    <h3>☁️ クラウド同期 & 毎日のメール通知</h3>
+    <h3>☁️ サーバー (Apps Script) と記録の状況</h3>
     <label>Google Apps Script ウェブアプリURL</label>
     <input id="gasUrl" placeholder="https://script.google.com/macros/s/..../exec">
     <label>合言葉 (サーバーを守るパスワード)</label>
@@ -505,15 +509,17 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <input id="gasKey" type="password" autocomplete="off" placeholder="合言葉を設定していなければ空のまま">
       <button class="btn small" id="gasKeyToggle" type="button">表示</button>
     </div>
+    <div class="legacy">
     <label>メール通知の送信先</label>
     <input id="gasMail" type="email" placeholder="you@example.com">
     <label class="check" style="margin-top:12px"><input type="checkbox" id="gasAuto" checked>変更を自動でクラウドに保存する (推奨)</label>
+    </div>
     <div id="gasStatus" style="margin-top:10px; font-size:12.5px; color:var(--muted)"></div>
     <div id="verInfo" style="margin-top:6px; font-size:12px; color:var(--dim)"></div>
     <div class="row" style="margin-top:14px; flex-wrap:wrap">
       <button class="btn primary" id="gasSave">設定を保存</button>
-      <button class="btn" id="gasSync">⬆ クラウドへ保存</button>
-      <button class="btn" id="gasLoad">⬇ クラウドから読込</button>
+      <button class="btn legacy" id="gasSync">⬆ クラウドへ保存</button>
+      <button class="btn legacy" id="gasLoad">⬇ クラウドから読込</button>
       <button class="btn" id="gasCheck">状況を確認</button>
     </div>
     <div id="gasResult" style="font-size:13px; margin-top:10px"></div>
@@ -541,9 +547,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   <div class="set-card">
     <h3>💾 データ管理</h3>
     <div class="row" style="flex-wrap:wrap">
-      <button class="btn" id="btnExport">⬇ エクスポート (JSON)</button>
-      <button class="btn" id="btnImport">⬆ インポート</button>
-      <button class="btn" id="btnDedup">🧹 重複プロジェクト整理</button>
+      <button class="btn" id="btnExport">⬇ 旧データ (予定) をエクスポート</button>
+      <button class="btn legacy" id="btnImport">⬆ インポート</button>
+      <button class="btn legacy" id="btnDedup">🧹 重複プロジェクト整理</button>
       <button class="btn" id="btnRestore">↩ バックアップから復元</button>
       <input type="file" id="importFile" accept=".json" style="display:none">
     </div>
@@ -684,9 +690,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.02";
+const APP_VERSION = "2026.11.08";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.02";
+const MIN_GAS_VERSION = "2026.11.08";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -2532,6 +2538,17 @@ function renderGasStatus(){
         : `<span style="color:var(--warn)">未同期</span>`)
     + (state.settings.gasError ? `<br><span style="color:var(--danger)">⚠ 前回の自動保存に失敗: ${esc(state.settings.gasError)}</span>` : "");
 }
+/* Polymarket の記録の状況 (サーバーの pmStatus_ の内容を文章にする) */
+function pmStatusHtml(pm){
+  if(!pm) return `📼 記録: サーバーが古い版です (GitHub からの自動公開を待ってから、もう一度確認してください)<br>`;
+  const t = s => s ? new Date(s).toLocaleString("ja-JP") : "まだ";
+  if(!pm.lastRun && !pm.error) return `📼 記録: まだ始まっていません (Apps Script で <b>setup</b> を実行してください)<br>`;
+  const stale = pm.lastRun && Date.now() - Date.parse(pm.lastRun) > 3*3600000;
+  return `📼 記録: 最終 ${t(pm.lastRun)} (${pm.lastCount}件)` + (stale ? ` <b style="color:var(--danger)">⚠ 3時間以上止まっています</b>` : "")
+    + `<br>　台帳 ${pm.markets.toLocaleString()}件 ／ 決着済み ${pm.resolved.toLocaleString()}件` + (pm.since ? ` ／ ${esc(pm.since)} から記録中` : "")
+    + (pm.watch ? ` ／ ウォッチ ${pm.watch}件` : "")
+    + (pm.error ? `<br><span style="color:var(--danger)">⚠ 直近のエラー: ${esc(pm.error)}</span>` : "") + `<br>`;
+}
 /* Google側が保持している内容を確認 */
 async function gasCheck(){
   const url = state.settings.gasUrl;
@@ -2549,10 +2566,10 @@ $("#gasCheck").addEventListener("click", async ()=>{
   try{
     const d = await gasCheck();
     const at = d.syncedAt ? new Date(d.syncedAt).toLocaleString("ja-JP") : "なし";
-    r.innerHTML = `☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`
+    r.innerHTML = pmStatusHtml(d.pm) + `<span class="legacy">☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`
       + (d.locked ? `<br>🔑 合言葉: 設定済み` : d.locked === false ? `<br>🔓 合言葉: 未設定 (下の「🔑 合言葉を設定・変更する」から設定できます)` : "")
       + (d.store === "drive" ? `<br>💾 保存先: Googleドライブ` + (d.backupLast ? ` ／ 最終バックアップ ${new Date(d.backupLast).toLocaleString("ja-JP")}` : "")
-         : d.store === "props" ? `<br>💾 保存先: スクリプト プロパティ (Apps Script で setup を実行すると、容量の大きいGoogleドライブへ移ります)` : "");
+         : d.store === "props" ? `<br>💾 保存先: スクリプト プロパティ (Apps Script で setup を実行すると、容量の大きいGoogleドライブへ移ります)` : "") + `</span>`;
     r.style.color = "var(--muted)";
     if(/合言葉/.test(state.settings.gasError || "")){ state.settings.gasError = ""; save({silent:true}); renderGasStatus(); }
   }catch(err){
@@ -3228,6 +3245,7 @@ restoreFilter();
 applyCompact();
 renderProjects();
 renderVersion();
+switchTab("poly");   /* 予定管理は MUSE に移したので、Polymarket を最初に開く */
 gasAutoResume().finally(()=>refreshInbox());
 </script>
 </body>

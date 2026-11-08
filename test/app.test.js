@@ -27,7 +27,13 @@ test('index.html: 空の状態で開いてもエラーが出ない', async () =>
   const app = await openApp();
   try {
     assert.deepEqual(app.errors, []);
-    assert.equal(app.doc.title, '予定管理');
+    assert.equal(app.doc.title, 'ポリマーケット記録');
+    // 予定管理は画面に出さず、Polymarket を最初に開く
+    assert.ok(app.doc.body.classList.contains('pm-mode'));
+    assert.ok(app.doc.querySelector('#tab-poly').classList.contains('active'));
+    for (const sel of ['nav button[data-tab="home"]', 'nav button[data-tab="projects"]', '#tab-home', '#tab-projects']) {
+      assert.ok(app.doc.querySelector(sel).classList.contains('legacy'), sel + ' は隠す');
+    }
     assert.match(app.text('#hSay'), /登録されている案件はありません/);
     for (const t of ['projects', 'settings', 'home']) { app.run(`switchTab(${JSON.stringify(t)})`); await app.settle(); }
     assert.ok(app.doc.querySelector('#tab-home').classList.contains('active'));

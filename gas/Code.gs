@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.02';
+const GAS_VERSION = '2026.11.08';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -569,6 +569,7 @@ function doGetInner_(e) {  const props = PropertiesService.getScriptProperties()
   try { base.tgLastSend = JSON.parse(props.getProperty('TG_LAST_SEND') || 'null'); } catch (e) { base.tgLastSend = null; }
   base.inbox = getInbox_();
   try { base.game = gameSummary_(); } catch (e) { base.game = null; }
+  base.pm = pmStatus_();   // Polymarket の記録の状況
   if (e && e.parameter && e.parameter.action === 'load') { base.projects = list; base.deleted = getTombs_(); }
   if (e && e.parameter && e.parameter.action === 'history') {
     base.hist = getHist_();
@@ -591,22 +592,23 @@ function json(obj) {
 function setup() {
   // ① 大きなデータをドライブへ移す (初回だけ。失敗しても元のデータはそのまま)
   const moved = migrateToDrive_();
-  const keep = ['sendDailyMail', 'pollTelegram', 'checkDeadlines', 'weeklyBackup'];
+  // ② トリガーを登録し直す。予定管理の通知 (メール・Telegram・バックアップ) は止め、
+  //    Polymarket の記録 (1時間ごと) と決着の取り込み (毎日5時) だけにする
+  const ours = ['sendDailyMail', 'pollTelegram', 'checkDeadlines', 'weeklyBackup', 'pmRecord', 'pmResolve'];
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (keep.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+    if (ours.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('sendDailyMail')
-    .timeBased().atHour(SEND_HOUR).everyDays(1).inTimezone('Asia/Tokyo').create();
-  // 朝のTelegramダイジェストは pollTelegram の中から1日1回送る (専用トリガーは不要。
-  // 以前の checkDeadlines トリガーが残っていると通知が二重になるため、上で削除している)
-  ScriptApp.newTrigger('pollTelegram')
-    .timeBased().everyMinutes(POLL_MINUTES).create();
-  // 毎週日曜の深夜に全データをバックアップ
-  ScriptApp.newTrigger('weeklyBackup')
-    .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(BACKUP_HOUR).inTimezone('Asia/Tokyo').create();
-  Logger.log('メール通知 ' + SEND_HOUR + ':00 / Telegramダイジェスト ' + ALERT_HOUR + ':00 / '
-    + POLL_MINUTES + '分おきのTelegram確認 / 毎週日曜' + BACKUP_HOUR + '時のバックアップ を登録しました');
-  Logger.log(moved ? '保存先: Googleドライブ「' + DATA_FOLDER_NAME + '」' : '⚠ ドライブへの移行に失敗しました。保存先は今まで通りです (' + (PropertiesService.getScriptProperties().getProperty('STORE_ERROR') || '') + ')');
+  ScriptApp.newTrigger('pmRecord').timeBased().everyHours(1).create();
+  ScriptApp.newTrigger('pmResolve')
+    .timeBased().atHour(PM_RESOLVE_HOUR).everyDays(1).inTimezone('Asia/Tokyo').create();
+  // ③ 1回目の記録をすぐに行う
+  pmRecord();
+  const st = pmStatus_();
+  Logger.log('Polymarket の記録 (1時間ごと) と決着の取り込み (毎日' + PM_RESOLVE_HOUR + '時) を登録しました。'
+    + 'メール・Telegram・週ごとのバックアップは止めました');
+  Logger.log(st.error ? '⚠ 1回目の記録に失敗しました: ' + st.error
+    : '1回目の記録: ' + st.lastCount + '件 (Googleドライブ「' + PM_FOLDER_NAME + '」)');
+  if (!moved) Logger.log('⚠ 予定データのドライブへの移行に失敗しました (' + (PropertiesService.getScriptProperties().getProperty('STORE_ERROR') || '') + ')');
 }
 
 // =====================================================================
@@ -1578,4 +1580,234 @@ function diffHist_(before, after) {
   });
   Object.keys(was).forEach(function (id) { if (!now[id]) out.push(histEntry_('del', was[id], 'app')); });
   logHist_(out.slice(0, 200));
+}
+
+// =====================================================================
+//  Polymarket の記録 — 確率と出来高を1時間ごとに保存し、決着した結果を1日1回取り込む
+//  (あとで「答え合わせ」「急変のその後」を分析するための土台。売買は一切しない)
+//  保存先: Googleドライブ「ポリマーケット記録」
+//    catalog.json        … 市場の台帳 { v, m: { id: {q,s,e,et,o,end,f,l,r,ra} } }
+//    snap-YYYY-MM-DD.json … その日の記録 { d, cols:[id,p,v24,liq], rows:[{t, m:[[...],...]}] }
+// =====================================================================
+
+const PM_TOP = 400;                 // 1時間ごとに記録する市場の数 (24時間出来高の多い順)
+const PM_PAGE = 100;                // Gamma API の1回あたりの件数
+const PM_FOLDER_NAME = 'ポリマーケット記録';
+const PM_RESOLVE_HOUR = 5;          // 決着の取り込み (毎日5時)
+const PM_RESOLVE_BATCH = 20;        // 決着の確認で1回に問い合わせる市場の数
+const PM_RESOLVE_MAX = 800;         // 1回の実行で確認する市場の上限
+const PM_TIME_BUDGET = 4.5 * 60000; // 1回の実行で使う時間の上限 (Apps Script は6分で止まるため)
+const GAMMA_URL = 'https://gamma-api.polymarket.com';
+
+/** Gamma API を呼ぶ (失敗したら少し待って3回まで) */
+function pmFetch_(path) {
+  let err;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = UrlFetchApp.fetch(GAMMA_URL + path, { muteHttpExceptions: true });
+      const code = res.getResponseCode();
+      if (code === 200) return JSON.parse(res.getContentText());
+      err = new Error('Gamma API ' + code + ': ' + path);
+    } catch (e) { err = e; }
+    Utilities.sleep(1000 * (i + 1));
+  }
+  throw err;
+}
+
+function pmJsonArr_(s) {
+  if (Array.isArray(s)) return s;
+  try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+const pmRound_ = (x, n) => { const k = Math.pow(10, n); return Math.round(Number(x || 0) * k) / k; };
+
+/** Gamma の市場1件を、記録に使う形にする (使えない市場は null) */
+function pmParse_(m) {
+  if (!m || m.id == null) return null;
+  const prices = pmJsonArr_(m.outcomePrices).map(Number);
+  if (!prices.length || prices.some(isNaN)) return null;
+  const ev = (m.events && m.events[0]) || {};
+  return {
+    id: String(m.id),
+    p: pmRound_(prices[0], 4),
+    prices: prices,
+    v24: Math.round(Number(m.volume24hr || 0)),
+    liq: Math.round(Number(m.liquidityNum != null ? m.liquidityNum : m.liquidity || 0)),
+    closed: !!m.closed,
+    closedTime: m.closedTime || null,
+    meta: {
+      q: String(m.question || ''),
+      s: String(m.slug || ''),
+      e: String(ev.slug || ''),
+      et: String(ev.title || ''),
+      g: String(m.groupItemTitle || ''),
+      o: pmJsonArr_(m.outcomes).map(String),
+      end: m.endDate || null,
+    },
+  };
+}
+
+/** 決着した結果 (まだなら null)。勝った選択肢の名前、引き分け扱いは "50-50" */
+function pmResult_(parsed) {
+  if (!parsed || !parsed.closed) return null;
+  const pr = parsed.prices;
+  const win = pr.findIndex(function (x) { return x >= 0.99; });
+  if (win >= 0) return parsed.meta.o[win] || String(win);
+  if (pr.length === 2 && Math.abs(pr[0] - 0.5) < 0.01 && Math.abs(pr[1] - 0.5) < 0.01) return '50-50';
+  return null;
+}
+
+/* ---- ドライブ (フォルダ「ポリマーケット記録」の中のファイルを名前で読み書き) ---- */
+function pmFolder_() { return driveFolder_('PM_FOLDER_ID', PM_FOLDER_NAME); }
+function pmRead_(name) {
+  return driveRetry_(function () {
+    const it = pmFolder_().getFilesByName(name);
+    return it.hasNext() ? it.next().getBlob().getDataAsString('UTF-8') : '';
+  });
+}
+function pmWrite_(name, str) {
+  driveRetry_(function () {
+    const folder = pmFolder_();
+    const it = folder.getFilesByName(name);
+    if (it.hasNext()) it.next().setContent(str);
+    else folder.createFile(name, str, MimeType.PLAIN_TEXT);
+  });
+}
+function pmLoadCatalog_() {
+  const s = pmRead_('catalog.json');
+  if (!s) return { v: 1, m: {} };
+  const c = JSON.parse(s);   // 壊れていたら例外にする (空の台帳で上書きしないため)
+  if (!c || typeof c.m !== 'object') throw new Error('catalog.json の形が正しくありません');
+  return c;
+}
+function pmWatchIds_() {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('PM_WATCH') || '[]').map(String); }
+  catch (e) { return []; }
+}
+/** id をまとめて取得 (Gamma は id を複数指定できる) */
+function pmFetchByIds_(ids) {
+  if (!ids.length) return [];
+  return pmFetch_('/markets?' + ids.map(function (id) { return 'id=' + encodeURIComponent(id); }).join('&')) || [];
+}
+
+/** 台帳に市場の情報を入れる (初めて見た時刻・最後に見た時刻も) */
+function pmTouch_(cat, x, nowIso) {
+  const old = cat.m[x.id] || { f: nowIso };
+  const n = Object.assign({}, old, x.meta, { l: nowIso });
+  if (!n.f) n.f = nowIso;
+  cat.m[x.id] = n;
+}
+
+/** 1時間ごと: 出来高上位とウォッチ中の市場の確率・出来高を記録する */
+function pmRecord() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return;
+  const props = PropertiesService.getScriptProperties();
+  try {
+    const now = new Date(), nowIso = now.toISOString();
+    const seen = {}, rows = [];
+    const add = function (m) {
+      const x = pmParse_(m);
+      if (!x || x.closed || seen[x.id]) return null;
+      seen[x.id] = x; rows.push(x);
+      return x;
+    };
+    for (let off = 0; off < PM_TOP; off += PM_PAGE) {
+      const page = pmFetch_('/markets?closed=false&active=true&order=volume24hr&ascending=false&limit=' + PM_PAGE + '&offset=' + off);
+      (page || []).forEach(add);
+      if (!page || page.length < PM_PAGE) break;
+    }
+    const watch = pmWatchIds_().filter(function (id) { return !seen[id]; });
+    for (let i = 0; i < watch.length; i += PM_RESOLVE_BATCH) pmFetchByIds_(watch.slice(i, i + PM_RESOLVE_BATCH)).forEach(add);
+    if (!rows.length) throw new Error('市場を1件も取得できませんでした');
+
+    // その日のファイルに1行足す
+    const day = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd');
+    const name = 'snap-' + day + '.json';
+    const s = pmRead_(name);
+    const snap = s ? JSON.parse(s) : { d: day, cols: ['id', 'p', 'v24', 'liq'], rows: [] };
+    snap.rows.push({ t: nowIso, m: rows.map(function (x) { return [x.id, x.p, x.v24, x.liq]; }) });
+    pmWrite_(name, JSON.stringify(snap));
+
+    // 台帳
+    const cat = pmLoadCatalog_();
+    rows.forEach(function (x) { pmTouch_(cat, x, nowIso); });
+    pmWrite_('catalog.json', JSON.stringify(cat));
+
+    const ids = Object.keys(cat.m);
+    props.setProperty('PM_LAST_RUN', nowIso);
+    props.setProperty('PM_LAST_COUNT', String(rows.length));
+    props.setProperty('PM_CAT_N', String(ids.length));
+    props.setProperty('PM_RES_N', String(ids.filter(function (id) { return cat.m[id].r != null; }).length));
+    if (!props.getProperty('PM_FIRST_DAY')) props.setProperty('PM_FIRST_DAY', day);
+    props.deleteProperty('PM_LAST_ERROR');
+  } catch (e) {
+    props.setProperty('PM_LAST_ERROR', new Date().toISOString() + ' ' + String(e));
+    Logger.log('ポリマーケットの記録に失敗: ' + e);
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/** 決着を確認する市場: 結果が未記録で、締切を過ぎたか・上位から外れて6時間以上たったもの (締切の古い順) */
+function pmResolveTargets_(cat, nowMs) {
+  return Object.keys(cat.m).filter(function (id) {
+    const x = cat.m[id];
+    if (x.r != null) return false;
+    const ended = x.end && Date.parse(x.end) <= nowMs;
+    const gone = x.l && nowMs - Date.parse(x.l) >= 6 * 3600000;
+    return ended || gone;
+  }).sort(function (a, b) {
+    return (Date.parse(cat.m[a].end) || 0) - (Date.parse(cat.m[b].end) || 0);
+  });
+}
+
+/** 1日1回: 決着した市場の結果を台帳に記録する */
+function pmResolve() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return;
+  const props = PropertiesService.getScriptProperties();
+  const t0 = Date.now();
+  try {
+    const cat = pmLoadCatalog_();
+    const nowIso = new Date().toISOString();
+    const targets = pmResolveTargets_(cat, Date.now()).slice(0, PM_RESOLVE_MAX);
+    let done = 0;
+    for (let i = 0; i < targets.length; i += PM_RESOLVE_BATCH) {
+      if (Date.now() - t0 > PM_TIME_BUDGET) break;
+      pmFetchByIds_(targets.slice(i, i + PM_RESOLVE_BATCH)).forEach(function (m) {
+        const x = pmParse_(m);
+        const r = pmResult_(x);
+        if (!x || r == null || !cat.m[x.id]) return;
+        cat.m[x.id].r = r;
+        cat.m[x.id].ra = x.closedTime || nowIso;
+        cat.m[x.id].rp = x.prices.map(function (v) { return pmRound_(v, 4); });
+        done++;
+      });
+    }
+    if (done) pmWrite_('catalog.json', JSON.stringify(cat));
+    const ids = Object.keys(cat.m);
+    props.setProperty('PM_RES_N', String(ids.filter(function (id) { return cat.m[id].r != null; }).length));
+    props.setProperty('PM_RESOLVE_LAST', nowIso + ' ' + done + '件');
+    Logger.log('決着を記録しました: ' + done + '件 (確認 ' + targets.length + '件)');
+  } catch (e) {
+    props.setProperty('PM_LAST_ERROR', new Date().toISOString() + ' 決着の確認: ' + String(e));
+    Logger.log('決着の確認に失敗: ' + e);
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+/** 記録の状況 (アプリの「状況を確認」用。台帳は読まずに控えの数字だけ返す) */
+function pmStatus_() {
+  const props = PropertiesService.getScriptProperties();
+  return {
+    lastRun: props.getProperty('PM_LAST_RUN') || null,
+    lastCount: Number(props.getProperty('PM_LAST_COUNT') || 0),
+    markets: Number(props.getProperty('PM_CAT_N') || 0),
+    resolved: Number(props.getProperty('PM_RES_N') || 0),
+    since: props.getProperty('PM_FIRST_DAY') || null,
+    resolveLast: props.getProperty('PM_RESOLVE_LAST') || null,
+    error: props.getProperty('PM_LAST_ERROR') || null,
+    watch: pmWatchIds_().length,
+  };
 }
