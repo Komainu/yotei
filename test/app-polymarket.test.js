@@ -492,3 +492,39 @@ test('分布: ローンチしないと全部「いいえ」の市場は、ロー
     assert.equal(app.run('pmJa("Base")'), 'Base');
   } finally { app.close(); }
 });
+
+test('ローンチ日の市場: セットの「Will Base launch a token by ___?」の確率でローンチした場合に直し、信頼度を付ける', async () => {
+  const launchEv = { id: 'L1', title: 'Will Base launch a token by ___ ?', slug: 'base-launch', markets: [
+    { groupItemTitle: 'December 31, 2026', outcomePrices: '["0.0245","0.9755"]', endDate: '2027-01-01T00:00:00Z' },
+    { groupItemTitle: 'June 30, 2027', outcomePrices: '["0.16","0.84"]', endDate: '2027-07-01T00:00:00Z' },
+    { groupItemTitle: 'December 31, 2027', outcomePrices: '["0.365","0.635"]', endDate: '2028-01-01T00:00:00Z' },
+  ] };
+  const fdvEv = { id: 'F1', title: 'Base FDV above ___ one day after launch?', slug: 'base-fdv' };
+  const net = fakeNet(markets());
+  const fetch = async url => {
+    if (/public-search/.test(url) && /Base%20launch/.test(url)) return { ok: true, status: 200, json: async () => ({ events: [fdvEv, launchEv] }) };
+    return net.fetch(url);
+  };
+  const app = await openApp({ fetch });
+  try {
+    for (let i = 0; i < 3; i++) await app.settle();
+    const rows = [['$500M', 0.38, 60000], ['$1B', 0.40, 20000], ['$2B', 0.38, 300000], ['$4B', 0.36, 90000], ['$6B', 0.26, 150000], ['$8B', 0.17, 100000], ['$12B', 0.18, 130000]];
+    app.run(`window.__e = { id: 'F1', t: 'Base FDV above ___ one day after launch?', s: 'base-fdv', end: '2028-01-01T00:00:00Z', multi: true,
+      markets: ${JSON.stringify(rows)}.map(([g,p,vol])=>({ g, q: 'Base FDV above ' + g + ' one day after launch?', p:[p], vol, neg:false })) }`);
+    assert.equal(app.run('pmLaunchProject(window.__e)'), 'Base');
+    const L = await app.run('pmLoadLaunch(window.__e)');
+    assert.equal(L.p, 0.365, '締切 (2028/1/1) に合う「2027年12月31日までに」');
+    assert.equal(L.pick, 'December 31, 2027');
+    const d = app.run('(()=>{ const d = pmDist(window.__e); return Object.assign(pmDistText(d), { cond: d.cond, src: d.condSrc, conf: d.conf }); })()');
+    assert.equal(d.src, 'launch');
+    assert.ok(Math.abs(d.cond - 0.385) < 0.01, 'ローンチ日の確率 (36.5%) が FDV の一番下 (38.5%) より低い時は FDV 側に合わせる: ' + d.cond);
+    assert.equal(d.conf, '低');
+    const html = app.run('pmLaunchHtml(window.__e)');
+    assert.match(html, /2027年12月31日 までに/);
+    assert.match(html, /37%/);
+    assert.match(html, /polymarket\.com\/event\/base-launch/);
+    // 日付の和訳
+    assert.equal(app.run('pmDateJa("June 30, 2027")'), '2027年6月30日');
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});

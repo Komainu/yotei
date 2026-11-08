@@ -849,7 +849,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.17";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.18";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.12";
 const $ = s => document.querySelector(s);
@@ -2031,7 +2031,7 @@ const pm = {
   markets: [], events: [], at: 0, loading: false,
   tr: pmLS.get("pm_tr_v1", {}), sc: pmLS.get("pm_sc_v1", {}),
   watch: pmLS.get("pm_watch_v1", {}), hide: pmLS.get("pm_hide_v1", {}),
-  base: pmSeenBase(),
+  base: pmSeenBase(), launch: {},
   cat: pmLS.get("pm_ui_v1", {}).cat || "all", shown: PM_SHOW, aiBusy: false, aiNote: "", spark: {}, sheet: null,
 };
 
@@ -2166,6 +2166,7 @@ function pmEnsureFull(e){
     if(card){ card.outerHTML = pmCard(cur); const nc = pmCardEl(cur.id), svg = nc && nc.querySelector("svg[data-spark]"); if(svg && pm.spark[svg.dataset.spark]) pmSparkSvg(svg, pm.spark[svg.dataset.spark]); else if(svg){ pmSparkQ.push(svg); pmSparkPump(); } }
     if(pm.sheet && pm.sheet.e.id === cur.id){ pm.sheet.e = cur; if(!cur.markets.includes(pm.sheet.m)) pm.sheet.m = cur.markets.find(x=>x.id === pm.sheet.m.id) || pmMain(cur); pmRenderOutcomes(); }
     if(pmNeedsTr(cur)) pmAiFill();
+    if(pmLaunchProject(cur) && pmIsTge(cur)) pmLoadLaunch(cur).then(L=>{ if(!L) return; const c = pmCardEl(cur.id); if(c){ c.outerHTML = pmCard(cur); } if(pm.sheet && pm.sheet.e.id === cur.id) pmRenderOutcomes(); });
   }).catch(()=>{ delete pmFullP[e.id]; });
   return pmFullP[e.id];
 }
@@ -2355,6 +2356,35 @@ function pmRange(label){
 }
 function pmLogLerp(x0, x1, f){ return (x0 > 0 && x1 > 0) ? Math.exp(Math.log(x0) + (Math.log(x1) - Math.log(x0)) * f) : x0 + (x1 - x0) * f; }
 /** 重み付きで「右に行くほど下がる」列にそろえる (隣どうしの逆転を、重みの平均で平らにする) */
+/* ---- セットになっている「ローンチ日」の市場 (例: Will Base launch a token by ___?) ---- */
+function pmLaunchProject(e){
+  const m = String(e.t).match(/^(?:will\s+)?(.+?)\s+(?:fdv|market cap|token price|price)\b/i);
+  return m ? m[1].replace(/^the\s+/i, "").trim() : null;
+}
+function pmDateJa(s){ const d = new Date(String(s).replace(/(\d)(st|nd|rd|th)\b/, "$1")); return isNaN(d) ? null : `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; }
+const pmLaunchP = {};
+function pmLoadLaunch(e){
+  const name = pmLaunchProject(e);
+  if(!name || pm.launch[e.id] !== undefined) return Promise.resolve(pm.launch[e.id]);
+  if(pmLaunchP[e.id]) return pmLaunchP[e.id];
+  pmLaunchP[e.id] = pmFetchJson(`${PM_GAMMA}/public-search?q=${encodeURIComponent(name + " launch")}&limit_per_type=10&events_status=active`).then(d=>{
+    const low = name.toLowerCase();
+    const ev = (d.events || []).find(x=> String(x.id) !== String(e.id) && String(x.title||"").toLowerCase().includes(low) && /launch|tge/i.test(x.title||"") && !/fdv|market cap|price/i.test(x.title||""));
+    if(!ev){ pm.launch[e.id] = null; return null; }
+    const opts = (ev.markets || []).filter(m=>!m.archived).map(m=>{
+      const p = pmArr(m.outcomePrices).map(Number);
+      return { label: String(m.groupItemTitle || m.question || ""), p: p[0], end: m.endDate || null, closed: !!m.closed };
+    }).filter(o=>!isNaN(o.p)).sort((a,b)=> (Date.parse(a.end)||0) - (Date.parse(b.end)||0));
+    /* FDV の締切までにローンチする確率: 締切に一番近い (締切の2日後まで) 選択肢。もうローンチ済み (はいで決着) なら 100% */
+    const fdvEnd = Date.parse(e.end) || Infinity;
+    const cand = opts.filter(o=> (Date.parse(o.end)||0) <= fdvEnd + 2*86400000);
+    const pick = cand.length ? cand[cand.length-1] : null;
+    const done = opts.some(o=>o.closed && o.p >= 0.99);
+    pm.launch[e.id] = { t: String(ev.title||""), s: String(ev.slug||""), opts, p: done ? 1 : pick ? pick.p : null, pick: pick && pick.label };
+    return pm.launch[e.id];
+  }).catch(()=>{ delete pmLaunchP[e.id]; return null; });
+  return pmLaunchP[e.id];
+}
 function pmIsotonicDown(pts){
   const bl = [];
   for(const p of pts){
@@ -2381,13 +2411,18 @@ function pmDist(e){
     pmIsotonicDown(pts);   /* 値が大きいほど上回る確率は下がるはず。逆転は賭け金の重みで平らにならす */
     /* 「ローンチの1日後」などは、締切までにローンチしないと全部「いいえ」になる。
        一番下の選択肢の確率が低い時は、それを「ローンチする確率」とみなし、ローンチした場合の分布に直す */
-    let cond = null;
-    /* 判定: 下の方の選択肢が同じくらいの確率で平ら (5pt以内) = 「ローンチしない」分の確率が下に積もっている形 */
+    let cond = null, condSrc = null;
     const launchy = /launch|tge|token|airdrop|listing/.test(q);
-    if(launchy && pts.length >= 3 && pts[0].s < 0.9 && pts[0].s > 0.02 && pts[1].s >= pts[0].s - 0.05){
-      cond = pts[0].s;
-      pts.forEach(p=>{ p.s = Math.min(1, p.s / cond); });
+    const L = pm.launch[e.id];
+    if(launchy && L && L.p != null && L.p > 0.02){
+      /* ① セットの「ローンチ日」の市場があれば、その確率を使う (FDV の選択肢より低いことはないので、低い時は FDV 側に合わせる) */
+      cond = Math.min(1, Math.max(L.p, pts[0].s)); condSrc = "launch";
+    }else if(launchy && pts.length >= 3 && pts[0].s < 0.9 && pts[0].s > 0.02 && pts[1].s >= pts[0].s - 0.05){
+      /* ② 無ければ、下の方の選択肢が同じくらいの確率で平ら (5pt以内) な形から推定する */
+      cond = pts[0].s; condSrc = "flat";
     }
+    if(cond != null && cond < 0.995) pts.forEach(p=>{ p.s = Math.min(1, p.s / cond); });
+    else cond = null;
     const at = level => {   /* S(x) = level となる x */
       if(pts[0].s < level) return { x: pts[0].x, below: true };
       if(pts[pts.length-1].s > level) return { x: pts[pts.length-1].x, above: true };
@@ -2401,7 +2436,8 @@ function pmDist(e){
       mean = lowTail * pts[0].x + highTail * pts[pts.length-1].x;
       for(let i=0;i<pts.length-1;i++) mean += (pts[i].s - pts[i+1].s) * pmLogLerp(pts[i].x, pts[i+1].x, 0.5);
     }
-    return { unit, med: at(0.5), p25: at(0.75), p75: at(0.25), mean, kind: "above", lowTail, highTail, cond, launchy };
+    const conf = !launchy ? null : cond == null ? (pts[0].s >= 0.9 ? "高" : null) : cond >= 0.7 ? "高" : cond >= 0.4 ? "中" : "低";
+    return { unit, med: at(0.5), p25: at(0.75), p75: at(0.25), mean, kind: "above", lowTail, highTail, cond, condSrc, launchy, conf };
   }
   if(e.markets.some(m=>m.neg)){
     /* ② 区間 */
@@ -2425,6 +2461,12 @@ function pmFmtVal(x, unit){
   if(x >= 1e8) return (x/1e8).toFixed(1).replace(/\.0$/,"") + "億";
   if(x >= 1e4 && x % 1 === 0 && x >= 1e6) return Math.round(x/1e4).toLocaleString() + "万";
   return (x >= 100 ? Math.round(x) : Math.round(x*100)/100).toLocaleString();
+}
+function pmLaunchHtml(e){
+  const L = pm.launch[e.id];
+  if(!L || !L.opts || !L.opts.length) return "";
+  return `<div style="margin-top:8px"><b>🚀 ローンチ日の予想</b> <a href="https://polymarket.com/event/${esc(encodeURIComponent(L.s))}" target="_blank" rel="noopener" style="font-size:12px">市場を開く ↗</a>`
+    + `<div class="pm-opts">` + L.opts.map(o=>`<div class="pm-opt"><span class="l">${esc((pmDateJa(o.label) || pmJa(o.label)) + " までに")}</span><span class="b"><i style="width:${Math.round(o.p*100)}%"></i></span><span class="v">${o.closed ? (o.p >= 0.5 ? "はい" : "いいえ") : pmPct(o.p)}</span></div>`).join("") + `</div></div>`;
 }
 function pmDistText(d){
   const v = r => !r ? "-" : r.below ? pmFmtVal(r.x, d.unit) + " 未満" : r.above ? pmFmtVal(r.x, d.unit) + " 超" : pmFmtVal(r.x, d.unit);
@@ -2453,7 +2495,7 @@ function pmCard(e){
   }
   const d1 = e.multi ? e.d1 : m.d1, h1 = e.multi ? e.h1 : m.h1;
   const dist = pmDist(e);
-  if(dist){ const t = pmDistText(dist); body += `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(t.med)}</b> <span style="color:var(--muted)">(50%の確率で ${esc(t.range)})</span>${dist.cond ? `<br><span style="color:var(--muted)">ローンチする確率 約${Math.round(dist.cond*100)}% (締切までにローンチしないと全部「いいえ」)</span>` : ""}</div>`; }
+  if(dist){ const t = pmDistText(dist); body += `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(t.med)}</b> <span style="color:var(--muted)">(50%の確率で ${esc(t.range)})</span>${dist.cond ? `<br><span style="color:var(--muted)">ローンチする確率 約${Math.round(dist.cond*100)}%${dist.condSrc === "launch" ? " (ローンチ日の市場より)" : ""}</span>` : ""}${dist.conf ? ` <span class="pm-tag ${dist.conf==="低"?"soon":""}">信頼度 ${dist.conf}</span>` : ""}</div>`; }
   return `<div class="pm-card ${sc===3?"you3":""}" data-ev="${esc(e.id)}">
     <div class="pm-row1"><div class="pm-title">${esc(title)}${title!==en?`<span class="en">${esc(en)}</span>`:""}</div>${big}<button class="pm-star ${pm.watch[e.id]?"on":""}" data-star="${esc(e.id)}" title="${pm.watch[e.id]?"ウォッチから外す":"ウォッチに入れる"}" aria-label="ウォッチ">${pm.watch[e.id]?"★":"☆"}</button></div>
     ${body}
@@ -2632,6 +2674,7 @@ function pmOpen(evId, mId){
   $("#pmSheet").hidden = false;
   document.body.style.overflow = "hidden";
   pmChart(); pmLoadRule();
+  if(pmLaunchProject(e) && pmIsTge(e)) pmLoadLaunch(e).then(()=>{ if(pm.sheet && pm.sheet.e === e) pmRenderOutcomes(); });
 }
 const PM_SHEET_ROWS = 20;
 function pmOptRow(x, sel){
@@ -2651,7 +2694,9 @@ function pmRenderOutcomes(){
   const closed = e.closed || [];
   const dist = pmDist(e), dt = dist && pmDistText(dist);
   $("#pmSOutcomes").innerHTML = (dt ? `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(dt.med)}</b><br>50%の確率で ${esc(dt.range)} の間${dt.mean ? ` ／ 平均の目安 ${esc(dt.mean)}` : ""}
-      ${dist.cond ? `<br>ローンチする確率 <b>約${Math.round(dist.cond*100)}%</b> (一番下の選択肢「${esc(pmFmtVal(e.markets.map(x=>pmNum(x.g)).reduce((a,b)=>Math.min(a,b)), dist.unit))}を上回る」の確率から推定)` : ""}
+      ${dist.cond ? `<br>ローンチする確率 <b>約${Math.round(dist.cond*100)}%</b> ${dist.condSrc === "launch" ? "(セットのローンチ日の市場より)" : `(一番下の選択肢「${esc(pmFmtVal(e.markets.map(x=>pmNum(x.g)).reduce((a,b)=>Math.min(a,b)), dist.unit))}を上回る」の確率から推定)`}` : ""}
+      ${dist.conf ? `<br>信頼度 <b>${dist.conf}</b>${dist.conf === "低" ? " — ローンチする確率が低く、FDV の数字は参考程度です (割り戻すと値段の誤差が大きくなるため)" : dist.conf === "中" ? " — ローンチするかどうかの不確かさが残っています" : ""}` : ""}
+      ${pmLaunchHtml(e)}
       <div class="hint">${dist.kind === "above" ? "各選択肢の「上回る確率」をつないで計算しています" : "各区間の確率を足し合わせて計算しています"} (値の間は対数で補間・確率の逆転は賭け金の重みでならす)。${dist.cond ? "締切までにローンチしないと全選択肢が「いいえ」になる市場なので、ローンチした場合に直して計算しています。" : dist.launchy ? "※ ローンチしない可能性も含んだ値です。" : ""}${dt.mean ? "" : "端の外の確率が大きいため平均は出していません。"}</div></div>` : "")
     + `<div class="pm-h">選択肢 ${all.length}件 (押すとグラフが切り替わります) <span style="float:right; font-weight:400; font-size:11.5px; color:var(--dim)">賭け金</span></div><div class="pm-opts wide">` + list.map(x=>pmOptRow(x, m)).join("") + `</div>`
     + (showAll ? "" : `<div class="pm-more-opts"><button class="btn small" id="pmSAllOpts">残り ${all.length - list.length}件も表示</button></div>`)
