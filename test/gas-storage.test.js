@@ -71,7 +71,7 @@ test('移行: 既存の31件・削除記録・記録・受信箱・ゲームが�
   assert.equal(gas.drive.writes, writes);
   const trig = gas.ctx.ScriptApp.triggers.map(t => t.fn).sort();
   // 予定管理の通知は止め、Polymarket の記録だけを登録する
-  assert.deepEqual(trig, ['pmRecord', 'pmResolve']);
+  assert.deepEqual(trig, ['pmAlert', 'pmDigest', 'pmRecord', 'pmResolve']);
   assert.equal(gas.ctx.ScriptApp.triggers.find(t => t.fn === 'pmRecord').hours, 1, '1時間ごと');
   assert.equal(gas.ctx.ScriptApp.triggers.find(t => t.fn === 'pmResolve').hour, 5, '毎日5時');
 });

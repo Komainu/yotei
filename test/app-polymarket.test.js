@@ -310,3 +310,27 @@ test('TGE: 出来高が小さくても検索で集めて「🚀 TGE」に出す�
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });
+
+test('設定: 通知メールの送り先・オン/オフを保存し、テスト送信できる。setup 前は案内を出す', async () => {
+  const clock = createClock('2026-11-08T10:00:00+09:00');
+  const gas = loadGas({ clock });
+  const app = await openApp({ clock, gas, fetch: fakeNet(markets()).fetch, state: { projects: [], settings: { gasUrl: GAS_URL, gasAuto: false }, deleted: {} } });
+  try {
+    app.run('switchTab("settings")');
+    for (let i = 0; i < 3; i++) await app.settle();
+    assert.match(app.text('#pmMailState'), /送り先が未設定/);
+    assert.match(app.text('#pmMailState'), /setup を1回実行/);
+    app.doc.querySelector('#pmMailTo').value = 'muse@example.com';
+    app.doc.querySelector('#pmDigestOn').checked = false;
+    app.doc.querySelector('#pmMailSave').click();
+    for (let i = 0; i < 3; i++) await app.settle();
+    assert.equal(gas.props.getProperty('MAIL_TO'), 'muse@example.com');
+    assert.equal(gas.props.getProperty('PM_DIGEST_ON'), '0');
+    assert.equal(gas.props.getProperty('PM_ALERT_ON'), '1');
+    app.doc.querySelector('#pmMailTest').click();
+    for (let i = 0; i < 3; i++) await app.settle();
+    assert.match(app.text('#pmMailResult'), /muse@example\.com に送りました/);
+    assert.equal(gas.mails.length, 1);
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});

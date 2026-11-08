@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.10';
+const GAS_VERSION = '2026.11.12';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -580,6 +580,7 @@ function doGetInner_(e) {  const props = PropertiesService.getScriptProperties()
   try { base.game = gameSummary_(); } catch (e) { base.game = null; }
   base.pm = pmStatus_();   // Polymarket の記録の状況
   base.pm.ai = pmAiStatus_();
+  try { base.pm.mail = pmMailStatus_(); } catch (e) { base.pm.mail = null; }
   if (e && e.parameter && e.parameter.action === 'load') { base.projects = list; base.deleted = getTombs_(); }
   if (e && e.parameter && e.parameter.action === 'history') {
     base.hist = getHist_();
@@ -604,17 +605,20 @@ function setup() {
   const moved = migrateToDrive_();
   // ② トリガーを登録し直す。予定管理の通知 (メール・Telegram・バックアップ) は止め、
   //    Polymarket の記録 (1時間ごと) と決着の取り込み (毎日5時) だけにする
-  const ours = ['sendDailyMail', 'pollTelegram', 'checkDeadlines', 'weeklyBackup', 'pmRecord', 'pmResolve'];
+  const ours = ['sendDailyMail', 'pollTelegram', 'checkDeadlines', 'weeklyBackup', 'pmRecord', 'pmResolve', 'pmAlert', 'pmDigest'];
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (ours.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('pmRecord').timeBased().everyHours(1).create();
   ScriptApp.newTrigger('pmResolve')
     .timeBased().atHour(PM_RESOLVE_HOUR).everyDays(1).inTimezone('Asia/Tokyo').create();
+  ScriptApp.newTrigger('pmAlert').timeBased().everyMinutes(PM_ALERT_MINUTES).create();
+  ScriptApp.newTrigger('pmDigest').timeBased().atHour(PM_DIGEST_HOUR).everyDays(1).inTimezone('Asia/Tokyo').create();
   // ③ 1回目の記録をすぐに行う
   pmRecord();
   const st = pmStatus_();
-  Logger.log('Polymarket の記録 (1時間ごと) と決着の取り込み (毎日' + PM_RESOLVE_HOUR + '時) を登録しました。'
+  Logger.log('Polymarket の記録 (1時間ごと)・決着の取り込み (毎日' + PM_RESOLVE_HOUR + '時)・急変の通知 (' + PM_ALERT_MINUTES + '分おき)・毎朝' + PM_DIGEST_HOUR + '時のまとめ を登録しました。'
+    + (pmMailTo_() ? '通知メールの送り先: ' + pmMailTo_() + '。' : '⚠ 通知メールの送り先が未設定です (アプリの設定で入れてください)。')
     + 'メール・Telegram・週ごとのバックアップは止めました');
   Logger.log(st.error ? '⚠ 1回目の記録に失敗しました: ' + st.error
     : '1回目の記録: ' + st.lastCount + '件 (Googleドライブ「' + PM_FOLDER_NAME + '」)');
@@ -2022,7 +2026,14 @@ function pmConfig_(data) {
   if (data.geminiKey) props.setProperty('GEMINI_KEY', String(data.geminiKey).trim());
   if (data.profile != null && String(data.profile).trim()) props.setProperty('PM_PROFILE', String(data.profile).trim().slice(0, 2000));
   if (data.model) props.setProperty('PM_MODEL', String(data.model));
-  return { ok: true, ai: pmAiStatus_() };
+  if (data.mailTo != null) {
+    const to = String(data.mailTo).trim();
+    if (to && !/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(to)) return { ok: false, error: 'メールアドレスの形が正しくありません' };
+    if (to) props.setProperty('MAIL_TO', to);
+  }
+  if (data.alertOn != null) props.setProperty('PM_ALERT_ON', data.alertOn ? '1' : '0');
+  if (data.digestOn != null) props.setProperty('PM_DIGEST_ON', data.digestOn ? '1' : '0');
+  return { ok: true, ai: pmAiStatus_(), mail: pmMailStatus_() };
 }
 
 /** アプリから: ウォッチ中の市場 (1時間ごとの記録に必ず入れる) */
@@ -2032,6 +2043,12 @@ function pmWatch_(data) {
   return { ok: true, watch: ids.length };
 }
 
+function pmMailStatus_() {
+  const props = PropertiesService.getScriptProperties();
+  return { to: props.getProperty('MAIL_TO') || '', alert: pmMailOn_('PM_ALERT_ON'), digest: pmMailOn_('PM_DIGEST_ON'),
+    alertLast: props.getProperty('PM_ALERT_LAST') || null, digestLast: props.getProperty('PM_DIGEST_LAST') || null,
+    scheduled: ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'pmAlert'; }) };
+}
 function pmAiStatus_() {
   const props = PropertiesService.getScriptProperties();
   let day = {};
@@ -2045,5 +2062,260 @@ function pmDoPost_(data) {
   if (data.action === 'pmRule') return pmRule_(data);
   if (data.action === 'pmConfig') return pmConfig_(data);
   if (data.action === 'pmWatch') return pmWatch_(data);
+  if (data.action === 'pmMailTest') return pmMailTest_();
   return { ok: false, error: '不明な操作です' };
+}
+
+// =====================================================================
+//  Polymarket — 通知メール (MUSE が読む Gmail へ)
+//    pmAlert  … 10分おき。あなた向け (点数2以上) とウォッチの市場が大きく動いたら1通にまとめて送る
+//    pmDigest … 毎朝8時。前日の大きな動き・ウォッチの今・新しく出てきたあなた向けの市場
+//  送り先は Script Properties の MAIL_TO。PM_ALERT_ON / PM_DIGEST_ON が '0' なら送らない
+// =====================================================================
+
+const PM_ALERT_MINUTES = 10;
+const PM_DIGEST_HOUR = 8;
+const PM_ALERT_H1 = 0.10;           // 1時間で10pt以上
+const PM_ALERT_D1 = 0.15;           // 24時間で15pt以上
+const PM_ALERT_WATCH_H1 = 0.05;     // ウォッチ中は1時間で5pt以上
+const PM_ALERT_VOL_X = 3;           // 24時間出来高が普段 (1週間の平均) の3倍以上
+const PM_ALERT_MIN_VOL = 10000;     // 出来高1万ドル以上の市場に限る
+const PM_ALERT_COOLDOWN = 6 * 3600000;   // 同じ市場は6時間に1回まで
+const PM_ALERT_PAGES = 3;           // 確認する市場 (出来高上位300件) + ウォッチ
+
+function pmMailOn_(key) { return PropertiesService.getScriptProperties().getProperty(key) !== '0'; }
+function pmMailTo_() { return PropertiesService.getScriptProperties().getProperty('MAIL_TO') || ''; }
+
+/** 市場の一覧を取る (出来高上位 + ウォッチ)。Gamma の生のデータ */
+function pmFetchTopRaw_(pages) {
+  const out = [], seen = {};
+  for (let i = 0; i < pages; i++) {
+    const page = pmFetch_('/markets?closed=false&active=true&order=volume24hr&ascending=false&limit=' + PM_PAGE + '&offset=' + (i * PM_PAGE)) || [];
+    page.forEach(function (m) { if (m && !seen[m.id]) { seen[m.id] = 1; out.push(m); } });
+    if (page.length < PM_PAGE) break;
+  }
+  const watch = pmWatchIds_().filter(function (id) { return !seen[id]; });
+  for (let i = 0; i < watch.length; i += PM_RESOLVE_BATCH) {
+    pmFetchByIds_(watch.slice(i, i + PM_RESOLVE_BATCH)).forEach(function (m) { if (m && !seen[m.id]) { seen[m.id] = 1; out.push(m); } });
+  }
+  return out;
+}
+
+/** 通知に使う形 */
+function pmAlertRow_(m) {
+  const x = pmParse_(m);
+  if (!x || x.closed) return null;
+  const ev = (m.events && m.events[0]) || {};
+  return {
+    id: x.id, ev: String(ev.id != null ? ev.id : 'm' + x.id), et: String(ev.title || m.question || ''), es: String(ev.slug || m.slug || ''),
+    q: String(m.question || ''), g: String(m.groupItemTitle || ''), o: x.meta.o, p: x.p,
+    h1: m.oneHourPriceChange != null ? Number(m.oneHourPriceChange) : null,
+    d1: m.oneDayPriceChange != null ? Number(m.oneDayPriceChange) : null,
+    v24: Number(m.volume24hr) || 0, w1: Number(m.volume1wk) || 0, end: m.endDate || null,
+  };
+}
+
+/** 原文 → 日本語 (保存済みの訳。無ければ Gemini で訳して保存。だめなら原文) */
+function pmJaMap_(texts) {
+  const all = pmLoadJson_('tr.json'), out = {}, need = [];
+  texts.forEach(function (t) { if (!t) return; if (all[t]) out[t] = all[t]; else if (need.indexOf(t) < 0) need.push(t); });
+  if (need.length && PropertiesService.getScriptProperties().getProperty('GEMINI_KEY')) {
+    try {
+      const add = {};
+      for (let i = 0; i < need.length && i < 120; i += PM_TR_BATCH) {
+        const chunk = need.slice(i, i + PM_TR_BATCH);
+        const r = pmGemini_(pmTrPrompt_(), chunk.map(function (t, j) { return { i: j, t: t }; }));
+        (Array.isArray(r) ? r : []).forEach(function (o) { const src = chunk[Number(o && o.i)]; if (src != null && o.ja) { out[src] = String(o.ja); add[src] = String(o.ja); } });
+      }
+      pmMergeJson_('tr.json', add);
+    } catch (e) { Logger.log('メール用の和訳に失敗: ' + e); }
+  }
+  texts.forEach(function (t) { if (t && !out[t]) out[t] = t; });
+  return out;
+}
+
+/** あなた向けの点数 (保存済み。無いイベントは Gemini で判定して保存) */
+function pmScoresFor_(rows) {
+  const all = pmLoadJson_('score.json'), h = pmHash_(pmProfile_()), out = {}, need = [];
+  rows.forEach(function (r) {
+    const x = all[r.ev];
+    if (x && x.h === h) out[r.ev] = x.s;
+    else if (!need.some(function (n) { return n.id === r.ev; })) need.push({ id: r.ev, t: r.et, m: r.g || r.q });
+  });
+  if (need.length && PropertiesService.getScriptProperties().getProperty('GEMINI_KEY')) {
+    try {
+      const add = {};
+      for (let i = 0; i < need.length && i < 60; i += PM_SC_BATCH) {
+        const chunk = need.slice(i, i + PM_SC_BATCH);
+        const r = pmGemini_(pmScPrompt_([], []), chunk.map(function (e, j) { return { i: j, t: e.t, m: e.m }; }), 4096);
+        (Array.isArray(r) ? r : []).forEach(function (o) {
+          const e = chunk[Number(o && o.i)]; if (!e) return;
+          const s = Math.max(0, Math.min(3, Math.round(Number(o.s) || 0)));
+          out[e.id] = s; add[e.id] = { s: s, c: PM_CATS.indexOf(o.c) >= 0 ? o.c : 'その他', h: h };
+        });
+      }
+      pmMergeJson_('score.json', add);
+    } catch (e) { Logger.log('メール用の判定に失敗: ' + e); }
+  }
+  return out;
+}
+
+/** 通知する理由 (無ければ null) */
+function pmAlertReason_(r, watched) {
+  if (r.v24 < PM_ALERT_MIN_VOL && !watched) return null;
+  const pt = function (d) { return (d > 0 ? '▲' : '▼') + Math.abs(Math.round(d * 1000) / 10) + 'pt'; };
+  if (r.h1 != null && Math.abs(r.h1) >= (watched ? PM_ALERT_WATCH_H1 : PM_ALERT_H1)) return { k: 'h1', d: r.h1, txt: '1時間で' + pt(r.h1) };
+  if (r.d1 != null && Math.abs(r.d1) >= PM_ALERT_D1) return { k: 'd1', d: r.d1, txt: '24時間で' + pt(r.d1) };
+  const avg = r.w1 / 7;
+  if (avg > 0 && r.v24 >= PM_ALERT_MIN_VOL && r.v24 >= avg * PM_ALERT_VOL_X) return { k: 'vol', d: 0, txt: '出来高が普段の' + Math.round(r.v24 / avg * 10) / 10 + '倍' };
+  return null;
+}
+
+function pmMoneyJa_(v) {
+  v = Number(v) || 0;
+  if (v >= 1e8) return (Math.round(v / 1e7) / 10) + '億ドル';
+  if (v >= 1e4) return Math.round(v / 1e4).toLocaleString() + '万ドル';
+  return Math.round(v) + 'ドル';
+}
+function pmPctJa_(p) { const x = p * 100; return x > 0 && x < 1 ? '1%未満' : x > 99 && x < 100 ? '99%超' : Math.round(x) + '%'; }
+function pmLabelJa_(r, ja) {
+  const ev = ja[r.et] || r.et;
+  if (r.g) return ev + ' ― ' + (ja[r.g] || r.g);
+  return ja[r.q] || r.q;
+}
+function pmYesJa_(r, ja) { const o = r.o[0] || 'Yes'; return o === 'Yes' ? 'はい' : (ja[o] || o); }
+
+/** 10分おき: 大きな動きがあればメール */
+function pmAlert() {
+  const props = PropertiesService.getScriptProperties();
+  const to = pmMailTo_();
+  if (!to || !pmMailOn_('PM_ALERT_ON')) return;
+  try {
+    const watchIds = pmWatchIds_();
+    const rows = pmFetchTopRaw_(PM_ALERT_PAGES).map(pmAlertRow_).filter(Boolean);
+    let sent = {};
+    try { sent = JSON.parse(props.getProperty('PM_ALERT_SENT') || '{}'); } catch (e) {}
+    const now = Date.now();
+    let hits = rows.map(function (r) {
+      const watched = watchIds.indexOf(r.id) >= 0;
+      const why = pmAlertReason_(r, watched);
+      return why && !(sent[r.id] && now - sent[r.id] < PM_ALERT_COOLDOWN) ? { r: r, why: why, watched: watched } : null;
+    }).filter(Boolean);
+    if (!hits.length) return;
+    // あなた向け (点数2以上) とウォッチだけ
+    const sc = pmScoresFor_(hits.filter(function (h) { return !h.watched; }).map(function (h) { return h.r; }));
+    hits = hits.filter(function (h) { return h.watched || (sc[h.r.ev] || 0) >= 2; });
+    // 同じイベントは一番大きく動いたもの1つに
+    const best = {};
+    hits.forEach(function (h) { const b = best[h.r.ev]; if (!b || Math.abs(h.why.d) > Math.abs(b.why.d)) best[h.r.ev] = h; });
+    hits = Object.keys(best).map(function (k) { return best[k]; })
+      .sort(function (a, b) { return (b.watched - a.watched) || (Math.abs(b.why.d) - Math.abs(a.why.d)); }).slice(0, 10);
+    if (!hits.length) return;
+    const ja = pmJaMap_([].concat.apply([], hits.map(function (h) { return [h.r.et, h.r.g, h.r.q].concat(h.r.o); })));
+    const lines = hits.map(function (h) {
+      const r = h.r, prev = h.why.k === 'h1' ? r.p - r.h1 : h.why.k === 'd1' ? r.p - r.d1 : null;
+      return {
+        title: pmLabelJa_(r, ja), en: r.g ? r.et + ' ― ' + r.g : r.q,
+        now: pmYesJa_(r, ja) + ' ' + pmPctJa_(r.p), prev: prev != null ? pmPctJa_(Math.max(0, Math.min(1, prev))) : null,
+        why: h.why.txt, vol: pmMoneyJa_(r.v24), watched: h.watched, url: 'https://polymarket.com/event/' + encodeURIComponent(r.es),
+      };
+    });
+    const subject = '【ポリマーケット】急変 ' + lines.length + '件: ' + lines[0].title.slice(0, 40);
+    const text = 'Polymarket で大きな動きがありました (' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M/d HH:mm') + ' 日本時間)\n\n'
+      + lines.map(function (l, i) {
+        return (i + 1) + '. ' + (l.watched ? '⭐ ' : '') + l.title + '\n'
+          + '   ' + (l.prev ? l.prev + ' → ' : '') + l.now + ' (' + l.why + ') 24時間の出来高 ' + l.vol + '\n'
+          + '   原文: ' + l.en + '\n   ' + l.url;
+      }).join('\n\n')
+      + '\n\n※ ポリマーケット記録アプリが10分おきに確認しています。対象は「あなた向け」とウォッチ中の市場です。売買はしていません。';
+    MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: pmMailHtml_('⚡ 急変のお知らせ', lines.map(function (l) {
+      return '<tr><td style="padding:10px 0;border-bottom:1px solid #e5e7eb">'
+        + '<div style="font-weight:700;font-size:15px">' + (l.watched ? '⭐ ' : '') + esc(l.title) + '</div>'
+        + '<div style="font-size:14px;margin-top:3px">' + (l.prev ? esc(l.prev) + ' → ' : '') + '<b>' + esc(l.now) + '</b> <span style="color:#b45309">(' + esc(l.why) + ')</span> ・ 出来高 ' + esc(l.vol) + '</div>'
+        + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + esc(l.en) + ' ・ <a href="' + esc(l.url) + '">Polymarket</a></div></td></tr>';
+    }).join('')) });
+    hits.forEach(function (h) { sent[h.r.id] = now; });
+    Object.keys(sent).forEach(function (k) { if (now - sent[k] > 2 * 86400000) delete sent[k]; });
+    props.setProperty('PM_ALERT_SENT', JSON.stringify(sent));
+    props.setProperty('PM_ALERT_LAST', new Date().toISOString() + ' ' + lines.length + '件');
+  } catch (e) {
+    props.setProperty('PM_LAST_ERROR', new Date().toISOString() + ' 急変の確認: ' + String(e));
+    Logger.log('急変の確認に失敗: ' + e);
+  }
+}
+
+function pmMailHtml_(head, rowsHtml) {
+  return '<div style="font-family:-apple-system,Segoe UI,Hiragino Sans,Meiryo,sans-serif;max-width:640px;color:#111827">'
+    + '<h2 style="font-size:17px;margin:0 0 6px">' + head + '</h2>'
+    + '<table style="width:100%;border-collapse:collapse">' + rowsHtml + '</table>'
+    + '<p style="font-size:11px;color:#9ca3af;margin-top:14px">ポリマーケット記録アプリから自動で送っています。売買はしていません。</p></div>';
+}
+
+/** 毎朝8時: まとめ */
+function pmDigest() {
+  const props = PropertiesService.getScriptProperties();
+  const to = pmMailTo_();
+  if (!to || !pmMailOn_('PM_DIGEST_ON')) return;
+  try {
+    const watchIds = pmWatchIds_();
+    const rows = pmFetchTopRaw_(PM_ALERT_PAGES).map(pmAlertRow_).filter(Boolean);
+    const sc = pmScoresFor_(rows.filter(function (r) { return watchIds.indexOf(r.id) < 0; }).slice(0, 150));
+    const rel = function (r) { return watchIds.indexOf(r.id) >= 0 || (sc[r.ev] || 0) >= 2; };
+    // ① あなた向けで24時間に大きく動いたもの (イベントごとに1つ・上位8)
+    const best = {};
+    rows.filter(function (r) { return rel(r) && r.d1 != null && Math.abs(r.d1) >= 0.05 && r.v24 >= 5000; })
+      .forEach(function (r) { const b = best[r.ev]; if (!b || Math.abs(r.d1) > Math.abs(b.d1)) best[r.ev] = r; });
+    const movers = Object.keys(best).map(function (k) { return best[k]; }).sort(function (a, b) { return Math.abs(b.d1) - Math.abs(a.d1); }).slice(0, 8);
+    // ② ウォッチの今
+    const watch = rows.filter(function (r) { return watchIds.indexOf(r.id) >= 0; });
+    // ③ 新しく出てきたあなた向けの市場 (台帳で初めて見たのが24時間以内)
+    let fresh = [];
+    try {
+      const cat = pmLoadCatalog_(), since = Date.now() - 86400000;
+      const seenEv = {};
+      fresh = rows.filter(function (r) {
+        const c = cat.m[r.id];
+        if (!c || !c.f || Date.parse(c.f) < since || (sc[r.ev] || 0) < 2 || seenEv[r.ev]) return false;
+        seenEv[r.ev] = 1; return true;
+      }).slice(0, 8);
+    } catch (e) {}
+    const st = pmStatus_();
+    const ja = pmJaMap_([].concat.apply([], movers.concat(watch, fresh).map(function (r) { return [r.et, r.g, r.q].concat(r.o); })));
+    const pt = function (d) { return d == null ? '' : (d >= 0 ? '▲' : '▼') + Math.abs(Math.round(d * 1000) / 10) + 'pt'; };
+    const line = function (r) { return pmLabelJa_(r, ja) + ' … ' + pmYesJa_(r, ja) + ' ' + pmPctJa_(r.p) + (r.d1 != null ? ' (24時間 ' + pt(r.d1) + ')' : '') + ' ・ 出来高 ' + pmMoneyJa_(r.v24); };
+    const sec = function (title, list, empty) { return '■ ' + title + '\n' + (list.length ? list.map(function (r) { return '・' + line(r) + '\n  https://polymarket.com/event/' + encodeURIComponent(r.es); }).join('\n') : '・' + empty) + '\n'; };
+    const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
+    const text = day + ' のポリマーケットのまとめ (あなた向け・ウォッチ中の市場)\n\n'
+      + sec('24時間で大きく動いた市場', movers, '大きな動きはありませんでした') + '\n'
+      + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
+      + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
+      + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + '\n\n'
+      + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
+    const h = function (title, list, empty) {
+      return '<tr><td style="padding:14px 0 4px;font-weight:700;font-size:15px">' + title + '</td></tr>'
+        + (list.length ? list.map(function (r) {
+          return '<tr><td style="padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:14px">' + esc(pmLabelJa_(r, ja))
+            + '<div style="color:#374151">' + esc(pmYesJa_(r, ja)) + ' <b>' + pmPctJa_(r.p) + '</b> ' + (r.d1 != null ? '<span style="color:' + (r.d1 >= 0 ? '#15803d' : '#b91c1c') + '">' + pt(r.d1) + '</span>' : '')
+            + ' ・ 出来高 ' + pmMoneyJa_(r.v24) + ' ・ <a href="https://polymarket.com/event/' + esc(encodeURIComponent(r.es)) + '">開く</a></div></td></tr>';
+        }).join('') : '<tr><td style="color:#6b7280;font-size:13px">' + empty + '</td></tr>');
+    };
+    MailApp.sendEmail({
+      to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
+      htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
+        + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')),
+    });
+    props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
+  } catch (e) {
+    props.setProperty('PM_LAST_ERROR', new Date().toISOString() + ' 毎朝のまとめ: ' + String(e));
+    Logger.log('毎朝のまとめに失敗: ' + e);
+  }
+}
+
+/** アプリの「テスト送信」 */
+function pmMailTest_() {
+  const to = pmMailTo_();
+  if (!to) return { ok: false, error: '送り先のメールアドレスが未設定です' };
+  MailApp.sendEmail({ to: to, subject: '【ポリマーケット】テスト送信', body: 'ポリマーケット記録アプリからのテストです。このメールが届いていれば、急変の通知と毎朝のまとめもここに届きます。',
+    htmlBody: pmMailHtml_('✅ テスト送信', '<tr><td style="font-size:14px">このメールが届いていれば、急変の通知と毎朝のまとめもここに届きます。</td></tr>') });
+  return { ok: true, to: to };
 }

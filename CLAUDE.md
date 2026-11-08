@@ -2,8 +2,8 @@
 
 > 2026-11 方針転換: 予定管理は MUSE に移した。アプリは Polymarket の情報収集・記録・分析に作り変え中。
 > - 予定管理の画面は `body.pm-mode .legacy` で隠しているだけで、コード・データ (localStorage `sakiyomi_v1`、ドライブ「予定管理データ」) は残してある。整理して削除するのは後回し
-> - サーバーのトリガーは `setup()` で `pmRecord` (1時間ごと) と `pmResolve` (毎日5時) だけを登録する。メール・Telegram・週ごとのバックアップは止めた
-> - 計画: ①記録の土台 (済) → ②和訳＋興味プロフィール (Gemini で訳と関係度を同時に判定) → ③検索・急変・ウォッチ画面 → ④メール (MUSE が読む Gmail へ) → ⑤分析 (答え合わせ・急変のその後)
+> - サーバーのトリガーは `setup()` で `pmRecord` (1時間ごと)・`pmResolve` (毎日5時)・`pmAlert` (10分おき)・`pmDigest` (毎朝8時) を登録する。メール・Telegram・週ごとのバックアップは止めた
+> - 計画: ①記録の土台 (済) → ②和訳＋興味プロフィール (済) → ③検索・急変・ウォッチ画面 (済) → ④メール (済) → ⑤分析 (答え合わせ・急変のその後)
 >
 > ### Polymarket の記録 (gas/Code.gs 末尾)
 > - `pmRecord()`: Gamma API から24時間出来高の上位 `PM_TOP`(400) 件 + ウォッチ (`PM_WATCH`) を取得し、ドライブ「ポリマーケット記録」の `snap-YYYY-MM-DD.json` (日本時間) に1行足す。`catalog.json` に市場の情報 (q,s,e,et,g,o,end, f=初めて見た, l=最後に見た) を貯める
@@ -15,6 +15,7 @@
 > - Gamma `/markets` を出来高順に500件取得 → `pmCompact` で小さくして `pm_cache_v1` に保存 → `pmGroup` でイベントごとにまとめる (negRisk は確率順、しきい値の段階は `groupItemThreshold` 順)
 > - 急変の帯: 1時間で2pt以上 → 24時間で5pt以上の順。スポーツ・eスポーツは除く。推移グラフ・チャートは CLOB `/prices-history`
 > - 和訳・あなた向け: アプリ → GAS `pmAi` (Gemini。訳は tr.json、点数と分野は score.json に保存して使い回す)。ルールの要約は `pmRule` (rule.json)。設定は `pmConfig`、ウォッチは `pmWatch` (→ `PM_WATCH`)。`pm*` の操作は doPost の入口で予定データのロックを取らずに処理する
+> - 通知メール (gas/Code.gs 末尾): `pmAlert` 10分おき (あなた向け=点数2以上とウォッチだけ。1時間10pt/24時間15pt/出来高3倍、ウォッチは1時間5pt。同じ市場は6時間に1回) と `pmDigest` 毎朝8時。送り先 `MAIL_TO`、オン/オフ `PM_ALERT_ON` `PM_DIGEST_ON`。本文はテキスト中心 (MUSE が読む)
 > - 端末の保存: `pm_tr_v1` `pm_sc_v1` `pm_watch_v1` `pm_hide_v1` (予定の `sakiyomi_v1` とは別)
 
 AIエージェント／開発者向けの全体像。変更前に必ず読むこと。利用者は日本語話者なので、画面の文言・コミット説明・PR本文は日本語で書く。

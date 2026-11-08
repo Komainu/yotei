@@ -139,12 +139,12 @@ test('setup: 予定管理の通知を止め、記録のトリガーを登録し�
   gas.ctx.ScriptApp.newTrigger('pollTelegram').timeBased().everyMinutes(1).create();
   gas.ctx.ScriptApp.newTrigger('sendDailyMail').timeBased().atHour(8).everyDays(1).create();
   gas.ctx.setup();
-  assert.deepEqual(gas.ctx.ScriptApp.triggers.map(t => t.fn).sort(), ['pmRecord', 'pmResolve']);
+  assert.deepEqual(gas.ctx.ScriptApp.triggers.map(t => t.fn).sort(), ['pmAlert', 'pmDigest', 'pmRecord', 'pmResolve']);
   assert.equal(file('snap-2026-11-08.json').rows[0].m.length, 20);
   assert.ok(gas.logs.some(l => /1回目の記録: 20件/.test(l)));
   // 2回目の setup でもトリガーは増えない
   gas.ctx.setup();
-  assert.equal(gas.ctx.ScriptApp.triggers.length, 2);
+  assert.equal(gas.ctx.ScriptApp.triggers.length, 4);
 });
 
 test('状況は合言葉で守られる', () => {
@@ -245,4 +245,102 @@ test('Gemini: モデルが使えない (404) 時は次のモデルを試し、�
   const gas2 = loadGas({ clock, props: { GEMINI_KEY: 'bad' }, fetch: () => ({ getResponseCode: () => 400, getContentText: () => '{"error":{"message":"API key not valid"}}' }) });
   r = gas2.post({ action: 'pmAi', texts: ['C'] });
   assert.match(r.error, /API key not valid/);
+});
+
+/* ---------- 通知メール ---------- */
+function alertServer(opts) {
+  const clock = createClock('2026-11-09T10:00:00+09:00');
+  const mk = (id, f) => Object.assign({ id: String(id), question: 'Q' + id, slug: 's' + id, outcomes: '["Yes","No"]', outcomePrices: '["0.5","0.5"]',
+    oneHourPriceChange: 0, oneDayPriceChange: 0, volume24hr: 50000, volume1wk: 350000, closed: false, active: true,
+    events: [{ id: 'e' + id, title: 'Event ' + id, slug: 'ev' + id }] }, f);
+  const markets = [
+    mk(1, { question: 'Will the Fed cut rates?', outcomePrices: '["0.72","0.28"]', oneHourPriceChange: 0.12, events: [{ id: 'fed', title: 'Fed decision', slug: 'fed' }] }),
+    mk(2, { question: 'Lakers vs. Celtics', oneHourPriceChange: 0.40, events: [{ id: 'nba', title: 'Lakers vs. Celtics', slug: 'nba' }] }),   // 興味なし
+    mk(3, { question: 'Will Bitcoin hit 150k?', oneHourPriceChange: 0.01, volume24hr: 400000, volume1wk: 350000, events: [{ id: 'btc', title: 'Bitcoin 2026', slug: 'btc' }] }),   // 出来高が普段の8倍
+    mk(4, { question: 'Will HYPE flip SOL?', oneHourPriceChange: 0.06, events: [{ id: 'hype', title: 'HYPE vs SOL', slug: 'hype' }] }),   // ウォッチ中 (5pt以上で通知)
+    mk(5, { question: 'Will ETH ETF see inflows?', oneHourPriceChange: 0.06, events: [{ id: 'eth', title: 'ETH ETF', slug: 'eth' }] }),   // あなた向けだが 6pt では通知しない
+    mk(6, { question: 'Tiny market', oneHourPriceChange: 0.30, volume24hr: 500, events: [{ id: 'tiny', title: 'Fed tiny', slug: 'tiny' }] }),   // 出来高が小さい
+  ];
+  const mails = [];
+  const fetch = (url, params) => {
+    if (/generativelanguage/.test(url)) {
+      const body = JSON.parse(params.payload), sys = body.system_instruction.parts[0].text, input = JSON.parse(body.contents[0].parts[0].text);
+      const out = /翻訳者/.test(sys) ? input.map(x => ({ i: x.i, ja: '訳:' + x.t })) : input.map(x => ({ i: x.i, s: /Fed|Bitcoin|ETH|HYPE/.test(x.t) ? 3 : 0, c: 'その他' }));
+      return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] }) };
+    }
+    const u = new URL(url);
+    const ids = u.searchParams.getAll('id');
+    const list = ids.length ? markets.filter(m => ids.includes(m.id)) : (Number(u.searchParams.get('offset')) === 0 ? markets : []);
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify(list) };
+  };
+  const gas = loadGas(Object.assign({ clock, fetch, props: Object.assign({ GEMINI_KEY: 'k', MAIL_TO: 'muse@example.com', PM_WATCH: '["4"]' }, (opts || {}).props) }));
+  return { clock, gas, markets };
+}
+
+test('急変の通知: あなた向けとウォッチの大きな動きだけを1通にまとめ、同じ市場は6時間送らない', () => {
+  const { clock, gas, markets } = alertServer();
+  gas.ctx.pmAlert();
+  assert.equal(gas.mails.length, 1);
+  const m = gas.mails[0];
+  assert.equal(m.to, 'muse@example.com');
+  assert.match(m.subject, /急変 3件/);
+  assert.match(m.body, /⭐ 訳:Will HYPE flip SOL\?/, 'ウォッチは5ptでも、先頭に');
+  assert.match(m.body, /訳:Will the Fed cut rates\?\n\s+60% → はい 72% \(1時間で▲12pt\)/);
+  assert.match(m.body, /訳:Will Bitcoin hit 150k\?[\s\S]*出来高が普段の8倍/);
+  assert.doesNotMatch(m.body, /Lakers|ETH ETF|Tiny/, '興味なし・小さな動き・出来高の小さい市場は送らない');
+  assert.match(m.body, /https:\/\/polymarket\.com\/event\/fed/);
+  assert.ok(m.htmlBody.includes('急変のお知らせ'));
+  // 10分後: 同じ動きでも送らない
+  clock.tick(10 * 60000);
+  gas.ctx.pmAlert();
+  assert.equal(gas.mails.length, 1);
+  // 6時間たてば、また送る
+  clock.tick(6 * 3600000);
+  gas.ctx.pmAlert();
+  assert.equal(gas.mails.length, 2);
+  // 動きが無ければ送らない
+  markets.forEach(x => { x.oneHourPriceChange = 0; x.volume24hr = 1000; });
+  clock.tick(7 * 3600000);
+  gas.ctx.pmAlert();
+  assert.equal(gas.mails.length, 2);
+});
+
+test('急変の通知: 送り先が無い・オフにした時は送らない', () => {
+  let { gas } = alertServer({ props: { MAIL_TO: '' } });
+  gas.ctx.pmAlert();
+  assert.equal(gas.mails.length, 0);
+  ({ gas } = alertServer());
+  gas.post({ action: 'pmConfig', alertOn: false, digestOn: false });
+  gas.ctx.pmAlert(); gas.ctx.pmDigest();
+  assert.equal(gas.mails.length, 0);
+  gas.post({ action: 'pmConfig', alertOn: true });
+  gas.ctx.pmAlert();
+  assert.equal(gas.mails.length, 1);
+  assert.equal(gas.post({ action: 'pmConfig', mailTo: 'not-an-address' }).ok, false);
+});
+
+test('毎朝のまとめ: 24時間で大きく動いた・ウォッチ・新しく出てきた市場', () => {
+  const { gas, markets } = alertServer();
+  markets[0].oneDayPriceChange = 0.2;
+  markets[1].oneDayPriceChange = 0.5;   // 興味なし
+  gas.ctx.pmRecord();   // 台帳に「初めて見た」が入る → 新しく出てきた市場
+  gas.ctx.pmDigest();
+  assert.equal(gas.mails.length, 1);
+  const m = gas.mails[0];
+  assert.match(m.subject, /11月9日のまとめ — 大きな動き1件/);
+  assert.match(m.body, /■ 24時間で大きく動いた市場\n・訳:Will the Fed cut rates\? … はい 72% \(24時間 ▲20pt\)/);
+  assert.match(m.body, /■ ウォッチ中の市場\n・訳:Will HYPE flip SOL\?/);
+  assert.match(m.body, /■ 新しく出てきた市場\n・/);
+  assert.doesNotMatch(m.body.split('■ 新しく出てきた市場')[0], /Lakers/);
+  assert.match(m.body, /台帳 6件/);
+});
+
+test('通知メールの設定: アプリから送り先とオン/オフを保存し、テスト送信できる', () => {
+  const { gas } = alertServer({ props: { MAIL_TO: '' } });
+  assert.equal(gas.post({ action: 'pmMailTest' }).ok, false);
+  const r = gas.post({ action: 'pmConfig', mailTo: 'muse@example.com', alertOn: true, digestOn: false });
+  assert.deepEqual([r.mail.to, r.mail.alert, r.mail.digest], ['muse@example.com', true, false]);
+  assert.equal(gas.post({ action: 'pmMailTest' }).ok, true);
+  assert.match(gas.mails[0].subject, /テスト送信/);
+  assert.equal(gas.get({}).pm.mail.to, 'muse@example.com');
 });

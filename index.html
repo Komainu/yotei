@@ -581,6 +581,17 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 
   <div class="set-card">
+    <h3>📧 通知メール</h3>
+    <p class="hint" style="margin-top:0">「あなた向け」とウォッチ中の市場が大きく動いた時 (1時間で10pt・24時間で15pt・出来高が普段の3倍。ウォッチは1時間で5pt) と、毎朝8時のまとめをメールで送ります。MUSE がつながっている Gmail を入れておくと、MUSE が読めます。同じ市場の通知は6時間に1回までです。</p>
+    <div id="pmMailState" style="font-size:12.5px; color:var(--muted); margin:8px 0"></div>
+    <label>送り先のメールアドレス</label>
+    <input id="pmMailTo" type="email" autocomplete="off" placeholder="you@gmail.com">
+    <label class="check" style="margin-top:10px"><input type="checkbox" id="pmAlertOn" style="width:auto" checked>⚡ 急変の通知 (10分おきに確認)</label>
+    <label class="check"><input type="checkbox" id="pmDigestOn" style="width:auto" checked>🗞 毎朝8時のまとめ</label>
+    <div class="row" style="margin-top:12px; flex-wrap:wrap"><button class="btn primary" id="pmMailSave">保存</button><button class="btn" id="pmMailTest">テスト送信</button><span id="pmMailResult" style="font-size:13px"></span></div>
+  </div>
+
+  <div class="set-card">
     <h3>☁️ サーバー (Apps Script) と記録の状況</h3>
     <label>Google Apps Script ウェブアプリURL</label>
     <input id="gasUrl" placeholder="https://script.google.com/macros/s/..../exec">
@@ -792,9 +803,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.12";
+const APP_VERSION = "2026.11.13";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.09";
+const MIN_GAS_VERSION = "2026.11.12";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -2572,8 +2583,36 @@ async function pmAiSettingsLoad(){
     st.innerHTML = (ai.key ? `✅ Gemini のキー: 登録済み` : `⚠ Gemini のキー: 未登録 (和訳・あなた向け・ルールの要約に必要です)`)
       + ` ／ 今日の利用 ${ai.today} / ${ai.max} 回`;
     if(!$("#pmProfile").value) $("#pmProfile").value = ai.profile || "";
+    pmMailRender(d.pm.mail);
   }catch(err){ st.textContent = "確認できません: " + err.message; }
 }
+function pmMailRender(mail){
+  const st = $("#pmMailState"); if(!st || !mail) return;
+  const t = s => s ? new Date(String(s).split(" ")[0]).toLocaleString("ja-JP") + (String(s).includes(" ") ? " (" + String(s).split(" ").slice(1).join(" ") + ")" : "") : "まだ";
+  if(!$("#pmMailTo").value) $("#pmMailTo").value = mail.to || "";
+  $("#pmAlertOn").checked = !!mail.alert; $("#pmDigestOn").checked = !!mail.digest;
+  st.innerHTML = (mail.to ? `送り先: ${esc(mail.to)}` : `⚠ 送り先が未設定です`)
+    + (mail.scheduled ? "" : `<br><b style="color:var(--warn)">⚠ まだ動いていません: Apps Script で <code>setup</code> を1回実行してください</b>`)
+    + `<br>最後の急変通知: ${esc(t(mail.alertLast))} ／ 最後のまとめ: ${esc(t(mail.digestLast))}`;
+}
+$("#pmMailSave") && $("#pmMailSave").addEventListener("click", async ()=>{
+  const r = $("#pmMailResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    saveGasSettings();
+    const d = await pmGasPost({ action:"pmConfig", mailTo: $("#pmMailTo").value.trim(), alertOn: $("#pmAlertOn").checked, digestOn: $("#pmDigestOn").checked });
+    if(!d || !d.ok) throw new Error((d && d.error) || "保存できませんでした");
+    pmMailRender(d.mail);
+    r.textContent = "✅ 保存しました"; r.style.color = "var(--ok)";
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
+$("#pmMailTest") && $("#pmMailTest").addEventListener("click", async ()=>{
+  const r = $("#pmMailResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    const d = await pmGasPost({ action:"pmMailTest" });
+    if(!d || !d.ok) throw new Error((d && d.error) || "送れませんでした");
+    r.textContent = "✅ " + d.to + " に送りました"; r.style.color = "var(--ok)";
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
 $("#pmAiSave") && $("#pmAiSave").addEventListener("click", async ()=>{
   const r = $("#pmAiResult"); r.innerHTML = `<span class="spin"></span>`;
   try{
