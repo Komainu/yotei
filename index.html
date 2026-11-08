@@ -389,6 +389,9 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .mc-cal-what{flex:1; font-size:13.5px; display:grid; gap:4px}
 .mc-cal-what > div{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
 .mc-cal-pm{text-align:left; border:1px solid var(--border); background:var(--card2); border-radius:8px; padding:4px 10px; font:inherit; font-size:12.5px; color:var(--text); cursor:pointer}
+.rep-parts{display:grid; gap:4px}
+.set-lbl{display:block; font-size:13px; color:var(--muted); margin:12px 0 5px}
+.rep-pre{white-space:pre-wrap; font-size:11.5px; max-height:280px; overflow:auto; background:var(--card2); padding:10px; border-radius:8px; margin-top:6px}
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -542,6 +545,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
         <option value="since">🆕 前回から動いた順</option>
       </select>
       <span id="pmInfo" class="pm-info"></span>
+      <button class="btn small" data-ai-report="1" title="貯めた記録を AI に渡す">🤖 記録</button>
       <button class="btn small" id="pmReload" title="最新にする">↻</button>
     </div>
   </div>
@@ -557,6 +561,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   <div class="toolbar">
     <span class="hint" style="margin:0">金利・お金の量・ドル・不安・物価・株・暗号資産の主な指標です。<b>?</b> や<span class="term" data-term="netliq">下線の言葉</span>を押すと解説が出ます。</span>
     <span id="mcInfo" class="pm-info" style="margin-left:auto"></span>
+    <button class="btn small" data-ai-report="1" title="貯めた記録を AI に渡す">🤖 記録をAIに渡す</button>
     <button class="btn small" id="mcReload" title="最新にする">↻</button>
   </div>
   <div id="mcWeather"></div>
@@ -743,6 +748,27 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 </div>
 
+<!-- ============ 記録を AI に渡す ============ -->
+<div id="repSheet" class="pm-sheet" hidden style="z-index:55">
+  <div class="pm-sheet-bg" data-close="1"></div>
+  <div class="pm-sheet-body" role="dialog" aria-modal="true">
+    <div class="pm-grip" data-close="1"></div>
+    <button class="pm-x" data-close="1" aria-label="閉じる">✕</button>
+    <div class="pm-sh-t">🤖 記録を AI に渡す</div>
+    <p class="hint" style="margin-top:4px">サーバーが貯めた記録を、依頼文つきの1つの文章 (Markdown の表) にまとめます。MUSE や Claude に貼るか、ファイルを添付して考察してもらってください。</p>
+    <label class="set-lbl">期間</label>
+    <select id="repDays"><option value="7">直近7日</option><option value="30" selected>直近30日</option><option value="90">直近90日</option><option value="180">直近180日</option></select>
+    <label class="set-lbl">入れるもの</label>
+    <div class="rep-parts">
+      <label class="check"><input type="checkbox" value="macro" checked style="width:auto">🌐 マクロと天気図の推移</label>
+      <label class="check"><input type="checkbox" value="watch" checked style="width:auto">⭐ ウォッチ中の市場の推移 (日ごと)</label>
+      <label class="check"><input type="checkbox" value="alerts" checked style="width:auto">⚡ 急変の記録と、その後</label>
+      <label class="check"><input type="checkbox" value="resolve" checked style="width:auto">✅ 答え合わせ (決着前の確率と結果)</label>
+    </div>
+    <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
+    <div id="repOut"></div>
+  </div>
+</div>
 <!-- ============ 用語の解説シート ============ -->
 <div id="termSheet" class="pm-sheet" hidden style="z-index:60">
   <div class="pm-sheet-bg" data-close="1"></div>
@@ -888,9 +914,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.21";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.23";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.19";
+const MIN_GAS_VERSION = "2026.11.23";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -2952,6 +2978,52 @@ $("#pmAiSave") && $("#pmAiSave").addEventListener("click", async ()=>{
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
 
+/* ================= 記録を AI に渡す ================= */
+const REP_COPY_MAX = 30000;   /* これより長い時はファイルで渡すのをすすめる (貼り付けると長すぎることがあるため) */
+let repText = "";
+function repOpen(){
+  if(!state.settings.gasUrl){ toast("設定でサーバー (Apps Script) の URL を入れてください"); return; }
+  $("#repOut").innerHTML = ""; repText = "";
+  $("#repSheet").hidden = false; document.body.style.overflow = "hidden";
+}
+function repClose(){ $("#repSheet").hidden = true; if(!pm.sheet) document.body.style.overflow = ""; }
+async function repMake(){
+  const parts = $$("#repSheet .rep-parts input:checked").map(c=>c.value);
+  if(!parts.length){ toast("入れるものを1つ以上選んでください"); return; }
+  const out = $("#repOut");
+  out.innerHTML = `<div class="hint"><span class="spin"></span> サーバーで記録をまとめています… (長い期間は数十秒かかります)</div>`;
+  try{
+    const r = await fetch(gasGetUrl(`action=report&days=${$("#repDays").value}&parts=${parts.join(",")}&t=${Date.now()}`), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !d.ok || !d.text) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    repText = d.text;
+    const big = d.text.length > REP_COPY_MAX;
+    out.innerHTML = `<div class="pm-h">できました: ${d.from} 〜 ${d.to} ／ ${d.text.length.toLocaleString()}文字</div>
+      ${big ? `<p class="hint" style="margin-top:0">⚠ 長いので、<b>ファイルで保存して AI に添付</b>するのがおすすめです (貼り付けると途中で切れることがあります)。</p>` : ""}
+      <div class="pm-actions" style="margin-top:6px">
+        <button class="btn ${big ? "" : "primary"}" id="repCopy">📋 コピー</button>
+        <button class="btn ${big ? "primary" : ""}" id="repFile">💾 ファイルで保存 (.md)</button>
+      </div>
+      <details style="margin-top:10px"><summary style="cursor:pointer; font-size:13px">中身を見る</summary><pre class="rep-pre">${esc(d.text.slice(0, 6000))}${d.text.length > 6000 ? "\n…" : ""}</pre></details>`;
+  }catch(err){ out.innerHTML = `<div class="hint" style="color:var(--danger)">まとめられませんでした: ${esc(err.message)}</div>`; }
+}
+function repDownload(){
+  const name = `polymarket-report-${new Date().toISOString().slice(0,10)}.md`;
+  const blob = new Blob([repText], { type:"text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  toast("💾 " + name + " を保存しました。AI に添付してください");
+}
+document.addEventListener("click", ev=>{
+  if(ev.target.closest("[data-ai-report]")){ repOpen(); return; }
+  if(ev.target.closest("#repSheet [data-close]")){ repClose(); return; }
+  if(ev.target.closest("#repMake")){ repMake(); return; }
+  if(ev.target.closest("#repCopy")){ copyText(repText, "📋 コピーしました。MUSE や Claude に貼り付けてください"); return; }
+  if(ev.target.closest("#repFile")){ repDownload(); return; }
+});
 /* ================= 用語集 ================= */
 /* 用語の解説 (アプリに組み込み。AI に毎回作らせると内容がぶれるため)。
    キー: { n: 名前, a: 別名 (本文から自動でリンクする言葉), s: ひとことで, w: なぜ大事か, u: 上がると, d: 下がると, r: 関連する用語 } */
@@ -3054,6 +3126,7 @@ $("#glossQ").addEventListener("input", renderGloss);
 /* ================= マクロ (金利・お金の量・ドル・不安・物価景気・株商品・暗号資産) ================= */
 /* データはサーバー (Apps Script) がまとめて取って保存している (action=macro)。ここでは計算して並べるだけ */
 const MC = { data: null, at: 0, loading: false };
+/* ===== マクロの計算 (この囲みの中は index.html と gas/Code.gs でまったく同じ内容にする。画面に関わるものは入れない) ===== */
 const mcLast = s => s && s.length ? s[s.length-1] : null;
 /** n日前 (以前で一番近い) の値 */
 function mcAgo(s, days){
@@ -3162,28 +3235,7 @@ const MC_DEFS = [
         sig: r8 > 0.03 ? "r" : r8 < 0 ? "y" : "g", why: r8 > 0.03 ? "買いが過熱気味" : r8 < 0 ? "売りが優勢" : "落ち着いた水準" }; } },
 ];
 const MC_SIG = { g:"🟢", y:"🟡", r:"🔴" };
-function mcSpark(s, mon){
-  if(!s || s.length < 2) return "";
-  const pts = s.slice(mon ? -24 : -180);
-  const vs = pts.map(r=>r[1]); let lo = Math.min(...vs), hi = Math.max(...vs); if(hi === lo){ hi += 1; lo -= 1; }
-  const W = 300, H = 36;
-  const d = pts.map((r,i)=>(i?"L":"M") + (i/(pts.length-1)*W).toFixed(1) + " " + (H-2-(r[1]-lo)/(hi-lo)*(H-4)).toFixed(1)).join("");
-  const col = vs[vs.length-1] >= vs[0] ? "var(--accent)" : "var(--warn)";
-  return `<svg class="mc-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
-}
 function mcEval(def, D){ try{ return def.f(D) || null; }catch(e){ return null; } }
-function mcCard(def, D, pre){
-  const r = pre !== undefined ? pre : mcEval(def, D);
-  if(!r) return `<div class="mc-card mc-none"><div class="mc-h"><span>${esc(def.n)}</span>${termBtn(def.t)}</div><div class="hint">データを取得できませんでした</div></div>`;
-  return `<div class="mc-card" data-mc="${def.id}">
-    <div class="mc-h"><span>${esc(def.n)}</span>${termBtn(def.t)}</div>
-    <div class="mc-v">${esc(r.v)}</div>
-    <div class="mc-sub">${esc(r.sub || "")}</div>
-    ${mcSpark(r.s, r.mon)}
-    ${r.sig ? `<div class="mc-sig mc-${r.sig}">${MC_SIG[r.sig]} ${linkTerms(esc(r.why || ""))}</div>` : r.why ? `<div class="mc-sig">${linkTerms(esc(r.why))}</div>` : ""}
-    ${r.d ? `<div class="mc-date">${esc(mcDate(r.d))} 時点${r.mon ? " (月次)" : ""}</div>` : ""}
-  </div>`;
-}
 /* ---- 相場の天気図: 信号を重み付きで足して、追い風 (リスクオン) か向かい風 (リスクオフ) かを出す ----
    🟢 = +1 / 🟡 = 0 / 🔴 = −1 に重みを掛けて平均 (−1〜+1)。重みは影響の大きさの目安 (お金の量・不安の度合いを重く) */
 const MC_WEIGHT = { netliq:2, vix:2, hy:2, sp500:1.5, unrate:1.5, curve:1, sofr:1, dgs10:1, dxy:1, cpi:1, nasdaq:1, btc:1, stable:1, tga:1, jpy:1, eth:0.5, fng:0.5, funding:0.5 };
@@ -3204,15 +3256,104 @@ function mcScore(ids, res){
   }
   return w ? { s: sum / w, n } : null;
 }
+/** 天気図のまとめ: 全体の点数・空・追い風/向かい風の指標 (重みの大きい順に最大4つ) */
+function mcSummary(res){
+  const all = mcScore(Object.keys(MC_WEIGHT), res);
+  if(!all) return null;
+  const pick = sig => Object.keys(MC_WEIGHT).filter(id=>res[id] && res[id].sig === sig).sort((a,b)=>MC_WEIGHT[b]-MC_WEIGHT[a]).slice(0, 4);
+  return { all, sky: mcSky(all.s), good: pick("g"), bad: pick("r") };
+}
+function mcName(id){ return (MC_DEFS.find(d=>d.id === id) || {}).n || id; }
+/* ---- 📅 経済カレンダー (FOMC・CPI・雇用統計) と、関連する Polymarket の予想 ----
+   日付は公式の発表予定 (federalreserve.gov / bls.gov、2026年11月に確認)。毎年1回、翌年分を足す */
+const MC_CAL = [
+  // FOMC: 2日目の米東部時間14:00に発表 (日付は2日目)
+  ...["2026-12-09","2027-01-27","2027-03-17","2027-04-28","2027-06-09","2027-07-28","2027-09-15","2027-10-27","2027-12-08"].map(d=>({ d, k:"fomc", h:14, m:0 })),
+  // CPI: 米東部時間8:30 (ref = 対象の月)
+  ...[["2026-11-10","2026-10"],["2026-12-10","2026-11"],["2027-01-13","2026-12"],["2027-02-11","2027-01"],["2027-03-10","2027-02"],["2027-04-13","2027-03"],["2027-05-12","2027-04"],
+      ["2027-06-10","2027-05"],["2027-07-14","2027-06"],["2027-08-11","2027-07"],["2027-09-14","2027-08"],["2027-10-14","2027-09"],["2027-11-10","2027-10"],["2027-12-10","2027-11"]].map(([d,ref])=>({ d, ref, k:"cpi", h:8, m:30 })),
+  // 雇用統計: 米東部時間8:30
+  ...[["2026-11-06","2026-10"],["2026-12-04","2026-11"],["2027-01-08","2026-12"],["2027-02-05","2027-01"],["2027-03-05","2027-02"],["2027-04-02","2027-03"],["2027-05-07","2027-04"],
+      ["2027-06-04","2027-05"],["2027-07-02","2027-06"],["2027-08-06","2027-07"],["2027-09-03","2027-08"],["2027-10-08","2027-09"],["2027-11-05","2027-10"],["2027-12-03","2027-11"]].map(([d,ref])=>({ d, ref, k:"jobs", h:8, m:30 })),
+];
+const MC_CAL_KIND = { fomc:["🏦","FOMC (政策金利の発表)","fomc"], cpi:["🛒","CPI (物価)","cpi"], jobs:["👷","雇用統計","unrate"] };
+const MC_MON_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+/** 米東部時間 → 発表の時刻 (Date)。夏時間は3月の第2日曜〜11月の第1日曜 */
+function mcEtTime(d, h, m){
+  const [y, mo, da] = d.split("-").map(Number);
+  const nthSun = (mon, n) => { const f = new Date(Date.UTC(y, mon, 1)).getUTCDay(); return 1 + ((7 - f) % 7) + 7*(n-1); };
+  const day = Date.UTC(y, mo-1, da);
+  const dst = day >= Date.UTC(y, 2, nthSun(2, 2)) && day < Date.UTC(y, 10, nthSun(10, 1));
+  return new Date(Date.UTC(y, mo-1, da, h + (dst ? 4 : 5), m));
+}
+function mcCalUpcoming(n){
+  const now = Date.now();
+  return MC_CAL.map(e=>Object.assign({ at: mcEtTime(e.d, e.h, e.m) }, e))
+    .filter(e=>e.at.getTime() > now - 3*3600000).sort((a,b)=>a.at - b.at).slice(0, n || 6);
+}
+function mcCalLabel(e){
+  const k = MC_CAL_KIND[e.k];
+  return e.ref ? `${k[1]} ${Number(e.ref.slice(5))}月分` : k[1];
+}
+function mcUntil(t){
+  const ms = t - Date.now();
+  if(ms <= 0) return "発表済み";
+  const h = ms/3600000;
+  if(h < 24) return "あと" + Math.max(1, Math.round(h)) + "時間";
+  return "あと" + Math.floor(h/24) + "日";
+}
+/* Polymarket で関連する予想市場を探す (日付が近く、言葉が合うイベント) */
+function mcCalQueries(e){
+  const mon = MC_MON_EN[Number((e.ref || e.d).slice(5,7)) - 1];
+  if(e.k === "fomc") return ["Fed decision in " + mon, "Fed interest rates " + mon];
+  if(e.k === "cpi") return [mon + " Inflation US", "CPI YoY - " + mon];
+  return [mon + " jobs report", "Unemployment rate in " + mon, "US unemployment " + mon];
+}
+/** public-search の結果から、その発表に合う市場を選ぶ (日付が4日以内・言葉が合う・他の国は除く)。{id,t,s,opts} か null */
+function mcCalPick(evs, e){
+  const re = { fomc:/fed|interest rate|fomc/i, cpi:/inflation us|cpi/i, jobs:/unemployment|jobs report|payroll/i }[e.k];
+  const other = /\b(uk|china|argentina|canada|euro|eurozone|japan|germany|india|brazil|turkey|australia)\b|jolts|pce|ppi/i;
+  /* 同じ日に複数ある時の優先: CPI は前年比 (Annual) を、FOMC は「Fed Decision」を先に */
+  const prefer = ev => e.k === "cpi" ? (/annual/i.test(ev.title) ? 2 : /yoy/i.test(ev.title) ? 1 : 0) : e.k === "fomc" ? (/fed decision/i.test(ev.title) ? 1 : 0) : 0;
+  const day = Date.parse(e.d + "T12:00:00Z");
+  const cand = evs.filter(ev=> re.test(ev.title || "") && !other.test(ev.title || "") && !ev.closed && Math.abs((Date.parse(ev.endDate) || 0) - day) <= 4*86400000)
+    .sort((a,b)=> prefer(b) - prefer(a) || (Number(b.volume)||0) - (Number(a.volume)||0));
+  const ev = cand[0];
+  if(!ev) return null;
+  const opts = (ev.markets || []).filter(m=>!m.closed).map(m=>{ let p = m.outcomePrices; try{ p = typeof p === "string" ? JSON.parse(p) : p; }catch(x){ p = []; }
+      return { id: String(m.id), g: String(m.groupItemTitle || m.question || ""), p: Number((p || [])[0]) }; })
+    .filter(o=>!isNaN(o.p)).sort((a,b)=>b.p - a.p);
+  return { id: String(ev.id), t: String(ev.title || ""), s: String(ev.slug || ""), opts };
+}
+/* ===== マクロの計算 ここまで ===== */
+function mcSpark(s, mon){
+  if(!s || s.length < 2) return "";
+  const pts = s.slice(mon ? -24 : -180);
+  const vs = pts.map(r=>r[1]); let lo = Math.min(...vs), hi = Math.max(...vs); if(hi === lo){ hi += 1; lo -= 1; }
+  const W = 300, H = 36;
+  const d = pts.map((r,i)=>(i?"L":"M") + (i/(pts.length-1)*W).toFixed(1) + " " + (H-2-(r[1]-lo)/(hi-lo)*(H-4)).toFixed(1)).join("");
+  const col = vs[vs.length-1] >= vs[0] ? "var(--accent)" : "var(--warn)";
+  return `<svg class="mc-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function mcCard(def, D, pre){
+  const r = pre !== undefined ? pre : mcEval(def, D);
+  if(!r) return `<div class="mc-card mc-none"><div class="mc-h"><span>${esc(def.n)}</span>${termBtn(def.t)}</div><div class="hint">データを取得できませんでした</div></div>`;
+  return `<div class="mc-card" data-mc="${def.id}">
+    <div class="mc-h"><span>${esc(def.n)}</span>${termBtn(def.t)}</div>
+    <div class="mc-v">${esc(r.v)}</div>
+    <div class="mc-sub">${esc(r.sub || "")}</div>
+    ${mcSpark(r.s, r.mon)}
+    ${r.sig ? `<div class="mc-sig mc-${r.sig}">${MC_SIG[r.sig]} ${linkTerms(esc(r.why || ""))}</div>` : r.why ? `<div class="mc-sig">${linkTerms(esc(r.why))}</div>` : ""}
+    ${r.d ? `<div class="mc-date">${esc(mcDate(r.d))} 時点${r.mon ? " (月次)" : ""}</div>` : ""}
+  </div>`;
+}
 function renderWeather(res){
   const box = $("#mcWeather"); if(!box) return;
-  const all = mcScore(Object.keys(MC_WEIGHT), res);
-  if(!all){ box.innerHTML = ""; return; }
-  const sky = mcSky(all.s);
-  const name = id => (MC_DEFS.find(d=>d.id === id) || {}).n || id;
-  const pick = sig => Object.keys(MC_WEIGHT).filter(id=>res[id] && res[id].sig === sig).sort((a,b)=>MC_WEIGHT[b]-MC_WEIGHT[a]).slice(0, 4);
+  const sum = mcSummary(res);
+  if(!sum){ box.innerHTML = ""; return; }
+  const all = sum.all, sky = sum.sky, name = mcName;
   const line = (ids) => ids.map(id=>`<button class="mc-reason" data-goto="${id}">${esc(name(id))}<small>${linkTerms(esc(res[id].why || ""))}</small></button>`).join("");
-  const good = pick("g"), bad = pick("r");
+  const good = sum.good, bad = sum.bad;
   /* テーマごとの空 */
   const themes = MC_THEMES.map(([th, label])=>{
     const sc = mcScore(MC_DEFS.filter(d=>d.th === th).map(d=>d.id), res);
@@ -3254,71 +3395,15 @@ $("#mcWeather").addEventListener("click", ev=>{
   el.scrollIntoView && el.scrollIntoView({ behavior:"smooth", block:"center" });
   el.classList.add("mc-flash"); setTimeout(()=>el.classList.remove("mc-flash"), 1600);
 });
-/* ---- 📅 経済カレンダー (FOMC・CPI・雇用統計) と、関連する Polymarket の予想 ----
-   日付は公式の発表予定 (federalreserve.gov / bls.gov、2026年11月に確認)。毎年1回、翌年分を足す */
-const MC_CAL = [
-  // FOMC: 2日目の米東部時間14:00に発表 (日付は2日目)
-  ...["2026-12-09","2027-01-27","2027-03-17","2027-04-28","2027-06-09","2027-07-28","2027-09-15","2027-10-27","2027-12-08"].map(d=>({ d, k:"fomc", h:14, m:0 })),
-  // CPI: 米東部時間8:30 (ref = 対象の月)
-  ...[["2026-11-10","2026-10"],["2026-12-10","2026-11"],["2027-01-13","2026-12"],["2027-02-11","2027-01"],["2027-03-10","2027-02"],["2027-04-13","2027-03"],["2027-05-12","2027-04"],
-      ["2027-06-10","2027-05"],["2027-07-14","2027-06"],["2027-08-11","2027-07"],["2027-09-14","2027-08"],["2027-10-14","2027-09"],["2027-11-10","2027-10"],["2027-12-10","2027-11"]].map(([d,ref])=>({ d, ref, k:"cpi", h:8, m:30 })),
-  // 雇用統計: 米東部時間8:30
-  ...[["2026-11-06","2026-10"],["2026-12-04","2026-11"],["2027-01-08","2026-12"],["2027-02-05","2027-01"],["2027-03-05","2027-02"],["2027-04-02","2027-03"],["2027-05-07","2027-04"],
-      ["2027-06-04","2027-05"],["2027-07-02","2027-06"],["2027-08-06","2027-07"],["2027-09-03","2027-08"],["2027-10-08","2027-09"],["2027-11-05","2027-10"],["2027-12-03","2027-11"]].map(([d,ref])=>({ d, ref, k:"jobs", h:8, m:30 })),
-];
-const MC_CAL_KIND = { fomc:["🏦","FOMC (政策金利の発表)","fomc"], cpi:["🛒","CPI (物価)","cpi"], jobs:["👷","雇用統計","unrate"] };
-const MC_MON_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-/** 米東部時間 → 発表の時刻 (Date)。夏時間は3月の第2日曜〜11月の第1日曜 */
-function mcEtTime(d, h, m){
-  const [y, mo, da] = d.split("-").map(Number);
-  const nthSun = (mon, n) => { const f = new Date(Date.UTC(y, mon, 1)).getUTCDay(); return 1 + ((7 - f) % 7) + 7*(n-1); };
-  const day = Date.UTC(y, mo-1, da);
-  const dst = day >= Date.UTC(y, 2, nthSun(2, 2)) && day < Date.UTC(y, 10, nthSun(10, 1));
-  return new Date(Date.UTC(y, mo-1, da, h + (dst ? 4 : 5), m));
-}
-function mcCalUpcoming(n){
-  const now = Date.now();
-  return MC_CAL.map(e=>Object.assign({ at: mcEtTime(e.d, e.h, e.m) }, e))
-    .filter(e=>e.at.getTime() > now - 3*3600000).sort((a,b)=>a.at - b.at).slice(0, n || 6);
-}
-function mcCalLabel(e){
-  const k = MC_CAL_KIND[e.k];
-  return e.ref ? `${k[1]} ${Number(e.ref.slice(5))}月分` : k[1];
-}
-function mcUntil(t){
-  const ms = t - Date.now();
-  if(ms <= 0) return "発表済み";
-  const h = ms/3600000;
-  if(h < 24) return "あと" + Math.max(1, Math.round(h)) + "時間";
-  return "あと" + Math.floor(h/24) + "日";
-}
-/* Polymarket で関連する予想市場を探す (日付が近く、言葉が合うイベント) */
 const mcCalPM = {};
-function mcCalQueries(e){
-  const mon = MC_MON_EN[Number((e.ref || e.d).slice(5,7)) - 1];
-  if(e.k === "fomc") return ["Fed decision in " + mon, "Fed interest rates " + mon];
-  if(e.k === "cpi") return [mon + " Inflation US", "CPI YoY - " + mon];
-  return [mon + " jobs report", "Unemployment rate in " + mon, "US unemployment " + mon];
-}
 function mcCalFind(e){
   const key = e.k + e.d;
   if(mcCalPM[key] !== undefined) return Promise.resolve(mcCalPM[key]);
-  const re = { fomc:/fed|interest rate|fomc/i, cpi:/inflation us|cpi/i, jobs:/unemployment|jobs report|payroll/i }[e.k];
-  const other = /\b(uk|china|argentina|canada|euro|eurozone|japan|germany|india|brazil|turkey|australia)\b|jolts|pce|ppi/i;
-  /* 同じ日に複数ある時の優先: CPI は前年比 (Annual) を、FOMC は「Fed Decision」を先に */
-  const prefer = ev => e.k === "cpi" ? (/annual/i.test(ev.title) ? 2 : /yoy/i.test(ev.title) ? 1 : 0) : e.k === "fomc" ? (/fed decision/i.test(ev.title) ? 1 : 0) : 0;
-  const day = Date.parse(e.d + "T12:00:00Z");
   return Promise.all(mcCalQueries(e).map(q=>pmFetchJson(`${PM_GAMMA}/public-search?q=${encodeURIComponent(q)}&limit_per_type=10&events_status=active`).catch(()=>null)))
     .then(rs=>{
       const evs = [], seen = new Set();
       for(const r of rs) for(const ev of ((r && r.events) || [])) if(!seen.has(ev.id)){ seen.add(ev.id); evs.push(ev); }
-      const cand = evs.filter(ev=> re.test(ev.title || "") && !other.test(ev.title || "") && !ev.closed && Math.abs((Date.parse(ev.endDate) || 0) - day) <= 4*86400000)
-        .sort((a,b)=> prefer(b) - prefer(a) || (Number(b.volume)||0) - (Number(a.volume)||0));
-      const ev = cand[0];
-      if(!ev){ mcCalPM[key] = null; return null; }
-      const opts = (ev.markets || []).filter(m=>!m.closed).map(m=>({ id: String(m.id), g: String(m.groupItemTitle || m.question || ""), p: Number(pmArr(m.outcomePrices)[0]) }))
-        .filter(o=>!isNaN(o.p)).sort((a,b)=>b.p - a.p);
-      mcCalPM[key] = { id: String(ev.id), t: String(ev.title || ""), s: String(ev.slug || ""), opts };
+      mcCalPM[key] = mcCalPick(evs, e);
       return mcCalPM[key];
     }).catch(()=>{ mcCalPM[key] = null; return null; });
 }

@@ -259,3 +259,54 @@ test('経済カレンダー: 次の発表を日本時間で並べ、関連する
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });
+
+test('マクロの計算は、アプリ (index.html) とサーバー (gas/Code.gs) でまったく同じ', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  const B = '/* ===== マクロの計算 (この囲みの中は', E = '/* ===== マクロの計算 ここまで ===== */';
+  const block = f => { const s = fs.readFileSync(path.join(__dirname, '..', f), 'utf8'); const i = s.indexOf(B), j = s.indexOf(E); assert.ok(i >= 0 && j > i, f); return s.slice(i, j); };
+  assert.equal(block('index.html'), block('gas/Code.gs'));
+});
+
+test('毎朝のまとめ: 先頭に相場の天気図・昨日から変わった信号・これから7日の予定 (Polymarket の予想つき) を入れる', () => {
+  const clock = createClock('2026-11-09T08:00:00+09:00');
+  const net = macroFetch(clock.now);
+  const fetch = (url, params) => {
+    if (/gamma-api\.polymarket\.com\/public-search/.test(url)) {
+      const q = new URL(url).searchParams.get('q');
+      const ev = { id: 'y', title: 'October Inflation US - Annual', endDate: '2026-11-11T00:00:00Z', volume: '84716', markets: [{ id: 'y1', groupItemTitle: '2.9%', outcomePrices: '["0.4","0.6"]' }, { id: 'y2', groupItemTitle: '3.0%', outcomePrices: '["0.35","0.65"]' }] };
+      return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ events: /October Inflation US/.test(q) ? [ev] : [] }) };
+    }
+    if (/gamma-api\.polymarket\.com\/markets/.test(url)) return { getResponseCode: () => 200, getContentText: () => '[]' };
+    return net.fetch(url, params);
+  };
+  const gas = loadGas({ clock, fetch, props: { MAIL_TO: 'muse@example.com', PM_MC_SIG: JSON.stringify({ t: clock.now - 86400000, sig: { vix: 'y' } }) } });
+  gas.ctx.pmDigest();
+  assert.equal(gas.mails.length, 1);
+  const m = gas.mails[0];
+  assert.match(m.subject, /11月9日のまとめ (☀️|🌤|⛅|🌧|⛈)/);
+  assert.match(m.body, /^11月9日 のまとめ\n\n■ 相場の天気図: \S+ \S+ — /);
+  assert.match(m.body, /・向かい風: [^\n]*VIX \(恐怖指数\) \(強い不安 \(リスクオフ\)\)/);
+  assert.match(m.body, /・昨日から変わった信号: VIX \(恐怖指数\) 🟡→🔴/);
+  assert.match(m.body, /■ これから7日の予定 \(日本時間\)\n・11\/10\(火\) 22:30 CPI \(物価\) 10月分 — Polymarket: 2\.9% 40% ／ 3\.0% 35%/);
+  assert.match(m.body, /■■ ポリマーケット/);
+  assert.ok(m.htmlBody.includes('相場の天気図'));
+  // 次の日は、今日の信号と比べる
+  assert.match(gas.props.getProperty('PM_MC_SIG'), /"vix":"r"/);
+});
+
+test('マクロの日誌: 毎日1行 (空・点数・信号・主な値) を残し、AI に渡すレポートの表になる', () => {
+  const clock = createClock('2026-11-09T05:00:00+09:00');
+  const net = macroFetch(clock.now);
+  const fetch = (url, params) => /gamma-api/.test(url) ? { getResponseCode: () => 200, getContentText: () => '[]' } : net.fetch(url, params);
+  const gas = loadGas({ clock, fetch });
+  gas.ctx.pmResolve();
+  const log = JSON.parse(gas.drive.folderFiles('ポリマーケット記録').find(f => f.name === 'macro-log.json').content);
+  const x = log['2026-11-09'];
+  assert.ok(x && typeof x.s === 'number' && x.sky);
+  assert.equal(x.sig.vix, 'r');
+  assert.match(x.v.vix, /^28/);
+  const r = gas.get({ action: 'report', days: '7', parts: 'macro' });
+  assert.match(r.text, /## 1\. マクロ環境と天気図の推移/);
+  assert.match(r.text, /\| 2026-11-09 \| \S+ \| -?\d/);
+  assert.match(r.text, /VIX \(恐怖指数\)/);
+});

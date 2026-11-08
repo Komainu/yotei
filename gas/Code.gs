@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.19';
+const GAS_VERSION = '2026.11.23';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -557,6 +557,9 @@ function doGet(e) {
 }
 
 function doGetInner_(e) {
+  if (e && e.parameter && e.parameter.action === 'report') {
+    return json(Object.assign({ version: GAS_VERSION }, pmReport_({ days: e.parameter.days, parts: String(e.parameter.parts || '').split(',').filter(Boolean) })));
+  }
   if (e && e.parameter && e.parameter.action === 'macro') {
     return json({ ok: true, version: GAS_VERSION, macro: macroData_(e.parameter.force === '1') });
   }
@@ -1814,6 +1817,7 @@ function pmResolve() {
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
+  pmDailyJobs_();   // 日ごとの要約・マクロの日誌 (AI に渡す記録)
 }
 
 /** 記録の状況 (アプリの「状況を確認」用。台帳は読まずに控えの数字だけ返す) */
@@ -2240,6 +2244,7 @@ function pmAlert() {
         + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + esc(l.en) + ' ・ <a href="' + esc(l.url) + '">Polymarket</a></div></td></tr>';
     }).join('')) });
     hits.forEach(function (h) { sent[h.r.id] = now; });
+    try { pmLogAlerts_(hits); } catch (e) { Logger.log('急変の記録に失敗: ' + e); }
     Object.keys(sent).forEach(function (k) { if (now - sent[k] > 2 * 86400000) delete sent[k]; });
     props.setProperty('PM_ALERT_SENT', JSON.stringify(sent));
     props.setProperty('PM_ALERT_LAST', new Date().toISOString() + ' ' + lines.length + '件');
@@ -2290,7 +2295,10 @@ function pmDigest() {
     const line = function (r) { return pmLabelJa_(r, ja) + ' … ' + pmYesJa_(r, ja) + ' ' + pmPctJa_(r.p) + (r.d1 != null ? ' (24時間 ' + pt(r.d1) + ')' : '') + ' ・ 出来高 ' + pmMoneyJa_(r.v24); };
     const sec = function (title, list, empty) { return '■ ' + title + '\n' + (list.length ? list.map(function (r) { return '・' + line(r) + '\n  https://polymarket.com/event/' + encodeURIComponent(r.es); }).join('\n') : '・' + empty) + '\n'; };
     const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
-    const text = day + ' のポリマーケットのまとめ (あなた向け・ウォッチ中の市場)\n\n'
+    let mac = null;
+    try { mac = pmMacroSection_(); } catch (e) { Logger.log('天気図をまとめに入れられません: ' + e); }
+    const text = day + ' のまとめ\n\n' + (mac ? mac.text + '\n' : '')
+      + '■■ ポリマーケット (あなた向け・ウォッチ中の市場)\n\n'
       + sec('24時間で大きく動いた市場', movers, '大きな動きはありませんでした') + '\n'
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
@@ -2305,8 +2313,8 @@ function pmDigest() {
         }).join('') : '<tr><td style="color:#6b7280;font-size:13px">' + empty + '</td></tr>');
     };
     MailApp.sendEmail({
-      to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
-      htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
+      to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (mac ? ' ' + mac.sky[1] + mac.sky[2] : '') + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
+      htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', (mac ? '<tr><td style="padding:6px 0 2px;font-weight:700;font-size:15px">🌐 相場の天気図</td></tr>' + mac.html : '') + h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
@@ -2419,3 +2427,460 @@ function macroData_(force) {
 }
 /** トリガー (1時間ごとの記録) からも温めておく */
 function macroRefresh() { try { macroData_(false); } catch (e) { Logger.log('マクロの取得に失敗: ' + e); } }
+/* ===== マクロの計算 (この囲みの中は index.html と gas/Code.gs でまったく同じ内容にする。画面に関わるものは入れない) ===== */
+const mcLast = s => s && s.length ? s[s.length-1] : null;
+/** n日前 (以前で一番近い) の値 */
+function mcAgo(s, days){
+  if(!s || !s.length) return null;
+  const t = Date.parse(mcLast(s)[0]) - days*86400000;
+  for(let i=s.length-1;i>=0;i--) if(Date.parse(s[i][0]) <= t) return s[i];
+  return null;
+}
+function mcYoY(s){ const l = mcLast(s), a = mcAgo(s, 360); return l && a ? (l[1]/a[1]-1)*100 : null; }
+function mcMA(s, n){ if(!s || s.length < n) return null; let x = 0; for(let i=s.length-n;i<s.length;i++) x += s[i][1]; return x/n; }
+/** 単位を「10億ドル」にそろえる (FRED は系列によって100万ドル単位) */
+function mcBil(s){ if(!s || !s.length) return s; const v = Math.abs(mcLast(s)[1]); return v > 100000 ? s.map(r=>[r[0], r[1]/1000]) : s; }
+function mcMoney(bil){
+  if(bil == null || isNaN(bil)) return "-";
+  const v = bil*1e9, a = Math.abs(v);
+  if(a >= 1e12) return (v/1e12).toFixed(2) + "兆ドル";
+  if(a >= 1e8) return Math.round(v/1e8).toLocaleString() + "億ドル";
+  return Math.round(v).toLocaleString() + "ドル";
+}
+const mcPct = (x, d) => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "") + x.toFixed(d == null ? 1 : d) + "%";
+const mcBp = x => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "") + Math.round(x*100) + "bp";
+const mcNum = (x, d) => x == null || isNaN(x) ? "-" : Number(x).toLocaleString(undefined, { minimumFractionDigits: d||0, maximumFractionDigits: d||0 });
+const mcDate = s => { const d = new Date(s + "T00:00:00Z"); return isNaN(d) ? "" : `${d.getUTCMonth()+1}/${d.getUTCDate()}`; };
+/** 正味の流動性 = FRB総資産 − 財務省口座 − リバースレポ (週ごと) */
+function mcNetLiq(f){
+  const w = mcBil(f.WALCL), t = mcBil(f.WTREGEN), r = mcBil(f.RRPONTSYD);
+  if(!w || !t || !r) return null;
+  const at = (s, d) => { let v = null; for(const x of s){ if(x[0] <= d) v = x[1]; else break; } return v; };
+  return w.map(([d, v])=>{ const a = at(t, d), b = at(r, d); return a == null || b == null ? null : [d, v - a - b]; }).filter(Boolean);
+}
+/* 指標の定義: id, テーマ, 名前, 用語, 計算 (データ → {v 値, sub 変化, s 推移, d 日付, sig 'g'|'y'|'r', why 理由}) */
+const MC_THEMES = [["rate","🏦 金利"],["money","💧 お金の量"],["fx","💱 ドルと円"],["fear","😨 不安の度合い"],["econ","📊 物価と景気"],["mkt","📈 株と商品"],["crypto","🪙 暗号資産"]];
+const MC_DEFS = [
+  { id:"ff", th:"rate", n:"政策金利 (FF金利)", t:"ffrate", f:D=>{ const s = D.fred.DFF, l = mcLast(s), a = mcAgo(s, 91), up = mcLast(D.fred.DFEDTARU);
+      return l && { v: l[1].toFixed(2) + "%", sub: (up ? `目標の上限 ${up[1].toFixed(2)}%` : "") + (a ? ` ／ 3か月 ${mcBp(l[1]-a[1])}` : ""), s, d: l[0] }; } },
+  { id:"sofr", th:"rate", n:"SOFR − IORB", t:"sofr", f:D=>{ const s = D.fred.SOFR, i = mcLast(D.fred.IORB), l = mcLast(s); if(!l || !i) return null;
+      const sp = l[1] - i[1];
+      return { v: mcBp(sp), sub: `SOFR ${l[1].toFixed(2)}% ／ IORB ${i[1].toFixed(2)}%`, s, d: l[0],
+        sig: sp > 0 ? "r" : sp > -0.05 ? "y" : "g", why: sp > 0 ? "SOFR が IORB を上回っている: 短期のお金がひっ迫気味" : sp > -0.05 ? "差が小さい: 短期のお金にやや余裕が少ない" : "短期のお金は落ち着いている" }; } },
+  { id:"dgs2", th:"rate", n:"2年国債利回り", t:"yield", f:D=>{ const s = D.fred.DGS2, l = mcLast(s), a = mcAgo(s, 30);
+      return l && { v: l[1].toFixed(2) + "%", sub: a ? `1か月 ${mcBp(l[1]-a[1])} (政策金利の予想を映す)` : "", s, d: l[0] }; } },
+  { id:"dgs10", th:"rate", n:"10年国債利回り", t:"yield", f:D=>{ const s = D.fred.DGS10, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: l[1].toFixed(2) + "%", sub: a ? `1か月 ${mcBp(ch)}` : "", s, d: l[0],
+        sig: ch > 0.3 ? "r" : ch < -0.3 ? "g" : "y", why: ch > 0.3 ? "1か月で大きく上昇: 株や暗号資産には逆風になりやすい" : ch < -0.3 ? "1か月で大きく低下: 借りる費用が下がる (景気不安の場合も)" : "大きな動きはない" }; } },
+  { id:"curve", th:"rate", n:"長短金利差 (10年−2年)", t:"curve", f:D=>{ const s = D.fred.T10Y2Y, l = mcLast(s), a = mcAgo(s, 91); if(!l) return null;
+      return { v: mcBp(l[1]).replace("+",""), sub: a ? `3か月前 ${Math.round(a[1]*100)}bp` : "", s, d: l[0],
+        sig: l[1] < 0 ? "r" : l[1] < 0.5 ? "y" : "g", why: l[1] < 0 ? "逆イールド: 景気後退の前触れとされる形" : l[1] < 0.5 ? "差が小さい: 逆イールドからの戻り途中など、景気の転換点に注意" : "普通の形 (長期のほうが高い)" }; } },
+  { id:"netliq", th:"money", n:"正味の流動性", t:"netliq", f:D=>{ const s = mcNetLiq(D.fred), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: mcMoney(l[1]), sub: a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "", s, d: l[0],
+        sig: ch > 50 ? "g" : ch < -50 ? "r" : "y", why: ch > 50 ? "市場のお金が増えている: リスク資産に追い風" : ch < -50 ? "市場のお金が減っている: リスク資産に逆風" : "大きな変化はない" }; } },
+  { id:"walcl", th:"money", n:"FRB 総資産", t:"walcl", f:D=>{ const s = mcBil(D.fred.WALCL), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null;
+      return { v: mcMoney(l[1]), sub: a ? `4週 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < a[1] ? " (量的引き締め中)" : "") : "", s, d: l[0] }; } },
+  { id:"rrp", th:"money", n:"リバースレポ残高", t:"rrp", f:D=>{ const s = mcBil(D.fred.RRPONTSYD), l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
+      return { v: mcMoney(l[1]), sub: a ? `1か月 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < 50 ? " ・ ほぼ使い切り" : "") : "", s, d: l[0] }; } },
+  { id:"res", th:"money", n:"準備預金", t:"reserves", f:D=>{ const s = mcBil(D.fred.WRESBAL), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null;
+      return { v: mcMoney(l[1]), sub: a ? `4週 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` : "", s, d: l[0] }; } },
+  { id:"tga", th:"money", n:"財務省口座 (TGA)", t:"tga", f:D=>{ const s = mcBil(D.fred.WTREGEN), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: mcMoney(l[1]), sub: a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "", s, d: l[0],
+        sig: ch > 150 ? "r" : ch < -150 ? "g" : null, why: ch > 150 ? "政府の口座にお金が集まり、市場から吸い上げている" : ch < -150 ? "政府の支払いで市場にお金が戻っている" : "" }; } },
+  { id:"dxy", th:"fx", n:"ドル指数 (広義)", t:"dxy", f:D=>{ const s = D.fred.DTWEXBGS, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? (l[1]/a[1]-1)*100 : 0;
+      return { v: mcNum(l[1], 1), sub: a ? `1か月 ${mcPct(ch)}` : "", s, d: l[0],
+        sig: ch > 2 ? "r" : ch < -2 ? "g" : "y", why: ch > 2 ? "ドル高が進んでいる: リスク資産に逆風" : ch < -2 ? "ドル安が進んでいる: リスク資産に追い風" : "大きな動きはない" }; } },
+  { id:"jpy", th:"fx", n:"ドル円", t:"usdjpy", f:D=>{ const s = D.fred.DEXJPUS, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? (l[1]/a[1]-1)*100 : 0;
+      return { v: mcNum(l[1], 2) + "円", sub: a ? `1か月 ${mcPct(ch)} (${ch >= 0 ? "円安" : "円高"})` : "", s, d: l[0],
+        sig: ch < -4 ? "r" : null, why: ch < -4 ? "急な円高: 円キャリートレードの巻き戻しで相場が揺れることがある" : "" }; } },
+  { id:"vix", th:"fear", n:"VIX (恐怖指数)", t:"vix", f:D=>{ const s = D.fred.VIXCLS, l = mcLast(s); if(!l) return null;
+      return { v: mcNum(l[1], 1), sub: "15以下: 落ち着き ／ 30超: 強い不安", s, d: l[0],
+        sig: l[1] < 15 ? "g" : l[1] <= 25 ? "y" : "r", why: l[1] < 15 ? "市場は落ち着いている" : l[1] <= 25 ? "やや不安" : "強い不安 (リスクオフ)" }; } },
+  { id:"hy", th:"fear", n:"ハイイールド債スプレッド", t:"hy", f:D=>{ const s = D.fred.BAMLH0A0HYM2, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
+      return { v: l[1].toFixed(2) + "%", sub: a ? `1か月 ${mcBp(l[1]-a[1])}` : "", s, d: l[0],
+        sig: l[1] < 3.5 ? "g" : l[1] <= 5 ? "y" : "r", why: l[1] < 3.5 ? "倒産の心配は小さい" : l[1] <= 5 ? "やや心配が出ている" : "倒産の心配が強い (リスクオフ)" }; } },
+  { id:"cpi", th:"econ", n:"CPI (前年比)", t:"cpi", f:D=>{ const s = D.fred.CPIAUCSL; if(!s || s.length < 14) return null;
+      const y = s.slice(12).map((r,i)=>[r[0], (r[1]/s[i][1]-1)*100]), l = mcLast(y), p = y[y.length-2];
+      return { v: l[1].toFixed(1) + "%", sub: p ? `前の月 ${p[1].toFixed(1)}% ／ FRB の目標 2%` : "", s: y, d: l[0], mon: true,
+        sig: l[1] <= 2.5 ? "g" : l[1] <= 3.5 ? "y" : "r", why: l[1] <= 2.5 ? "物価は目標に近い" : l[1] <= 3.5 ? "目標よりやや高い" : "物価が高い: 利下げしにくい" }; } },
+  { id:"core", th:"econ", n:"コアCPI (前年比)", t:"core", f:D=>{ const s = D.fred.CPILFESL; if(!s || s.length < 14) return null;
+      const y = s.slice(12).map((r,i)=>[r[0], (r[1]/s[i][1]-1)*100]), l = mcLast(y), p = y[y.length-2];
+      return { v: l[1].toFixed(1) + "%", sub: p ? `前の月 ${p[1].toFixed(1)}%` : "", s: y, d: l[0], mon: true }; } },
+  { id:"unrate", th:"econ", n:"失業率", t:"unrate", f:D=>{ const s = D.fred.UNRATE; if(!s || s.length < 15) return null;
+      const l = mcLast(s), avg3 = (s[s.length-1][1] + s[s.length-2][1] + s[s.length-3][1]) / 3;
+      const min12 = Math.min(...s.slice(-15, -3).map(r=>r[1])), sahm = avg3 - min12;
+      return { v: l[1].toFixed(1) + "%", sub: `サームルールの値 ${sahm >= 0 ? "+" : ""}${sahm.toFixed(2)} (0.5で景気後退のサイン)`, s, d: l[0], mon: true,
+        sig: sahm >= 0.5 ? "r" : sahm >= 0.3 ? "y" : "g", why: sahm >= 0.5 ? "サームルールに達した: 景気後退のサイン" : sahm >= 0.3 ? "失業率がじわりと上昇" : "雇用は安定" }; } },
+  ...[["sp500","S&P500","SP500","sp500"],["nasdaq","ナスダック","NASDAQCOM","nasdaq"]].map(([id,n,k,t])=>({ id, th:"mkt", n, t, f:D=>{
+      const s = D.fred[k], l = mcLast(s), a = mcAgo(s, 30), ma = mcMA(s, 200); if(!l) return null;
+      return { v: mcNum(l[1]), sub: (a ? `1か月 ${mcPct((l[1]/a[1]-1)*100)}` : "") + (ma ? ` ／ 200日平均 ${mcNum(ma)}` : ""), s, d: l[0],
+        sig: ma ? (l[1] >= ma ? "g" : "r") : null, why: ma ? (l[1] >= ma ? "200日平均より上: 上昇の流れ" : "200日平均より下: 下落の流れ") : "" }; } })),
+  { id:"wti", th:"mkt", n:"原油 (WTI)", t:"wti", f:D=>{ const s = D.fred.DCOILWTICO, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
+      return { v: "$" + mcNum(l[1], 2), sub: a ? `1か月 ${mcPct((l[1]/a[1]-1)*100)}` : "", s, d: l[0] }; } },
+  ...[["btc","ビットコイン","BTC","btc"],["eth","イーサリアム","ETH","btc"],["hype","HYPE","HYPE","btc"],["gold","金 (PAXG)","PAXG","gold"]].map(([id,n,k,t])=>({ id, th: id === "gold" ? "mkt" : "crypto", n, t, f:D=>{
+      const c = D.crypto || {}, s = (c.series||{})[k], now = (c.now||{})[k]; if(!s && !now) return null;
+      const px = now ? now.px : mcLast(s)[1], a = mcAgo(s, 30), ma = mcMA(s, 200);
+      const dd = now && now.prev ? (px/now.prev-1)*100 : null;
+      return { v: "$" + mcNum(px, px < 100 ? 2 : 0), sub: [dd != null ? `24時間 ${mcPct(dd)}` : "", a ? `1か月 ${mcPct((px/a[1]-1)*100)}` : ""].filter(Boolean).join(" ／ "), s, d: s ? mcLast(s)[0] : "",
+        sig: id === "gold" ? null : ma ? (px >= ma ? "g" : "r") : null, why: id === "gold" || !ma ? "" : px >= ma ? `200日平均 ($${mcNum(ma)}) より上: 上昇の流れ` : `200日平均 ($${mcNum(ma)}) より下: 下落の流れ` }; } })),
+  { id:"stable", th:"crypto", n:"ステーブルコインの総額", t:"stable", f:D=>{ const s = D.stable && D.stable.map(r=>[r[0], r[1]/1e9]), l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? (l[1]/a[1]-1)*100 : 0;
+      return { v: mcMoney(l[1]), sub: a ? `30日 ${mcPct(ch)}` : "", s, d: l[0],
+        sig: ch > 1 ? "g" : ch < -1 ? "r" : "y", why: ch > 1 ? "暗号資産にお金が入ってきている" : ch < -1 ? "暗号資産からお金が出ていっている" : "大きな変化はない" }; } },
+  { id:"fng", th:"crypto", n:"恐怖と強欲指数", t:"fng", f:D=>{ const s = D.fng, l = mcLast(s); if(!l) return null;
+      const lab = l[1] <= 24 ? "極端な恐怖" : l[1] <= 44 ? "恐怖" : l[1] <= 55 ? "中立" : l[1] <= 74 ? "強欲" : "極端な強欲";
+      return { v: l[1] + " " + lab, sub: "0: 極端な恐怖 〜 100: 極端な強欲", s, d: l[0],
+        sig: l[1] <= 24 ? "y" : l[1] >= 75 ? "r" : "g", why: l[1] <= 24 ? "売られすぎの目安にされる水準 (逆張りの参考)" : l[1] >= 75 ? "買われすぎ・過熱" : "極端ではない" }; } },
+  { id:"funding", th:"crypto", n:"ファンディングレート (BTC)", t:"funding", f:D=>{ const n = ((D.crypto||{}).now||{}).BTC; if(!n || n.funding == null) return null;
+      const r8 = n.funding*8*100, yr = n.funding*24*365*100, h = ((D.crypto||{}).now||{}).HYPE, e = ((D.crypto||{}).now||{}).ETH;
+      return { v: (r8 >= 0 ? "+" : "") + r8.toFixed(4) + "%", sub: `8時間あたり ／ 年率 ${mcPct(yr)}` + (e ? ` ／ ETH ${(e.funding*800).toFixed(4)}%` : "") + (h ? ` ／ HYPE ${(h.funding*800).toFixed(4)}%` : ""), d: "",
+        sig: r8 > 0.03 ? "r" : r8 < 0 ? "y" : "g", why: r8 > 0.03 ? "買いが過熱気味" : r8 < 0 ? "売りが優勢" : "落ち着いた水準" }; } },
+];
+const MC_SIG = { g:"🟢", y:"🟡", r:"🔴" };
+function mcEval(def, D){ try{ return def.f(D) || null; }catch(e){ return null; } }
+/* ---- 相場の天気図: 信号を重み付きで足して、追い風 (リスクオン) か向かい風 (リスクオフ) かを出す ----
+   🟢 = +1 / 🟡 = 0 / 🔴 = −1 に重みを掛けて平均 (−1〜+1)。重みは影響の大きさの目安 (お金の量・不安の度合いを重く) */
+const MC_WEIGHT = { netliq:2, vix:2, hy:2, sp500:1.5, unrate:1.5, curve:1, sofr:1, dgs10:1, dxy:1, cpi:1, nasdaq:1, btc:1, stable:1, tga:1, jpy:1, eth:0.5, fng:0.5, funding:0.5 };
+const MC_SKY = [
+  [0.4, "☀️", "晴れ", "リスクオン (追い風が強い)"],
+  [0.15, "🌤", "晴れ時々くもり", "やや追い風"],
+  [-0.15, "⛅", "くもり", "中立 (追い風と向かい風が混在)"],
+  [-0.4, "🌧", "雨", "やや向かい風"],
+  [-Infinity, "⛈", "嵐", "リスクオフ (向かい風が強い)"],
+];
+function mcSky(score){ return MC_SKY.find(x=>score >= x[0]); }
+function mcScore(ids, res){
+  let sum = 0, w = 0, n = 0;
+  for(const id of ids){
+    const r = res[id], wt = MC_WEIGHT[id];
+    if(!wt || !r || !r.sig) continue;
+    sum += wt * ({ g:1, y:0, r:-1 }[r.sig]); w += wt; n++;
+  }
+  return w ? { s: sum / w, n } : null;
+}
+/** 天気図のまとめ: 全体の点数・空・追い風/向かい風の指標 (重みの大きい順に最大4つ) */
+function mcSummary(res){
+  const all = mcScore(Object.keys(MC_WEIGHT), res);
+  if(!all) return null;
+  const pick = sig => Object.keys(MC_WEIGHT).filter(id=>res[id] && res[id].sig === sig).sort((a,b)=>MC_WEIGHT[b]-MC_WEIGHT[a]).slice(0, 4);
+  return { all, sky: mcSky(all.s), good: pick("g"), bad: pick("r") };
+}
+function mcName(id){ return (MC_DEFS.find(d=>d.id === id) || {}).n || id; }
+/* ---- 📅 経済カレンダー (FOMC・CPI・雇用統計) と、関連する Polymarket の予想 ----
+   日付は公式の発表予定 (federalreserve.gov / bls.gov、2026年11月に確認)。毎年1回、翌年分を足す */
+const MC_CAL = [
+  // FOMC: 2日目の米東部時間14:00に発表 (日付は2日目)
+  ...["2026-12-09","2027-01-27","2027-03-17","2027-04-28","2027-06-09","2027-07-28","2027-09-15","2027-10-27","2027-12-08"].map(d=>({ d, k:"fomc", h:14, m:0 })),
+  // CPI: 米東部時間8:30 (ref = 対象の月)
+  ...[["2026-11-10","2026-10"],["2026-12-10","2026-11"],["2027-01-13","2026-12"],["2027-02-11","2027-01"],["2027-03-10","2027-02"],["2027-04-13","2027-03"],["2027-05-12","2027-04"],
+      ["2027-06-10","2027-05"],["2027-07-14","2027-06"],["2027-08-11","2027-07"],["2027-09-14","2027-08"],["2027-10-14","2027-09"],["2027-11-10","2027-10"],["2027-12-10","2027-11"]].map(([d,ref])=>({ d, ref, k:"cpi", h:8, m:30 })),
+  // 雇用統計: 米東部時間8:30
+  ...[["2026-11-06","2026-10"],["2026-12-04","2026-11"],["2027-01-08","2026-12"],["2027-02-05","2027-01"],["2027-03-05","2027-02"],["2027-04-02","2027-03"],["2027-05-07","2027-04"],
+      ["2027-06-04","2027-05"],["2027-07-02","2027-06"],["2027-08-06","2027-07"],["2027-09-03","2027-08"],["2027-10-08","2027-09"],["2027-11-05","2027-10"],["2027-12-03","2027-11"]].map(([d,ref])=>({ d, ref, k:"jobs", h:8, m:30 })),
+];
+const MC_CAL_KIND = { fomc:["🏦","FOMC (政策金利の発表)","fomc"], cpi:["🛒","CPI (物価)","cpi"], jobs:["👷","雇用統計","unrate"] };
+const MC_MON_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+/** 米東部時間 → 発表の時刻 (Date)。夏時間は3月の第2日曜〜11月の第1日曜 */
+function mcEtTime(d, h, m){
+  const [y, mo, da] = d.split("-").map(Number);
+  const nthSun = (mon, n) => { const f = new Date(Date.UTC(y, mon, 1)).getUTCDay(); return 1 + ((7 - f) % 7) + 7*(n-1); };
+  const day = Date.UTC(y, mo-1, da);
+  const dst = day >= Date.UTC(y, 2, nthSun(2, 2)) && day < Date.UTC(y, 10, nthSun(10, 1));
+  return new Date(Date.UTC(y, mo-1, da, h + (dst ? 4 : 5), m));
+}
+function mcCalUpcoming(n){
+  const now = Date.now();
+  return MC_CAL.map(e=>Object.assign({ at: mcEtTime(e.d, e.h, e.m) }, e))
+    .filter(e=>e.at.getTime() > now - 3*3600000).sort((a,b)=>a.at - b.at).slice(0, n || 6);
+}
+function mcCalLabel(e){
+  const k = MC_CAL_KIND[e.k];
+  return e.ref ? `${k[1]} ${Number(e.ref.slice(5))}月分` : k[1];
+}
+function mcUntil(t){
+  const ms = t - Date.now();
+  if(ms <= 0) return "発表済み";
+  const h = ms/3600000;
+  if(h < 24) return "あと" + Math.max(1, Math.round(h)) + "時間";
+  return "あと" + Math.floor(h/24) + "日";
+}
+/* Polymarket で関連する予想市場を探す (日付が近く、言葉が合うイベント) */
+function mcCalQueries(e){
+  const mon = MC_MON_EN[Number((e.ref || e.d).slice(5,7)) - 1];
+  if(e.k === "fomc") return ["Fed decision in " + mon, "Fed interest rates " + mon];
+  if(e.k === "cpi") return [mon + " Inflation US", "CPI YoY - " + mon];
+  return [mon + " jobs report", "Unemployment rate in " + mon, "US unemployment " + mon];
+}
+/** public-search の結果から、その発表に合う市場を選ぶ (日付が4日以内・言葉が合う・他の国は除く)。{id,t,s,opts} か null */
+function mcCalPick(evs, e){
+  const re = { fomc:/fed|interest rate|fomc/i, cpi:/inflation us|cpi/i, jobs:/unemployment|jobs report|payroll/i }[e.k];
+  const other = /\b(uk|china|argentina|canada|euro|eurozone|japan|germany|india|brazil|turkey|australia)\b|jolts|pce|ppi/i;
+  /* 同じ日に複数ある時の優先: CPI は前年比 (Annual) を、FOMC は「Fed Decision」を先に */
+  const prefer = ev => e.k === "cpi" ? (/annual/i.test(ev.title) ? 2 : /yoy/i.test(ev.title) ? 1 : 0) : e.k === "fomc" ? (/fed decision/i.test(ev.title) ? 1 : 0) : 0;
+  const day = Date.parse(e.d + "T12:00:00Z");
+  const cand = evs.filter(ev=> re.test(ev.title || "") && !other.test(ev.title || "") && !ev.closed && Math.abs((Date.parse(ev.endDate) || 0) - day) <= 4*86400000)
+    .sort((a,b)=> prefer(b) - prefer(a) || (Number(b.volume)||0) - (Number(a.volume)||0));
+  const ev = cand[0];
+  if(!ev) return null;
+  const opts = (ev.markets || []).filter(m=>!m.closed).map(m=>{ let p = m.outcomePrices; try{ p = typeof p === "string" ? JSON.parse(p) : p; }catch(x){ p = []; }
+      return { id: String(m.id), g: String(m.groupItemTitle || m.question || ""), p: Number((p || [])[0]) }; })
+    .filter(o=>!isNaN(o.p)).sort((a,b)=>b.p - a.p);
+  return { id: String(ev.id), t: String(ev.title || ""), s: String(ev.slug || ""), opts };
+}
+/* ===== マクロの計算 ここまで ===== */
+
+// =====================================================================
+//  毎朝のまとめに入れる「相場の天気図」と「これからの予定」
+// =====================================================================
+
+const MC_JA_DOW = '日月火水木金土';
+function mcJstWhen_(d) {
+  const t = new Date(d.getTime() + 9 * 3600000);
+  return (t.getUTCMonth() + 1) + '/' + t.getUTCDate() + '(' + MC_JA_DOW[t.getUTCDay()] + ') '
+    + String(t.getUTCHours()).padStart(2, '0') + ':' + String(t.getUTCMinutes()).padStart(2, '0');
+}
+/** 天気図と予定の文 (失敗したら null)。昨日から変わった信号も出す */
+function pmMacroSection_() {
+  const D = macroData_(false);
+  D.fred = D.fred || {};
+  const res = {};
+  MC_DEFS.forEach(function (d) { res[d.id] = mcEval(d, D); });
+  const sum = mcSummary(res);
+  if (!sum) return null;
+  const props = PropertiesService.getScriptProperties();
+  const now = {};
+  Object.keys(res).forEach(function (id) { if (res[id] && res[id].sig) now[id] = res[id].sig; });
+  let prev = null;
+  try { prev = JSON.parse(props.getProperty('PM_MC_SIG') || 'null'); } catch (e) {}
+  const changed = prev && prev.sig ? Object.keys(now).filter(function (id) { return prev.sig[id] && prev.sig[id] !== now[id]; }) : [];
+  props.setProperty('PM_MC_SIG', JSON.stringify({ t: Date.now(), sig: now }));
+  const reason = function (id) { return mcName(id) + ' (' + (res[id].why || '') + ')'; };
+  // これから7日の予定と、3日以内のものは Polymarket の予想
+  const cal = mcCalUpcoming(10).filter(function (e) { return e.at.getTime() - Date.now() <= 7 * 86400000; });
+  const odds = {};
+  cal.forEach(function (e) {
+    if (e.at.getTime() - Date.now() > 3 * 86400000) return;
+    try {
+      const evs = [], seen = {};
+      mcCalQueries(e).forEach(function (q) {
+        const r = pmFetch_('/public-search?q=' + encodeURIComponent(q) + '&limit_per_type=10&events_status=active');
+        ((r && r.events) || []).forEach(function (ev) { if (!seen[ev.id]) { seen[ev.id] = 1; evs.push(ev); } });
+      });
+      odds[e.k + e.d] = mcCalPick(evs, e);
+    } catch (err) { Logger.log('予定の予想市場を探せません: ' + err); }
+  });
+  const ja = pmJaMap_([].concat.apply([], Object.keys(odds).map(function (k) { return odds[k] ? odds[k].opts.slice(0, 3).map(function (o) { return o.g; }) : []; })));
+  const oddsTxt = function (e) {
+    const o = odds[e.k + e.d];
+    return o && o.opts.length ? ' — Polymarket: ' + o.opts.slice(0, 3).map(function (x) { return (ja[x.g] || x.g) + ' ' + pmPctJa_(x.p); }).join(' ／ ') : '';
+  };
+  const sky = sum.sky;
+  const text = '■ 相場の天気図: ' + sky[1] + ' ' + sky[2] + ' — ' + sky[3] + '\n'
+    + (sum.good.length ? '・追い風: ' + sum.good.map(reason).join('、') + '\n' : '')
+    + (sum.bad.length ? '・向かい風: ' + sum.bad.map(reason).join('、') + '\n' : '')
+    + (changed.length ? '・昨日から変わった信号: ' + changed.map(function (id) { return mcName(id) + ' ' + MC_SIG[prev.sig[id]] + '→' + MC_SIG[now[id]]; }).join('、') + '\n' : '')
+    + '\n■ これから7日の予定 (日本時間)\n'
+    + (cal.length ? cal.map(function (e) { return '・' + mcJstWhen_(e.at) + ' ' + mcCalLabel(e) + oddsTxt(e); }).join('\n') : '・大きな発表はありません') + '\n';
+  const html = '<tr><td style="padding:4px 0 10px"><div style="font-size:22px">' + sky[1] + ' <b>' + esc(sky[2]) + '</b></div>'
+    + '<div style="color:#4b5563;font-size:13px">' + esc(sky[3]) + '</div>'
+    + (sum.good.length ? '<div style="font-size:13px;margin-top:6px">🟢 追い風: ' + esc(sum.good.map(reason).join('、')) + '</div>' : '')
+    + (sum.bad.length ? '<div style="font-size:13px;margin-top:4px">🔴 向かい風: ' + esc(sum.bad.map(reason).join('、')) + '</div>' : '')
+    + (changed.length ? '<div style="font-size:13px;margin-top:4px">🔄 昨日から変わった信号: ' + esc(changed.map(function (id) { return mcName(id) + ' ' + MC_SIG[prev.sig[id]] + '→' + MC_SIG[now[id]]; }).join('、')) + '</div>' : '')
+    + '</td></tr>'
+    + '<tr><td style="padding:10px 0 4px;font-weight:700;font-size:15px">📅 これから7日の予定 (日本時間)</td></tr>'
+    + (cal.length ? cal.map(function (e) { return '<tr><td style="padding:4px 0;font-size:14px;border-bottom:1px solid #f1f5f9">' + esc(mcJstWhen_(e.at) + ' ' + mcCalLabel(e)) + '<span style="color:#4b5563">' + esc(oddsTxt(e)) + '</span></td></tr>'; }).join('')
+      : '<tr><td style="color:#6b7280;font-size:13px">大きな発表はありません</td></tr>');
+  return { text: text, html: html, sky: sky };
+}
+
+// =====================================================================
+//  AI に渡す記録 — 毎日まとめて残し、期間を選んで1つの文章 (Markdown) にする
+//    daily-YYYY-MM.json … 市場ごとのその日の 始値・終値・高値・安値・24時間出来高 (1時間ごとの記録から毎晩作る)
+//    macro-log.json     … 日ごとの天気図 (点数・空・信号・主な値)
+//    alerts.json        … 急変の通知の記録 (1年分)
+// =====================================================================
+
+function pmJstDay_(t) { return Utilities.formatDate(new Date(t), 'Asia/Tokyo', 'yyyy-MM-dd'); }
+function pmDayAdd_(ymd, n) { const p = ymd.split('-').map(Number); const d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)); return d.toISOString().slice(0, 10); }
+
+/** 毎日 (決着の取り込みの後): まだ要約していない日の記録をまとめ、マクロの日誌に今日の1行を足す */
+function pmDailyJobs_() {
+  const props = PropertiesService.getScriptProperties();
+  try {
+    const today = pmJstDay_(Date.now());
+    let day = props.getProperty('PM_DAILY_DONE');
+    day = day ? pmDayAdd_(day, 1) : (props.getProperty('PM_FIRST_DAY') || today);
+    let n = 0;
+    while (day < today && n < 7) {   // 1回に7日分まで (止まっていた分も追いつく)
+      pmSummarizeDay_(day);
+      props.setProperty('PM_DAILY_DONE', day);
+      day = pmDayAdd_(day, 1); n++;
+    }
+  } catch (e) { Logger.log('日ごとの要約に失敗: ' + e); }
+  try { pmMacroLog_(); } catch (e) { Logger.log('マクロの日誌に失敗: ' + e); }
+}
+function pmSummarizeDay_(day) {
+  const s = pmRead_('snap-' + day + '.json');
+  if (!s) return;
+  const snap = JSON.parse(s), out = {};
+  (snap.rows || []).forEach(function (row) {
+    (row.m || []).forEach(function (r) {
+      const id = r[0], p = r[1], v = r[2];
+      const x = out[id];
+      if (!x) out[id] = [p, p, p, p, v];
+      else { x[1] = p; if (p > x[2]) x[2] = p; if (p < x[3]) x[3] = p; x[4] = v; }
+    });
+  });
+  const name = 'daily-' + day.slice(0, 7) + '.json';
+  const cur = pmLoadJson_(name);
+  cur[day] = out;   // [始値, 終値, 高値, 安値, 24時間出来高]
+  pmWrite_(name, JSON.stringify(cur));
+}
+function pmMacroLog_() {
+  const D = macroData_(false);
+  D.fred = D.fred || {};
+  const res = {};
+  MC_DEFS.forEach(function (d) { res[d.id] = mcEval(d, D); });
+  const sum = mcSummary(res);
+  if (!sum) return;
+  const sig = {}, v = {};
+  MC_DEFS.forEach(function (d) { const r = res[d.id]; if (!r) return; if (r.sig) sig[d.id] = r.sig; v[d.id] = r.v; });
+  const add = {};
+  add[pmJstDay_(Date.now())] = { s: Math.round(sum.all.s * 100) / 100, sky: sum.sky[2], sig: sig, v: v };
+  pmMergeJson_('macro-log.json', add);
+}
+function pmLogAlerts_(hits) {
+  const cur = pmRead_('alerts.json');
+  let list = cur ? JSON.parse(cur) : [];
+  const now = new Date().toISOString();
+  hits.forEach(function (h) {
+    const r = h.r, prev = h.why.k === 'h1' ? r.p - r.h1 : h.why.k === 'd1' ? r.p - r.d1 : null;
+    list.push({ t: now, id: r.id, ev: r.ev, et: r.et, g: r.g, q: r.q, p: r.p, prev: prev != null ? pmRound_(prev, 4) : null, why: h.why.txt, w: h.watched ? 1 : 0, v24: r.v24 });
+  });
+  const since = new Date(Date.now() - 365 * 86400000).toISOString();
+  list = list.filter(function (x) { return x.t >= since; });
+  pmWrite_('alerts.json', JSON.stringify(list));
+}
+
+/* ---- レポート ---- */
+function pmDailyRange_(from, to) {
+  const out = {};
+  let m = from.slice(0, 7);
+  while (m <= to.slice(0, 7)) {
+    const f = pmLoadJson_('daily-' + m + '.json');
+    Object.keys(f).forEach(function (d) { if (d >= from && d <= to) out[d] = f[d]; });
+    const p = m.split('-').map(Number); m = p[1] === 12 ? (p[0] + 1) + '-01' : p[0] + '-' + String(p[1] + 1).padStart(2, '0');
+  }
+  return out;
+}
+const pmMdCell_ = function (x) { return String(x == null ? '' : x).replace(/\|/g, '／').replace(/\n/g, ' '); };
+function pmMdTable_(head, rows) {
+  if (!rows.length) return '(該当なし)\n';
+  return '| ' + head.join(' | ') + ' |\n|' + head.map(function () { return '---'; }).join('|') + '|\n'
+    + rows.map(function (r) { return '| ' + r.map(pmMdCell_).join(' | ') + ' |'; }).join('\n') + '\n';
+}
+const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p * 1000) / 10) + '%'; };
+
+/**
+ * AI に渡すレポート (Markdown)。opt: { days, parts: ['macro','watch','alerts','resolve'] }
+ */
+function pmReport_(opt) {
+  const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve'];
+  const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
+  const cat = pmLoadCatalog_();
+  const ja = pmLoadJson_('tr.json');
+  const title = function (id) {
+    const c = cat.m[id] || {};
+    const en = c.g ? (c.et || c.q) + ' ― ' + c.g : (c.q || id);
+    const j = c.g ? (ja[c.et] || c.et || c.q) + ' ― ' + (ja[c.g] || c.g) : (ja[c.q] || c.q);
+    return j && j !== en ? j + ' (' + en + ')' : en;
+  };
+  const daily = (parts.indexOf('watch') >= 0 || parts.indexOf('resolve') >= 0 || parts.indexOf('alerts') >= 0) ? pmDailyRange_(pmDayAdd_(from, -10), to) : {};
+  const dayKeys = Object.keys(daily).sort();
+  const closeOn = function (id, d) {   // その日以前で一番近い日の終値
+    for (let i = dayKeys.length - 1; i >= 0; i--) if (dayKeys[i] <= d && daily[dayKeys[i]][id]) return daily[dayKeys[i]][id][1];
+    return null;
+  };
+  const lines = [];
+  lines.push('# ポリマーケット記録のレポート (' + from + ' 〜 ' + to + '・' + days + '日間)');
+  lines.push('');
+  lines.push('次のデータは、私が自分のアプリ (ポリマーケット記録) で自動で記録したものです。これを読んで考察してください。');
+  lines.push('・マクロ環境の変化と、予測市場の確率の動きに関係はありそうか');
+  lines.push('・ウォッチ中の市場で、確率が大きく動いた日と、そのきっかけになりそうな出来事');
+  lines.push('・急変のあと、確率はそのまま進んだか・戻ったか (急変を信じてよい場面・よくない場面)');
+  lines.push('・答え合わせから見た、予測市場の当たりやすさ・外れやすさの傾向');
+  lines.push('・今後注目すべき点');
+  lines.push('数字は表のとおりです。分からないことは推測と分かるように書いてください。日付は日本時間です。');
+  lines.push('');
+
+  if (parts.indexOf('macro') >= 0) {
+    const log = pmLoadJson_('macro-log.json');
+    const ds = Object.keys(log).filter(function (d) { return d >= from && d <= to; }).sort();
+    lines.push('## 1. マクロ環境と天気図の推移');
+    lines.push('天気図の点数は、各指標の信号 (🟢+1・🟡0・🔴−1) を影響の大きさで重み付けした平均 (−1 〜 +1、プラスほどリスク資産に追い風)。');
+    const keys = ['vix', 'hy', 'dgs10', 'curve', 'netliq', 'dxy', 'sp500', 'btc', 'fng'];
+    lines.push(pmMdTable_(['日付', '空', '点数', '🔴の指標'].concat(keys.map(mcName)),
+      ds.map(function (d) { const x = log[d]; return [d, x.sky, x.s, Object.keys(x.sig || {}).filter(function (k) { return x.sig[k] === 'r'; }).map(mcName).join('・')].concat(keys.map(function (k) { return (x.v || {})[k] || ''; })); })));
+    if (!ds.length) lines.push('※ マクロの日誌は、この機能を入れた日から毎朝1行ずつ貯まります。');
+    lines.push('');
+  }
+
+  if (parts.indexOf('watch') >= 0) {
+    const ids = pmWatchIds_();
+    lines.push('## 2. ウォッチ中の市場の推移 (日ごと)');
+    lines.push('確率は「はい」(または最初の選択肢) の値段。出来高は24時間の取引額 (ドル)。');
+    if (!ids.length) lines.push('(ウォッチ中の市場はありません)');
+    ids.forEach(function (id) {
+      const rows = dayKeys.filter(function (d) { return d >= from && daily[d][id]; }).map(function (d) { const x = daily[d][id]; return [d, pmP_(x[0]), pmP_(x[1]), pmP_(x[2]), pmP_(x[3]), Math.round(x[4] || 0).toLocaleString()]; });
+      const c = cat.m[id] || {};
+      lines.push('### ' + title(id));
+      lines.push('締切: ' + (c.end || '不明') + (c.r != null ? ' ／ 決着: ' + c.r : '') + (c.e ? ' ／ https://polymarket.com/event/' + c.e : ''));
+      lines.push(pmMdTable_(['日付', '始値', '終値', '高値', '安値', '24時間出来高'], rows));
+      // 大きく動いた日 (終値が前日から5pt以上)
+      const big = [];
+      for (let i = 1; i < rows.length; i++) { const a = parseFloat(rows[i - 1][2]), b = parseFloat(rows[i][2]); if (Math.abs(b - a) >= 5) big.push(rows[i][0] + ' (' + rows[i - 1][2] + ' → ' + rows[i][2] + ')'); }
+      if (big.length) lines.push('大きく動いた日: ' + big.join('、'));
+      lines.push('');
+    });
+  }
+
+  if (parts.indexOf('alerts') >= 0) {
+    const al = (pmRead_('alerts.json') ? JSON.parse(pmRead_('alerts.json')) : []).filter(function (a) { return a.t.slice(0, 10) >= from; });
+    lines.push('## 3. 急変の記録と、その後');
+    lines.push('「あなた向け」とウォッチ中の市場で通知した急変。「いま」は直近の記録 (決着していれば結果)。');
+    lines.push(pmMdTable_(['日時 (UTC)', '市場', '動き', '前', '急変時', 'いま', 'その後'],
+      al.map(function (a) {
+        const c = cat.m[a.id] || {};
+        const nowP = c.r != null ? null : closeOn(a.id, to);
+        const after = c.r != null ? '決着: ' + c.r : nowP == null ? '記録なし' : (a.prev != null && (a.p - a.prev) * (nowP - a.p) > 0 ? 'さらに同じ方向' : Math.abs(nowP - a.p) < 0.03 ? 'ほぼそのまま' : '戻った');
+        return [a.t.slice(0, 16).replace('T', ' '), (a.w ? '⭐ ' : '') + title(a.id), a.why, pmP_(a.prev), pmP_(a.p), c.r != null ? c.r : pmP_(nowP), after];
+      })));
+    lines.push('');
+  }
+
+  if (parts.indexOf('resolve') >= 0) {
+    const res = Object.keys(cat.m).filter(function (id) { const c = cat.m[id]; return c.r != null && c.ra && String(c.ra).slice(0, 10) >= from; });
+    lines.push('## 4. 答え合わせ (この期間に決着した市場)');
+    lines.push('決着の1日前・7日前の確率 (記録がある時) と、実際の結果。');
+    const rows = [], buckets = {};
+    res.forEach(function (id) {
+      const c = cat.m[id], d = String(c.ra).slice(0, 10);
+      const p1 = closeOn(id, pmDayAdd_(d, -1)), p7 = closeOn(id, pmDayAdd_(d, -7));
+      const yes = (c.o || [])[0] && c.r === c.o[0];
+      rows.push([d, title(id), c.r, pmP_(p7), pmP_(p1)]);
+      if (p1 != null && (c.o || []).length === 2 && c.r !== '50-50') {
+        const b = Math.min(9, Math.floor(p1 * 10));
+        buckets[b] = buckets[b] || { n: 0, y: 0 };
+        buckets[b].n++; if (yes) buckets[b].y++;
+      }
+    });
+    lines.push(pmMdTable_(['決着日', '市場', '結果', '7日前', '1日前'], rows.slice(0, 200)));
+    if (rows.length > 200) lines.push('(ほか ' + (rows.length - 200) + '件は省略)');
+    lines.push('### 確率の当たり具合 (決着1日前の確率ごと、2択の市場)');
+    lines.push(pmMdTable_(['1日前の確率', '件数', '実際に「' + 'はい (最初の選択肢)' + '」だった割合'],
+      Object.keys(buckets).sort(function (a, b) { return a - b; }).map(function (b) { const x = buckets[b]; return [(b * 10) + '〜' + (b * 10 + 10) + '%', x.n, Math.round(x.y / x.n * 100) + '%']; })));
+    lines.push('');
+  }
+  const text = lines.join('\n');
+  return { ok: true, text: text, chars: text.length, from: from, to: to };
+}

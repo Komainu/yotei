@@ -17,7 +17,9 @@
 > - 和訳・あなた向け: アプリ → GAS `pmAi` (Gemini。訳は tr.json、点数と分野は score.json に保存して使い回す)。ルールの要約は `pmRule` (rule.json)。設定は `pmConfig`、ウォッチは `pmWatch` (→ `PM_WATCH`)。`pm*` の操作は doPost の入口で予定データのロックを取らずに処理する
 > - 通知メール (gas/Code.gs 末尾): `pmAlert` 10分おき (あなた向け=点数2以上とウォッチだけ。1時間10pt/24時間15pt/出来高3倍、ウォッチは1時間5pt。同じ市場は6時間に1回) と `pmDigest` 毎朝8時。送り先 `MAIL_TO`、オン/オフ `PM_ALERT_ON` `PM_DIGEST_ON`。本文はテキスト中心 (MUSE が読む)
 > - マクロ (gas/Code.gs 末尾 `macroData_`): FRED (fredgraph.csv・キー不要)・Hyperliquid・DefiLlama・alternative.me をサーバーで取り、ドライブの macro.json に保存 (FRED 6時間・価格30分)。`doGet ?action=macro`。`pmRecord` の後に `macroRefresh` で温める。画面は index.html の `MC_DEFS` (テーマ・計算・信号)
+> - **マクロの計算は index.html と gas/Code.gs に同じコードの囲み** (「マクロの計算」の囲み。指標の定義 `MC_DEFS`・天気図 `mcSummary`・カレンダー `MC_CAL`)。変える時は両方を同じに直す (テストで一致を確認)。毎朝のまとめメール (`pmDigest`) の先頭に天気図・昨日から変わった信号 (`PM_MC_SIG`)・7日以内の予定を入れる
 > - 天気図 (`renderWeather`): 信号 🟢+1/🟡0/🔴−1 を `MC_WEIGHT` で重み付き平均。経済カレンダー (`MC_CAL`): FOMC・CPI・雇用統計の公式日程 (2027年末まで。**毎年、翌年分を federalreserve.gov と bls.gov から足す**)。関連する Polymarket の市場は public-search で日付と言葉が合うものを探す
+> - AI に渡す記録 (gas/Code.gs 末尾): `pmResolve` の後の `pmDailyJobs_` が毎日 `daily-YYYY-MM.json` (市場ごと [始値,終値,高値,安値,24h出来高]) と `macro-log.json` (天気図の1行) を作る。`pmAlert` が `alerts.json` に急変を記録。`doGet ?action=report&days=&parts=macro,watch,alerts,resolve` が依頼文つき Markdown を返す。アプリは「🤖 記録をAIに渡す」シート (30,000文字を超えたらファイル保存をすすめる)
 > - 用語集: index.html の `GLOSS` (n 名前 / a 別名=自動リンクする言葉 / s ひとことで / w なぜ大事か / u・d 上がると・下がると / r 関連)。`linkTerms()` で本文に下線リンク、`termBtn()` で ? ボタン。用語を足す時は GLOSS に1つ足すだけ (テストで関連先と別名の重複を確認)
 > - 端末の保存: `pm_tr_v1` `pm_sc_v1` `pm_watch_v1` `pm_hide_v1` (予定の `sakiyomi_v1` とは別)
 
