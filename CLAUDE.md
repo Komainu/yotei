@@ -10,6 +10,12 @@
 > - `pmResolve()`: 結果が未記録で、締切を過ぎたか上位から6時間以上外れた市場を `id=` でまとめて問い合わせ、決着していれば `r` (勝った選択肢 / "50-50"), `ra`, `rp` を台帳に書く
 > - 状況は doGet の `pm` (`pmStatus_`、Script Properties の控え `PM_*` から作る)。アプリの設定「状況を確認」に表示
 > - 売買は一切しない
+>
+> ### Polymarket の画面 (index.html 「Polymarket」の囲み)
+> - Gamma `/markets` を出来高順に500件取得 → `pmCompact` で小さくして `pm_cache_v1` に保存 → `pmGroup` でイベントごとにまとめる (negRisk は確率順、しきい値の段階は `groupItemThreshold` 順)
+> - 急変の帯: 1時間で2pt以上 → 24時間で5pt以上の順。スポーツ・eスポーツは除く。推移グラフ・チャートは CLOB `/prices-history`
+> - 和訳・あなた向け: アプリ → GAS `pmAi` (Gemini。訳は tr.json、点数と分野は score.json に保存して使い回す)。ルールの要約は `pmRule` (rule.json)。設定は `pmConfig`、ウォッチは `pmWatch` (→ `PM_WATCH`)。`pm*` の操作は doPost の入口で予定データのロックを取らずに処理する
+> - 端末の保存: `pm_tr_v1` `pm_sc_v1` `pm_watch_v1` `pm_hide_v1` (予定の `sakiyomi_v1` とは別)
 
 AIエージェント／開発者向けの全体像。変更前に必ず読むこと。利用者は日本語話者なので、画面の文言・コミット説明・PR本文は日本語で書く。
 

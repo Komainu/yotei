@@ -178,3 +178,46 @@ test('アプリ: 設定の「状況を確認」で記録の状況が分かる', 
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });
+
+test('和訳・判定: キーが無い時は保存分だけ返す。興味を変えると判定し直す。1日の上限で止まる', () => {
+  const clock = createClock('2026-11-08T10:00:00+09:00');
+  let calls = 0;
+  const gem = (url, params) => {
+    calls++;
+    const body = JSON.parse(params.payload), sys = body.system_instruction.parts[0].text, input = JSON.parse(body.contents[0].parts[0].text);
+    const out = /翻訳者/.test(sys) ? input.map(x => ({ i: x.i, ja: 'J' + x.t })) : input.map(x => ({ i: x.i, s: /興味: FRBの金利\n/.test(sys) ? 3 : 1, c: '存在しない分野' }));
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] }) };
+  };
+  const gas = loadGas({ clock, fetch: gem });
+  const ask = () => gas.post({ action: 'pmAi', texts: ['Hello', 'World'], events: [{ id: 'e1', t: 'Fed', m: 'x' }] });
+  let r = ask();
+  assert.equal(r.noKey, true);
+  assert.deepEqual(r.tr, {});
+  assert.equal(calls, 0);
+  gas.post({ action: 'pmConfig', geminiKey: 'k' });
+  r = ask();
+  assert.deepEqual(r.tr, { Hello: 'JHello', World: 'JWorld' });
+  assert.deepEqual(r.sc, { e1: { s: 1, c: 'その他' } }, '知らない分野は「その他」');
+  assert.equal(calls, 2);
+  ask();
+  assert.equal(calls, 2, '保存分を使う');
+  gas.post({ action: 'pmConfig', profile: 'FRBの金利' });
+  r = ask();
+  assert.equal(r.sc.e1.s, 3, '興味を変えたら判定し直す');
+  assert.equal(calls, 3);
+  // 1日の上限
+  gas.props.setProperty('PM_AI_DAY', JSON.stringify({ d: '2026-11-08', n: 400 }));
+  r = gas.post({ action: 'pmAi', texts: ['New text'], events: [] });
+  assert.match(r.error, /上限/);
+  assert.equal(r.left, 1);
+  clock.addDays(1);
+  r = gas.post({ action: 'pmAi', texts: ['New text'], events: [] });
+  assert.equal(r.tr['New text'], 'JNew text', '日付が変わればまた使える');
+  // 合言葉
+  gas.props.setProperty('API_SECRET', 'secret-pm-ai-1234');
+  assert.equal(gas.post({ action: 'pmAi', texts: ['Hello'] }).needKey, true);
+  assert.equal(gas.post({ action: 'pmAi', texts: ['Hello'], key: 'secret-pm-ai-1234' }).tr.Hello, 'JHello');
+  // ウォッチ
+  assert.equal(gas.post({ action: 'pmWatch', ids: ['1', '2', 'bad', '3'], key: 'secret-pm-ai-1234' }).watch, 3);
+  assert.equal(gas.props.getProperty('PM_WATCH'), '["1","2","3"]');
+});

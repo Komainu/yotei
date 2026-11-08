@@ -255,19 +255,78 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 }
 
 /* ---------- polymarket ---------- */
-.mcard{
-  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-  padding:14px 18px; margin-bottom:10px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+.pm-top{padding:2px 0 10px; margin-bottom:6px}
+.pm-mvh:empty{display:none}
+.pm-top .search{width:100%}
+.pm-cats{margin-top:10px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:none}
+.pm-cats::-webkit-scrollbar{display:none}
+.pm-cats .chip{white-space:nowrap; flex:none}
+.pm-bar{display:flex; gap:8px; align-items:center; margin-top:10px}
+.pm-bar select{width:auto; padding:6px 10px; font-size:13px}
+.pm-info{flex:1; font-size:12px; color:var(--dim); text-align:right; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
+.pm-movers{display:flex; gap:10px; overflow-x:auto; padding:2px 2px 10px; margin-bottom:6px; scroll-snap-type:x mandatory}
+.pm-movers:empty{display:none}
+.pm-mv{flex:none; width:210px; scroll-snap-align:start; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 12px; cursor:pointer; text-align:left; color:var(--text); font:inherit}
+.pm-mv:hover{border-color:var(--hover)}
+.pm-mv .t{font-size:12.5px; font-weight:600; line-height:1.4; height:2.8em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
+.pm-mv .n{display:flex; align-items:baseline; gap:8px; margin-top:6px}
+.pm-mv .n b{font-size:20px}
+.pm-mvh{font-size:12.5px; color:var(--muted); margin:4px 2px 8px; font-weight:600}
+.pm-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:border-color .15s}
+.pm-card:hover{border-color:var(--hover)}
+.pm-card.you3{box-shadow:inset 3px 0 0 var(--accent)}
+.pm-row1{display:flex; gap:12px; align-items:flex-start}
+.pm-title{flex:1; font-weight:700; font-size:15px; line-height:1.45}
+.pm-title .en{display:block; font-weight:400; font-size:11.5px; color:var(--dim); margin-top:2px}
+.pm-big{text-align:right; min-width:74px}
+.pm-big b{font-size:26px; line-height:1; font-variant-numeric:tabular-nums}
+.pm-big small{display:block; font-size:11px; color:var(--dim); margin-top:3px}
+.pm-meta{display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:8px; font-size:12px; color:var(--muted); align-items:center}
+.pm-tag{font-size:11px; padding:1px 8px; border-radius:99px; background:var(--card2); color:var(--muted)}
+.pm-tag.you{background:var(--tint-accent); color:var(--accent)}
+.pm-tag.soon{background:var(--tint-warn); color:var(--warn)}
+.up{color:var(--ok)} .down{color:var(--danger)} .flat{color:var(--dim)}
+.pm-pbar{height:6px; border-radius:99px; background:var(--card2); overflow:hidden; margin-top:10px}
+.pm-pbar i{display:block; height:100%; border-radius:99px; background:var(--accent)}
+.pm-opts{margin-top:8px}
+.pm-opt{display:grid; grid-template-columns:minmax(0,1fr) 120px 50px; gap:8px; align-items:center; font-size:13px; padding:3px 0}
+.pm-opt .l{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pm-opt .b{height:6px; border-radius:99px; background:var(--card2); overflow:hidden}
+.pm-opt .b i{display:block; height:100%; background:var(--accent); border-radius:99px}
+.pm-opt .v{text-align:right; font-weight:700; font-variant-numeric:tabular-nums}
+.pm-opt.sel{background:var(--tint-accent); border-radius:8px; padding:3px 6px; margin:0 -6px}
+.pm-spark{display:block; margin-top:8px; width:100%; height:34px}
+.pm-skel{height:96px; border-radius:var(--radius); margin-bottom:10px; background:linear-gradient(90deg,var(--card2) 0%,var(--border) 50%,var(--card2) 100%); background-size:200% 100%; animation:pmsk 1.2s ease-in-out infinite; opacity:.6}
+@keyframes pmsk{from{background-position:200% 0} to{background-position:-200% 0}}
+/* 詳細シート */
+.pm-sheet{position:fixed; inset:0; z-index:50}
+.pm-sheet[hidden]{display:none}
+.pm-sheet-bg{position:absolute; inset:0; background:rgba(0,0,0,.45)}
+.pm-sheet-body{position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:min(760px,100%); max-height:92vh; overflow:auto; background:var(--dlg-bg,var(--card)); color:var(--text); border-radius:18px 18px 0 0; padding:10px 18px 24px; box-shadow:0 -10px 40px rgba(0,0,0,.25); animation:pmup .22s ease-out}
+@keyframes pmup{from{transform:translate(-50%,30px); opacity:.4} to{transform:translate(-50%,0); opacity:1}}
+.pm-grip{width:44px; height:5px; border-radius:99px; background:var(--border); margin:0 auto 10px; cursor:pointer}
+.pm-x{position:absolute; right:12px; top:10px; border:none; background:transparent; color:var(--muted); font-size:18px; cursor:pointer; padding:6px}
+.pm-sh-t{font-size:18px; font-weight:800; line-height:1.45; padding-right:30px}
+.pm-sh-en{font-size:12px; color:var(--dim); margin-top:4px}
+.pm-stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin:12px 0}
+.pm-stat{background:var(--card2); border-radius:10px; padding:8px 10px}
+.pm-stat small{display:block; font-size:11px; color:var(--dim)}
+.pm-stat b{font-size:15px}
+.pm-h{font-weight:700; font-size:13.5px; margin:14px 0 6px}
+.pm-chart-box{margin-top:6px}
+.pm-chart-head{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); margin:12px 0 6px; flex-wrap:wrap}
+.pm-chart{height:180px}
+.pm-chart svg{width:100%; height:180px; display:block}
+.pm-rule #pmSRule{font-size:13.5px; line-height:1.75; white-space:pre-wrap; color:var(--text)}
+.pm-rule details{margin-top:8px; font-size:12px; color:var(--muted)}
+.pm-rule details div{white-space:pre-wrap; margin-top:6px}
+.pm-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:16px}
+.pm-actions .btn{flex:1; text-align:center; justify-content:center; white-space:nowrap}
+@media (max-width:560px){
+  .pm-opt{grid-template-columns:minmax(0,1fr) 70px 46px}
+  .pm-big b{font-size:22px}
+  .pm-title{font-size:14.5px}
 }
-.mcard .q{flex:1; min-width:240px}
-.mcard .q .title{font-weight:600; font-size:14.5px}
-.mcard .q .sub{font-size:12px; color:var(--dim); margin-top:3px}
-.prob{
-  font-size:20px; font-weight:800; min-width:74px; text-align:center;
-  padding:6px 10px; border-radius:10px; background:var(--card2);
-}
-.prob.hi{color:var(--ok)} .prob.mid{color:var(--warn)} .prob.lo{color:var(--danger)}
-.prob small{display:block; font-size:10px; color:var(--dim); font-weight:normal}
 
 /* ---------- BTC macro ---------- */
 .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-bottom:14px}
@@ -401,20 +460,26 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 
 <!-- ============ polymarket ============ -->
 <section class="tab active" id="tab-poly">
-  <div class="toolbar">
-    <input class="search" id="polySearch" placeholder="🔍 キーワードで絞り込み (例: bitcoin)…">
-    <div class="chips" id="polyChips">
-      <button class="chip active" data-q="">人気順</button>
-      <button class="chip" data-q="bitcoin">BTC</button>
-      <button class="chip" data-q="ethereum">ETH</button>
-      <button class="chip" data-q="fed">FED</button>
-      <button class="chip" data-q="airdrop">Airdrop</button>
-      <button class="chip" data-mode="tge">🚀 TGE価格予測</button>
+  <div class="pm-top">
+    <input class="search" id="pmQ" placeholder="🔍 日本語・英語で検索 (例: 利下げ / bitcoin / 選挙)" autocomplete="off">
+    <div class="chips pm-cats" id="pmCats"></div>
+    <div class="pm-bar">
+      <select id="pmSort" aria-label="並べ替え">
+        <option value="vol">🔥 出来高が多い順</option>
+        <option value="h1">⚡ 1時間で動いた順</option>
+        <option value="d1">📈 24時間で動いた順</option>
+        <option value="end">⏰ 締切が近い順</option>
+        <option value="you">✨ あなた向けの順</option>
+      </select>
+      <span id="pmInfo" class="pm-info"></span>
+      <button class="btn small" id="pmReload" title="最新にする">↻</button>
     </div>
-    <button class="btn" id="polyReload">↻ 更新</button>
   </div>
-  <div id="polyList"><div class="empty">読み込み中…</div></div>
-  <p class="hint" style="margin-top:10px">ソース: <a href="https://polymarket.com" target="_blank">Polymarket</a> (gamma-api.polymarket.com / 24h出来高順)</p>
+  <div class="pm-mvh" id="pmMvHead"></div>
+  <div id="pmMovers" class="pm-movers"></div>
+  <div id="pmList"></div>
+  <div id="pmMore" style="text-align:center; margin:14px 0"></div>
+  <p class="hint" id="pmFoot">ソース: <a href="https://polymarket.com" target="_blank" rel="noopener">Polymarket</a> (Gamma API・CLOB API)。表示だけで、売買はしません。</p>
 </section>
 
 <!-- ============ btc macro ============ -->
@@ -501,6 +566,18 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 
   <div class="set-card">
+    <h3>🈯 和訳とあなた向け</h3>
+    <p class="hint" style="margin-top:0">Polymarket の英語を日本語に訳し、あなたの興味に合う市場に「✨ あなた向け」を付けます。決着ルールの要約にも使います。訳はサーバー (Googleドライブ) に保存して使い回すので、同じ文を何度も訳しません。</p>
+    <div id="pmAiState" style="font-size:12.5px; color:var(--muted); margin:8px 0"></div>
+    <label>Gemini API キー <span style="color:var(--dim)">(登録済みなら空のまま。取得: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>)</span></label>
+    <input id="pmGemKey" type="password" autocomplete="off" placeholder="AIza…">
+    <label>あなたの興味 (この文章で「あなた向け」を判定します)</label>
+    <textarea id="pmProfile" rows="3" placeholder="例: ビットコイン・HYPE など暗号資産の価格、FRBの金利と米国経済…"></textarea>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="pmAiSave">保存</button><span id="pmAiResult" style="font-size:13px"></span></div>
+    <p class="hint">キーはこの端末には残さず、あなたの Apps Script にだけ保存します。⭐ウォッチと🙅興味なしにした市場も、判定の参考に使います。</p>
+  </div>
+
+  <div class="set-card">
     <h3>☁️ サーバー (Apps Script) と記録の状況</h3>
     <label>Google Apps Script ウェブアプリURL</label>
     <input id="gasUrl" placeholder="https://script.google.com/macros/s/..../exec">
@@ -559,6 +636,28 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 </section>
 
 </main>
+
+<!-- ============ Polymarket 詳細シート ============ -->
+<div id="pmSheet" class="pm-sheet" hidden>
+  <div class="pm-sheet-bg" data-close="1"></div>
+  <div class="pm-sheet-body" role="dialog" aria-modal="true" aria-labelledby="pmSTitle">
+    <div class="pm-grip" data-close="1"></div>
+    <button class="pm-x" data-close="1" aria-label="閉じる">✕</button>
+    <div id="pmSHead"></div>
+    <div id="pmSOutcomes"></div>
+    <div class="pm-chart-box">
+      <div class="pm-chart-head"><span id="pmSChartLabel"></span>
+        <span class="chips" id="pmSRange"><button class="chip" data-r="1d">1日</button><button class="chip active" data-r="1w">1週</button><button class="chip" data-r="1m">1か月</button></span></div>
+      <div id="pmSChart" class="pm-chart"></div>
+    </div>
+    <div class="pm-rule"><div class="pm-h">📜 決着のルール</div><div id="pmSRule"></div></div>
+    <div class="pm-actions">
+      <button class="btn" id="pmSWatch">☆ ウォッチ</button>
+      <button class="btn" id="pmSHide">🙅 興味なし</button>
+      <a class="btn primary" id="pmSOpen" target="_blank" rel="noopener">Polymarketで開く ↗</a>
+    </div>
+  </div>
+</div>
 
 <!-- ============ project dialog ============ -->
 <dialog id="pDialog">
@@ -690,9 +789,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.08";
+const APP_VERSION = "2026.11.09";
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.08";
+const MIN_GAS_VERSION = "2026.11.09";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -1844,97 +1943,543 @@ $("#aiApply").addEventListener("click", ()=>{
 });
 
 /* ================= Polymarket ================= */
-let polyCache = [], polyTgeCache = null, polyMode = "top";
+/* 市場の一覧 (Gamma API) を取り、イベントごとにまとめて、日本語で見せる。売買はしない。
+   端末に保存するもの (予定のデータ sakiyomi_v1 とは別):
+     pm_cache_v1 … 取得した市場 (すぐ表示するため) / pm_tr_v1 … 訳 / pm_sc_v1 … あなた向けの点数と分野
+     pm_watch_v1 … ウォッチ {イベントid: {t, m:[市場id]}} / pm_hide_v1 … 興味なし {イベントid: 名前} */
+const PM_GAMMA = "https://gamma-api.polymarket.com";
+const PM_CLOB = "https://clob.polymarket.com";
+const PM_PAGES = 5;                     /* 100件 × 5 = 出来高上位500市場 */
+const PM_SHOW = 40;                     /* 一度に並べるイベントの数 */
+const PM_MOVER_MIN_VOL = 10000;         /* 急変の帯に出す市場の24時間出来高の下限 (ドル) */
+const PM_CATS = ["暗号資産","経済・金融","政治","選挙","国際情勢","テクノロジー","スポーツ","eスポーツ","エンタメ","その他"];
+const pmLS = {
+  get(k, d){ try{ const v = JSON.parse(localStorage.getItem(k) || "null"); return v == null ? d : v; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){ /* 容量オーバーは諦める */ } },
+};
+const pm = {
+  markets: [], events: [], at: 0, loading: false,
+  tr: pmLS.get("pm_tr_v1", {}), sc: pmLS.get("pm_sc_v1", {}),
+  watch: pmLS.get("pm_watch_v1", {}), hide: pmLS.get("pm_hide_v1", {}),
+  cat: "all", shown: PM_SHOW, aiBusy: false, aiNote: "", spark: {}, sheet: null,
+};
 
-async function loadPoly(){
-  const box = $("#polyList");
-  box.innerHTML = `<div class="empty"><span class="spin"></span> 読み込み中…</div>`;
-  try{
-    const res = await fetch("https://gamma-api.polymarket.com/markets?closed=false&limit=100&order=volume24hr&ascending=false");
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    polyCache = await res.json();
-    renderPoly();
-  }catch(err){
-    box.innerHTML = `<div class="empty">取得に失敗しました: ${esc(err.message)}<br>時間をおいて「↻ 更新」を試してください。</div>`;
-  }
+/* ---- 表示の形 ---- */
+function pmMoney(v){
+  v = Number(v) || 0;
+  if(v >= 1e8) return (v/1e8).toFixed(v >= 1e9 ? 0 : 1).replace(/\.0$/,"") + "億ドル";
+  if(v >= 1e4) return Math.round(v/1e4).toLocaleString() + "万ドル";
+  return Math.round(v).toLocaleString() + "ドル";
 }
+function pmPct(p){
+  if(p == null || isNaN(p)) return "-";
+  const x = p*100;
+  if(x > 0 && x < 1) return "1%未満";
+  if(x < 100 && x > 99) return "99%超";
+  return Math.round(x) + "%";
+}
+function pmDelta(d, unit){
+  if(d == null || isNaN(d)) return "";
+  const pt = d*100;
+  if(Math.abs(pt) < 0.5) return `<span class="flat">±0pt${unit?" "+unit:""}</span>`;
+  return `<span class="${pt>0?"up":"down"}">${pt>0?"▲":"▼"}${Math.abs(pt).toFixed(pt>=10||pt<=-10?0:1)}pt${unit?" "+unit:""}</span>`;
+}
+function pmUntil(iso){
+  if(!iso) return { txt:"締切未定", soon:false };
+  const ms = Date.parse(iso) - Date.now();
+  if(isNaN(ms)) return { txt:"締切未定", soon:false };
+  if(ms <= 0) return { txt:"締切済み・結果待ち", soon:false };
+  const h = ms/3600000;
+  if(h < 1) return { txt:"あと" + Math.max(1,Math.round(ms/60000)) + "分", soon:true };
+  if(h < 48) return { txt:"あと" + Math.round(h) + "時間", soon:true };
+  const d = Math.round(h/24);
+  if(d < 60) return { txt:"あと" + d + "日", soon:d <= 7 };
+  return { txt:"あと" + Math.round(d/30) + "か月", soon:false };
+}
+function pmDate(iso){
+  const d = new Date(iso); if(isNaN(d)) return "";
+  return d.toLocaleString("ja-JP", { timeZone:"Asia/Tokyo", year:"numeric", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" });
+}
+/** 訳があれば訳、無ければ原文 */
+function pmJa(s){ return s ? (pm.tr[s] || s) : ""; }
+function pmLabel(o){ return o === "Yes" ? "はい" : o === "No" ? "いいえ" : pmJa(o); }
 
-/* TGE・トークンローンチ系: 検索APIから収集 */
-async function loadPolyTge(){
-  const box = $("#polyList");
-  box.innerHTML = `<div class="empty"><span class="spin"></span> TGE関連マーケットを検索中…</div>`;
-  const queries = ["token launch", "token price", "TGE", "FDV", "market cap of"];
-  const seen = new Map();
-  for(const q of queries){
-    try{
-      const d = await fetchJson("https://gamma-api.polymarket.com/public-search?q=" + encodeURIComponent(q) + "&limit_per_type=20&events_status=active");
-      for(const ev of (d.events||[])){
-        for(const m of (ev.markets||[])){
-          if(m.closed || m.active===false || m.archived) continue;
-          if(m.endDate && new Date(m.endDate) < Date.now()) continue;
-          if(!seen.has(m.id)) seen.set(m.id, m);
-        }
-      }
-    }catch(e){}
-  }
-  polyTgeCache = [...seen.values()].sort((a,b)=>
-    (parseFloat(b.volume24hr ?? b.volumeNum ?? b.volume ?? 0)) - (parseFloat(a.volume24hr ?? a.volumeNum ?? a.volume ?? 0)));
-  renderPoly();
-}
-
-function renderPoly(){
-  const q = $("#polySearch").value.trim().toLowerCase();
-  const src = polyMode==="tge" ? (polyTgeCache||[]) : polyCache;
-  const list = src.filter(m => !q || (m.question||"").toLowerCase().includes(q)).slice(0, 30);
-  const box = $("#polyList");
-  if(!list.length){ box.innerHTML = `<div class="empty">該当するマーケットがありません</div>`; return; }
-  box.innerHTML = list.map(m=>{
-    let yes = null;
-    try{ yes = parseFloat(JSON.parse(m.outcomePrices||"[]")[0]); }catch(e){}
-    const pct = yes==null||isNaN(yes) ? "—" : Math.round(yes*100)+"%";
-    const cls = yes==null ? "" : yes>=0.6 ? "hi" : yes>=0.35 ? "mid" : "lo";
-    const volN = parseFloat(m.volume24hr ?? m.volumeNum ?? m.volume ?? NaN);
-    const vol = isNaN(volN) ? "—" : "$"+Math.round(volN).toLocaleString();
-    const end = m.endDateIso || (m.endDate||"").slice(0,10) || "—";
-    const url = "https://polymarket.com/market/" + (m.slug||"");
-    const title = m.question || "?";
-    return `
-    <div class="mcard">
-      <div class="prob ${cls}">${pct}<small>YES</small></div>
-      <div class="q">
-        <div class="title"><a href="${esc(url)}" target="_blank" rel="noopener">${esc(title)}</a></div>
-        <div class="sub">24h出来高 ${vol} ・ 終了 ${esc(end)}</div>
-      </div>
-      <button class="btn small" data-slug="${esc(m.slug||"")}" data-q="${esc(title)}" data-end="${esc(m.endDate||"")}">＋ 予定に追加</button>
-    </div>`;
-  }).join("");
-}
-$("#polyList").addEventListener("click", e=>{
-  const b = e.target.closest("button[data-slug]"); if(!b) return;
-  const dl = b.dataset.end ? new Date(b.dataset.end) : null;
-  const added = {
-    id: uid(), name: b.dataset.q, chain: "Polymarket",
-    deadline: dl && !isNaN(dl) ? new Date(dl - dl.getTimezoneOffset()*60000).toISOString().slice(0,16) : "",
-    sources: [{url: "https://polymarket.com/market/"+b.dataset.slug, title: "Polymarket"}],
-    memo: "", pinned: false, status: "open", createdAt: new Date().toISOString(),
+/* ---- 取得と整理 ---- */
+function pmArr(s){ if(Array.isArray(s)) return s; try{ const a = JSON.parse(s || "[]"); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
+/** Gamma の市場を、端末に保存できる小さな形にする (決まりきった市場・使えない市場は null) */
+function pmCompact(m){
+  const p = pmArr(m.outcomePrices).map(Number);
+  if(!p.length || p.some(isNaN) || m.closed) return null;
+  if(Math.max(...p) >= 0.995) return null;   /* ほぼ決着済み (試合終了直後など) は並べない */
+  const ev = (m.events && m.events[0]) || {};
+  return {
+    id: String(m.id), q: String(m.question||""), g: String(m.groupItemTitle||""), o: pmArr(m.outcomes).map(String), p,
+    h1: m.oneHourPriceChange != null ? Number(m.oneHourPriceChange) : null,
+    d1: m.oneDayPriceChange != null ? Number(m.oneDayPriceChange) : null,
+    w1: m.oneWeekPriceChange != null ? Number(m.oneWeekPriceChange) : null,
+    v24: Number(m.volume24hr)||0, liq: Number(m.liquidityNum != null ? m.liquidityNum : m.liquidity)||0,
+    end: m.endDate || ev.endDate || null, tok: pmArr(m.clobTokenIds).map(String), slug: String(m.slug||""),
+    neg: !!m.negRisk, th: m.groupItemThreshold != null && m.groupItemThreshold !== "" ? Number(m.groupItemThreshold) : null,
+    ev: { id: String(ev.id != null ? ev.id : "m" + m.id), t: String(ev.title || m.question || ""), s: String(ev.slug || m.slug || "") },
   };
-  state.projects.push(added);
-  save(); renderProjects(); toast("予定に追加しました");
-  afterProjectsAdded([added]);
-});
-$("#polySearch").addEventListener("input", renderPoly);
-$("#polyChips").addEventListener("click", e=>{
-  const c = e.target.closest(".chip"); if(!c) return;
-  $$("#polyChips .chip").forEach(x=>x.classList.remove("active"));
-  c.classList.add("active");
-  if(c.dataset.mode==="tge"){
-    polyMode = "tge"; $("#polySearch").value = "";
-    polyTgeCache===null ? loadPolyTge() : renderPoly();
-  }else{
-    polyMode = "top"; $("#polySearch").value = c.dataset.q; renderPoly();
+}
+/** 市場をイベントごとにまとめる */
+function pmGroup(markets){
+  const map = new Map();
+  for(const m of markets){
+    let e = map.get(m.ev.id);
+    if(!e){ e = { id:m.ev.id, t:m.ev.t, s:m.ev.s, markets:[], v24:0, end:null }; map.set(e.id, e); }
+    e.markets.push(m); e.v24 += m.v24;
+    if(m.end && (!e.end || m.end < e.end)) e.end = m.end;
   }
+  for(const e of map.values()){
+    e.multi = e.markets.length > 1;
+    /* 「どれか1つが勝つ」形 (negRisk) は確率の高い順。価格の段階などの形は、本来の並び (しきい値の順) */
+    e.ladder = e.multi && !e.markets.some(m=>m.neg) && e.markets.every(m=>m.th != null && !isNaN(m.th));
+    e.markets.sort(e.ladder ? (a,b)=> a.th - b.th : (a,b)=> b.p[0]-a.p[0] || b.v24-a.v24);
+    /* イベントの動き: 出来高のある市場の中で一番大きく動いたもの */
+    const mv = (k)=> e.markets.reduce((best,m)=> (m[k]!=null && Math.abs(m[k]) > Math.abs(best||0)) ? m[k] : best, null);
+    e.h1 = mv("h1"); e.d1 = mv("d1");
+  }
+  return [...map.values()];
+}
+async function pmFetchJson(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+async function pmLoad(force){
+  if(pm.loading) return;
+  const cache = pmLS.get("pm_cache_v1", null);
+  if(cache && cache.markets && !pm.markets.length){
+    pm.markets = cache.markets; pm.at = cache.t; pmRebuild();
+  }
+  if(!force && cache && Date.now() - cache.t < 5*60000 && pm.markets.length){ pmAiFill(); return; }
+  pm.loading = true; pmRenderInfo();
+  if(!pm.markets.length) $("#pmList").innerHTML = Array.from({length:6}, ()=>`<div class="pm-skel"></div>`).join("");
+  try{
+    const pages = await Promise.all(Array.from({length:PM_PAGES}, (_,i)=>
+      pmFetchJson(`${PM_GAMMA}/markets?closed=false&active=true&order=volume24hr&ascending=false&limit=100&offset=${i*100}`).catch(()=>[])));
+    const seen = new Set(), list = [];
+    for(const page of pages) for(const m of (page||[])){ const c = pmCompact(m); if(c && !seen.has(c.id)){ seen.add(c.id); list.push(c); } }
+    if(!list.length) throw new Error("市場を取得できませんでした");
+    pm.markets = list; pm.at = Date.now();
+    pmLS.set("pm_cache_v1", { t: pm.at, markets: list });
+    pm.spark = {};
+    pmRebuild();
+  }catch(err){
+    if(!pm.markets.length) $("#pmList").innerHTML = `<div class="empty">取得に失敗しました: ${esc(err.message)}<br>時間をおいて「↻」を押してください。</div>`;
+    else toast("最新の取得に失敗しました。前回の内容を表示しています");
+  }finally{
+    pm.loading = false; pmRenderInfo();
+  }
+  pmAiFill();
+}
+function pmRebuild(){ pm.events = pmGroup(pm.markets); pmRenderCats(); pmRender(); }
+
+/* ---- 分野 (Gemini の判定が無い時は、ことばで大まかに分ける) ---- */
+const PM_CAT_RULES = [
+  ["eスポーツ", /\b(lol|league of legends|valorant|cs2|counter-strike|dota|esports|bo3|bo5)\b/i],
+  ["暗号資産", /\b(bitcoin|btc|ethereum|eth|solana|sol|crypto|token|airdrop|fdv|tge|hyperliquid|hype|coinbase|binance|microstrategy|stablecoin|memecoin|xrp|doge)\b/i],
+  ["経済・金融", /\b(fed|fomc|rate|rates|cpi|inflation|recession|gdp|s&p|nasdaq|dow|stock|treasury|tariff|unemployment|jobs report|gold|oil)\b/i],
+  ["選挙", /\b(election|elect|primary|nominee|vote|ballot|mayor|governor|senate race|presidential)\b/i],
+  ["国際情勢", /\b(war|israel|iran|ukraine|russia|china|taiwan|ceasefire|nato|gaza|strike|invasion)\b/i],
+  ["政治", /\b(trump|biden|congress|senate|house|supreme court|president|minister|parliament|government)\b/i],
+  ["テクノロジー", /\b(ai|openai|gpt|apple|google|tesla|spacex|nvidia|microsoft|meta|starship)\b/i],
+  ["スポーツ", /( vs\.? |\b(nfl|nba|mlb|nhl|soccer|premier league|uefa|champions league|ufc|tennis|f1|grand prix|super bowl|world cup|ballon|game \d|match)\b)/i],
+  ["エンタメ", /\b(movie|oscar|grammy|album|box office|netflix|taylor swift|youtube|mrbeast)\b/i],
+];
+function pmCatOf(e){
+  const s = pm.sc[e.id];
+  if(s && s.c) return s.c;
+  const text = e.t + " " + e.markets.slice(0,3).map(m=>m.q).join(" ");
+  for(const [c, re] of PM_CAT_RULES) if(re.test(text)) return c;
+  return "その他";
+}
+function pmScore(e){ const s = pm.sc[e.id]; return s ? s.s : null; }
+
+function pmRenderCats(){
+  const counts = {};
+  pm.events.forEach(e=>{ const c = pmCatOf(e); counts[c] = (counts[c]||0) + 1; });
+  const you = pm.events.filter(e=>pmScore(e) >= 2).length;
+  const nw = Object.keys(pm.watch).length;
+  const chips = [["all","🔥 すべて"], ["you", `✨ あなた向け${you?" "+you:""}`], ["watch", `⭐ ウォッチ${nw?" "+nw:""}`]]
+    .concat(PM_CATS.filter(c=>counts[c]).map(c=>[c, `${c} ${counts[c]}`]));
+  $("#pmCats").innerHTML = chips.map(([k,l])=>`<button class="chip ${pm.cat===k?"active":""}" data-cat="${esc(k)}">${esc(l)}</button>`).join("");
+}
+
+/* ---- 絞り込み・並べ替え ---- */
+function pmSearchText(e){
+  if(e._st && e._stv === pm.trv) return e._st;
+  const parts = [e.t, pmJa(e.t)];
+  e.markets.forEach(m=>{ parts.push(m.q, pmJa(m.q), m.g, pmJa(m.g)); m.o.forEach(o=>parts.push(o, pmJa(o))); });
+  e._st = parts.join(" ").toLowerCase(); e._stv = pm.trv;
+  return e._st;
+}
+pm.trv = 0;
+function pmFiltered(){
+  const q = ($("#pmQ").value || "").trim().toLowerCase();
+  const words = q ? q.split(/\s+/) : [];
+  let list = pm.events.filter(e=>{
+    if(pm.cat === "watch") { if(!pm.watch[e.id]) return false; }
+    else if(pm.hide[e.id]) return false;
+    if(pm.cat === "you" && !(pmScore(e) >= 2)) return false;
+    if(PM_CATS.includes(pm.cat) && pmCatOf(e) !== pm.cat) return false;
+    if(words.length){ const st = pmSearchText(e); if(!words.every(w=>st.includes(w))) return false; }
+    return true;
+  });
+  const sort = $("#pmSort").value;
+  const abs = x => x == null ? -1 : Math.abs(x);
+  const by = {
+    vol: (a,b)=> b.v24 - a.v24,
+    h1: (a,b)=> abs(b.h1) - abs(a.h1) || b.v24 - a.v24,
+    d1: (a,b)=> abs(b.d1) - abs(a.d1) || b.v24 - a.v24,
+    end: (a,b)=> (Date.parse(a.end)||9e15) - (Date.parse(b.end)||9e15),
+    you: (a,b)=> (pmScore(b)??-1) - (pmScore(a)??-1) || b.v24 - a.v24,
+  }[sort] || ((a,b)=>b.v24-a.v24);
+  if(sort === "end") list = list.filter(e=>e.end && Date.parse(e.end) > Date.now());
+  return list.sort(by);
+}
+
+/* ---- 描画 ---- */
+/** 代表の市場: 段階の形なら確率が50%に一番近いもの、それ以外は一番確率の高いもの */
+function pmMain(e){ return e.ladder ? e.markets.reduce((b,m)=> Math.abs(m.p[0]-0.5) < Math.abs(b.p[0]-0.5) ? m : b, e.markets[0]) : e.markets[0]; }
+/** カードに出す3つ: 段階の形なら50%に近い3つを本来の並びで、それ以外は上位3つ */
+function pmTop3(e){
+  if(!e.ladder) return e.markets.slice(0,3);
+  const pick = new Set([...e.markets].sort((a,b)=>Math.abs(a.p[0]-0.5)-Math.abs(b.p[0]-0.5)).slice(0,3));
+  return e.markets.filter(m=>pick.has(m));
+}
+function pmCard(e){
+  const m = pmMain(e), sc = pmScore(e), u = pmUntil(e.end), cat = pmCatOf(e);
+  const title = pmJa(e.multi ? e.t : m.q), en = (e.multi ? e.t : m.q);
+  let body = "";
+  let big = "";
+  if(!e.multi){
+    const yesIdx = 0, label = pmLabel(m.o[yesIdx] || "Yes");
+    big = `<div class="pm-big"><b>${pmPct(m.p[yesIdx])}</b><small>${esc(label)}</small></div>`;
+    body = `<div class="pm-pbar"><i style="width:${Math.round(m.p[yesIdx]*100)}%"></i></div>`;
+  }else{
+    const top = pmTop3(e);
+    body = `<div class="pm-opts">` + top.map(x=>`<div class="pm-opt"><span class="l">${esc(pmJa(x.g || x.q))}</span><span class="b"><i style="width:${Math.round(x.p[0]*100)}%"></i></span><span class="v">${pmPct(x.p[0])}</span></div>`).join("")
+      + (e.markets.length > 3 ? `<div class="hint" style="margin-top:2px">ほか ${e.markets.length-3}件</div>` : "") + `</div>`;
+  }
+  const d1 = e.multi ? e.d1 : m.d1, h1 = e.multi ? e.h1 : m.h1;
+  return `<div class="pm-card ${sc===3?"you3":""}" data-ev="${esc(e.id)}">
+    <div class="pm-row1"><div class="pm-title">${esc(title)}${title!==en?`<span class="en">${esc(en)}</span>`:""}</div>${big}</div>
+    ${body}
+    <svg class="pm-spark" data-spark="${esc(m.tok[0]||"")}" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="pm-meta">
+      ${sc>=2?`<span class="pm-tag you">✨ あなた向け</span>`:""}
+      ${pm.watch[e.id]?`<span class="pm-tag">⭐</span>`:""}
+      <span class="pm-tag">${esc(cat)}</span>
+      <span>${pmDelta(h1,"1時間")}</span><span>${pmDelta(d1,"24時間")}</span>
+      <span>出来高 ${pmMoney(e.v24)}</span>
+      <span class="${u.soon?"pm-tag soon":""}">${esc(u.txt)}</span>
+    </div></div>`;
+}
+function pmRenderMovers(){
+  const box = $("#pmMovers");
+  if($("#pmQ").value.trim() || !["all","you"].includes(pm.cat)){ box.innerHTML = ""; $("#pmMvHead").textContent = ""; return; }
+  /* 試合中のスポーツは数分で大きく動くので、帯には出さない (一覧の「1時間で動いた順」では見られる) */
+  const evById = new Map(pm.events.map(e=>[e.id, e]));
+  const pool = pm.markets.filter(m=>{
+    const e = evById.get(m.ev.id);
+    if(!e || m.v24 < PM_MOVER_MIN_VOL || pm.hide[e.id]) return false;
+    if(["スポーツ","eスポーツ"].includes(pmCatOf(e))) return false;
+    return pm.cat !== "you" || pmScore(e) >= 2;
+  });
+  /* 1時間で2pt以上動いたもの → 足りなければ24時間で5pt以上動いたもので埋める (同じイベントは1つまで) */
+  const h1 = pool.filter(m=>m.h1 != null && Math.abs(m.h1) >= 0.02).sort((a,b)=>Math.abs(b.h1)-Math.abs(a.h1)).map(m=>[m,"h1"]);
+  const d1 = pool.filter(m=>m.d1 != null && Math.abs(m.d1) >= 0.05).sort((a,b)=>Math.abs(b.d1)-Math.abs(a.d1)).map(m=>[m,"d1"]);
+  const seen = new Set();
+  const list = h1.concat(d1).filter(([m])=> !seen.has(m.ev.id) && seen.add(m.ev.id)).slice(0, 12);
+  if(!list.length){ box.innerHTML = ""; $("#pmMvHead").textContent = ""; return; }
+  box.innerHTML = list.map(([m,key])=>{
+    const label = m.g ? pmJa(m.ev.t) + " ― " + pmJa(m.g) : pmJa(m.q);
+    return `<button class="pm-mv" data-ev="${esc(m.ev.id)}" data-m="${esc(m.id)}"><div class="t">${esc(label)}</div>
+      <div class="n"><b>${pmPct(m.p[0])}</b>${pmDelta(m[key], key==="h1" ? "1時間" : "24時間")}</div></button>`;
+  }).join("");
+  $("#pmMvHead").textContent = "⚡ いま大きく動いている市場 (スポーツを除く)";
+}
+function pmRender(){
+  const list = pmFiltered();
+  pmRenderMovers();
+  const box = $("#pmList");
+  if(!pm.events.length){ return; }
+  if(!list.length){
+    box.innerHTML = `<div class="empty">${pm.cat==="watch" ? "⭐ ウォッチしている市場はまだありません。<br>カードを押して「☆ ウォッチ」を選ぶと、ここに集まります。"
+      : pm.cat==="you" ? (pm.aiNote || "あなた向けの判定はまだありません") : "該当する市場がありません"}</div>`;
+    $("#pmMore").innerHTML = ""; return;
+  }
+  box.innerHTML = list.slice(0, pm.shown).map(pmCard).join("");
+  $("#pmMore").innerHTML = list.length > pm.shown ? `<button class="btn" id="pmMoreBtn">もっと見る (残り ${list.length - pm.shown}件)</button>` : "";
+  pmSparkAll();
+}
+function pmRenderInfo(){
+  const el = $("#pmInfo"); if(!el) return;
+  const t = pm.at ? new Date(pm.at).toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}) + " 時点" : "";
+  el.innerHTML = pm.loading ? `<span class="spin"></span> 更新中…` : esc([t, pm.aiNote].filter(Boolean).join(" ・ "));
+}
+
+/* ---- 推移グラフ (CLOB の価格の履歴) ---- */
+const pmHistCache = {};
+async function pmHistory(tok, range){
+  const k = tok + ":" + range;
+  if(pmHistCache[k]) return pmHistCache[k];
+  const opt = { "1d":["1d",5], "1w":["1w",60], "1m":["1m",240] }[range] || ["1w",60];
+  const p = pmFetchJson(`${PM_CLOB}/prices-history?market=${encodeURIComponent(tok)}&interval=${opt[0]}&fidelity=${opt[1]}`)
+    .then(d=> (d.history||[]).map(x=>({ t:x.t*1000, p:Number(x.p) })).filter(x=>!isNaN(x.p)));
+  pmHistCache[k] = p;
+  p.catch(()=>{ delete pmHistCache[k]; });
+  return p;
+}
+function pmSparkSvg(svg, pts){
+  if(!pts || pts.length < 2){ svg.innerHTML = ""; return; }
+  const W = 300, H = 34, ps = pts.map(x=>x.p);
+  let lo = Math.min(...ps), hi = Math.max(...ps);
+  if(hi - lo < 0.02){ const mid = (hi+lo)/2; lo = mid - 0.01; hi = mid + 0.01; }
+  const t0 = pts[0].t, t1 = pts[pts.length-1].t || t0 + 1;
+  const xy = pts.map(x=>[ (x.t-t0)/(t1-t0||1)*W, H-2 - (x.p-lo)/(hi-lo)*(H-4) ]);
+  const up = ps[ps.length-1] >= ps[0];
+  const col = up ? "var(--ok)" : "var(--danger)";
+  const d = xy.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join("");
+  svg.innerHTML = `<path d="${d} L${W} ${H} L0 ${H}Z" fill="${col}" opacity=".08"/><path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
+}
+let pmSparkQ = [], pmSparkRunning = 0;
+function pmSparkAll(){
+  const svgs = $$("#pmList svg[data-spark]");
+  const run = svg => { const tok = svg.dataset.spark; if(!tok) return;
+    if(pm.spark[tok]) { pmSparkSvg(svg, pm.spark[tok]); return; }
+    pmSparkQ.push(svg); pmSparkPump(); };
+  if(typeof IntersectionObserver === "undefined"){ svgs.slice(0, 12).forEach(run); return; }
+  if(!pm._io) pm._io = new IntersectionObserver(ents=>ents.forEach(en=>{ if(en.isIntersecting){ pm._io.unobserve(en.target); run(en.target); } }), { rootMargin:"200px" });
+  svgs.forEach(s=>pm._io.observe(s));
+}
+function pmSparkPump(){
+  while(pmSparkRunning < 4 && pmSparkQ.length){
+    const svg = pmSparkQ.shift(), tok = svg.dataset.spark;
+    pmSparkRunning++;
+    pmHistory(tok, "1w").then(pts=>{ pm.spark[tok] = pts; $$(`svg[data-spark="${tok}"]`).forEach(s=>pmSparkSvg(s, pts)); })
+      .catch(()=>{}).finally(()=>{ pmSparkRunning--; pmSparkPump(); });
+  }
+}
+
+/* ---- 和訳とあなた向け (サーバーの Gemini。結果は端末にも保存) ---- */
+async function pmGasPost(obj){
+  const url = state.settings.gasUrl;
+  if(!url) throw new Error("サーバー (Apps Script) のURLが未設定です");
+  const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body: JSON.stringify(withGasKey(obj)), redirect:"follow" });
+  const d = await r.json();
+  if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+  return d;
+}
+function pmNeeds(){
+  const texts = [], events = [], seenT = new Set();
+  const addT = s => { if(s && !pm.tr[s] && !/^(Yes|No)$/.test(s) && !seenT.has(s) && /[A-Za-z]/.test(s)){ seenT.add(s); texts.push(s); } };
+  /* 見えやすい順 (今の並び → 出来高順) */
+  const order = pmFiltered().concat([...pm.events].sort((a,b)=>b.v24-a.v24));
+  const done = new Set();
+  for(const e of order){
+    if(done.has(e.id)) continue; done.add(e.id);
+    addT(e.t);
+    e.markets.slice(0, 6).forEach(m=>{ addT(e.multi ? (m.g || m.q) : m.q); m.o.forEach(addT); });
+    if(!pm.sc[e.id]) events.push({ id:e.id, t:e.t, m:e.markets.slice(0,3).map(m=>m.g||m.q).join(" / ") });
+  }
+  return { texts, events };
+}
+async function pmAiFill(){
+  if(pm.aiBusy || !state.settings.gasUrl) {
+    if(!state.settings.gasUrl){ pm.aiNote = "英語で表示中 (設定でサーバーを登録すると日本語になります)"; pmRenderInfo(); }
+    return;
+  }
+  pm.aiBusy = true;
+  try{
+    for(let round = 0; round < 12; round++){
+      const need = pmNeeds();
+      if(!need.texts.length && !need.events.length){ pm.aiNote = ""; break; }
+      const likes = Object.values(pm.watch).map(w=>w.t).slice(0, 15), dislikes = Object.values(pm.hide).slice(0, 15);
+      pm.aiNote = `和訳中… 残り${need.texts.length + need.events.length}件`; pmRenderInfo();
+      const d = await pmGasPost({ action:"pmAi", texts: need.texts.slice(0, 120), events: need.events.slice(0, 60), likes, dislikes });
+      if(!d || !d.ok){ pm.aiNote = "和訳できませんでした" + (d && d.error ? ": " + d.error : ""); break; }
+      const nT = Object.keys(d.tr||{}).length, nS = Object.keys(d.sc||{}).length;
+      Object.assign(pm.tr, d.tr || {}); Object.assign(pm.sc, d.sc || {});
+      pmLS.set("pm_tr_v1", pm.tr); pmLS.set("pm_sc_v1", pm.sc);
+      pm.trv++;
+      pmRenderCats(); pmRender();
+      if(d.noKey){ pm.aiNote = "英語で表示中 (設定で Gemini のキーを登録すると日本語になります)"; break; }
+      if(d.error){ pm.aiNote = "和訳を一時停止: " + d.error; break; }
+      if(!nT && !nS) break;   /* 進まない時はやめる */
+    }
+  }catch(err){ pm.aiNote = "和訳できませんでした: " + err.message; }
+  finally{ pm.aiBusy = false; pmRenderInfo(); }
+}
+
+/* ---- 詳細シート ---- */
+function pmOpen(evId, mId){
+  const e = pm.events.find(x=>x.id === evId); if(!e) return;
+  const m = (mId && e.markets.find(x=>x.id === mId)) || pmMain(e);
+  pm.sheet = { e, m, range: "1w" };
+  const u = pmUntil(e.end);
+  const title = pmJa(e.multi ? e.t : m.q), en = e.multi ? e.t : m.q;
+  $("#pmSHead").innerHTML = `<div class="pm-sh-t" id="pmSTitle">${esc(title)}</div>${title!==en?`<div class="pm-sh-en">${esc(en)}</div>`:""}
+    <div class="pm-stats">
+      <div class="pm-stat"><small>締切</small><b>${esc(u.txt)}</b><small>${esc(e.end ? pmDate(e.end) : "")}</small></div>
+      <div class="pm-stat"><small>24時間の出来高</small><b>${pmMoney(e.v24)}</b></div>
+      <div class="pm-stat"><small>流動性</small><b>${pmMoney(e.markets.reduce((n,x)=>n+x.liq,0))}</b></div>
+      <div class="pm-stat"><small>分野</small><b>${esc(pmCatOf(e))}</b>${pmScore(e)>=2?`<small>✨ あなた向け</small>`:""}</div>
+    </div>`;
+  pmRenderOutcomes();
+  $$("#pmSRange .chip").forEach(c=>c.classList.toggle("active", c.dataset.r === "1w"));
+  $("#pmSWatch").textContent = pm.watch[e.id] ? "★ ウォッチ中" : "☆ ウォッチ";
+  $("#pmSHide").textContent = pm.hide[e.id] ? "↩ 興味なしを取り消す" : "🙅 興味なし";
+  $("#pmSOpen").href = "https://polymarket.com/event/" + encodeURIComponent(e.s || m.slug);
+  $("#pmSheet").hidden = false;
+  document.body.style.overflow = "hidden";
+  pmChart(); pmLoadRule();
+}
+function pmRenderOutcomes(){
+  const { e, m } = pm.sheet;
+  if(!e.multi){
+    $("#pmSOutcomes").innerHTML = `<div class="pm-h">いまの確率</div><div class="pm-opts">` + m.o.map((o,i)=>`<div class="pm-opt"><span class="l">${esc(pmLabel(o))}</span><span class="b"><i style="width:${Math.round(m.p[i]*100)}%"></i></span><span class="v">${pmPct(m.p[i])}</span></div>`).join("")
+      + `</div><div class="pm-meta">${pmDelta(m.h1,"1時間")} ${pmDelta(m.d1,"24時間")} ${pmDelta(m.w1,"1週間")}</div>`;
+  }else{
+    $("#pmSOutcomes").innerHTML = `<div class="pm-h">選択肢 (押すとグラフが切り替わります)</div><div class="pm-opts">` + e.markets.map(x=>`<div class="pm-opt ${x===m?"sel":""}" data-m="${esc(x.id)}" style="cursor:pointer"><span class="l">${esc(pmJa(x.g || x.q))}</span><span class="b"><i style="width:${Math.round(x.p[0]*100)}%"></i></span><span class="v">${pmPct(x.p[0])}</span></div>`).join("") + `</div>`;
+  }
+}
+async function pmChart(){
+  const { m, range } = pm.sheet, box = $("#pmSChart");
+  $("#pmSChartLabel").textContent = "📈 " + (pm.sheet.e.multi ? pmJa(m.g || m.q) + " の確率" : pmLabel(m.o[0] || "Yes") + " の確率");
+  if(!m.tok[0]){ box.innerHTML = `<div class="hint">推移のデータがありません</div>`; return; }
+  box.innerHTML = `<div class="hint"><span class="spin"></span> 読み込み中…</div>`;
+  try{
+    const pts = await pmHistory(m.tok[0], range);
+    if(pm.sheet.m !== m || pm.sheet.range !== range) return;
+    box.innerHTML = pmChartSvg(pts, range);
+  }catch(err){ box.innerHTML = `<div class="hint">推移を取得できませんでした (${esc(err.message)})</div>`; }
+}
+function pmChartSvg(pts, range){
+  if(!pts || pts.length < 2) return `<div class="hint">この期間の取引がほとんどありません</div>`;
+  const W = 640, H = 180, L = 36, B = 20, T = 8, R = 8;
+  const ps = pts.map(x=>x.p);
+  let lo = Math.max(0, Math.min(...ps) - 0.03), hi = Math.min(1, Math.max(...ps) + 0.03);
+  if(hi - lo < 0.1){ const mid = (hi+lo)/2; lo = Math.max(0, mid-0.05); hi = Math.min(1, mid+0.05); }
+  const t0 = pts[0].t, t1 = pts[pts.length-1].t;
+  const X = t => L + (t-t0)/((t1-t0)||1)*(W-L-R), Y = p => T + (1-(p-lo)/(hi-lo))*(H-T-B);
+  const d = pts.map((x,i)=>(i?"L":"M")+X(x.t).toFixed(1)+" "+Y(x.p).toFixed(1)).join("");
+  const up = ps[ps.length-1] >= ps[0], col = up ? "var(--ok)" : "var(--danger)";
+  let grid = "";
+  for(let i=0;i<=3;i++){ const p = lo + (hi-lo)*i/3, y = Y(p);
+    grid += `<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="var(--border)" stroke-dasharray="3 4"/><text x="${L-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--dim)">${Math.round(p*100)}%</text>`; }
+  const fmt = t => { const dt = new Date(t); return range==="1d" ? dt.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}) : (dt.getMonth()+1)+"/"+dt.getDate(); };
+  for(let i=0;i<=3;i++){ const t = t0 + (t1-t0)*i/3; grid += `<text x="${X(t)}" y="${H-4}" text-anchor="${i===0?"start":i===3?"end":"middle"}" font-size="11" fill="var(--dim)">${fmt(t)}</text>`; }
+  const last = pts[pts.length-1];
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}
+    <path d="${d} L${X(t1)} ${H-B} L${L} ${H-B}Z" fill="${col}" opacity=".08"/>
+    <path d="${d}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <circle cx="${X(last.t)}" cy="${Y(last.p)}" r="3.5" fill="${col}"/></svg>
+    <div class="pm-meta">この期間: ${pmPct(ps[0])} → <b>${pmPct(last.p)}</b> ${pmDelta(last.p - ps[0])}</div>`;
+}
+const pmRuleCache = {};
+async function pmLoadRule(){
+  const { m } = pm.sheet, box = $("#pmSRule");
+  box.innerHTML = `<span class="hint"><span class="spin"></span> 読み込み中…</span>`;
+  try{
+    let desc = pmRuleCache[m.id];
+    if(desc == null){
+      const arr = await pmFetchJson(`${PM_GAMMA}/markets?id=${encodeURIComponent(m.id)}`);
+      desc = String((arr && arr[0] && arr[0].description) || "");
+      pmRuleCache[m.id] = desc;
+    }
+    if(pm.sheet.m !== m) return;
+    if(!desc){ box.innerHTML = `<span class="hint">ルールの説明がありません</span>`; return; }
+    const orig = `<details><summary>原文 (英語) を見る</summary><div>${esc(desc)}</div></details>`;
+    let ja = null, note = "";
+    if(state.settings.gasUrl){
+      try{
+        const d = await pmGasPost({ action:"pmRule", id: m.id, text: desc });
+        if(d && d.ok && d.ja) ja = d.ja;
+        else if(d && d.noKey) note = "Gemini のキーを登録すると、日本語の要約が出ます";
+        else if(d && d.error) note = "要約できませんでした: " + d.error;
+      }catch(err){ note = "要約できませんでした: " + err.message; }
+    }else note = "設定でサーバーを登録すると、日本語の要約が出ます";
+    if(pm.sheet.m !== m) return;
+    box.innerHTML = ja ? `${esc(ja)}${orig}` : `<span class="hint">${esc(note)}</span><div style="margin-top:6px">${esc(desc)}</div>`;
+  }catch(err){ box.innerHTML = `<span class="hint">ルールを取得できませんでした (${esc(err.message)})</span>`; }
+}
+function pmClose(){ $("#pmSheet").hidden = true; document.body.style.overflow = ""; pm.sheet = null; }
+async function pmSyncWatch(){
+  pmLS.set("pm_watch_v1", pm.watch);
+  if(!state.settings.gasUrl) return;
+  const ids = [...new Set(Object.values(pm.watch).flatMap(w=>w.m))].slice(0, 200);
+  try{ await pmGasPost({ action:"pmWatch", ids }); }catch(e){ /* 次の変更の時にまた送る */ }
+}
+
+/* ---- 操作 ---- */
+let pmQTimer = null;
+$("#pmQ").addEventListener("input", ()=>{ clearTimeout(pmQTimer); pmQTimer = setTimeout(()=>{ pm.shown = PM_SHOW; pmRender(); }, 60); });
+$("#pmSort").addEventListener("change", ()=>{ pm.shown = PM_SHOW; pmRender(); });
+$("#pmReload").addEventListener("click", ()=>pmLoad(true));
+$("#pmCats").addEventListener("click", e=>{
+  const c = e.target.closest("[data-cat]"); if(!c) return;
+  pm.cat = c.dataset.cat; pm.shown = PM_SHOW;
+  if(pm.cat === "you" && $("#pmSort").value === "vol") $("#pmSort").value = "you";
+  pmRenderCats(); pmRender();
 });
-$("#polyReload").addEventListener("click", ()=>{ polyMode==="tge" ? loadPolyTge() : loadPoly(); });
+$("#pmMore").addEventListener("click", e=>{ if(e.target.id === "pmMoreBtn"){ pm.shown += PM_SHOW; pmRender(); } });
+$("#pmList").addEventListener("click", e=>{ const c = e.target.closest(".pm-card"); if(c) pmOpen(c.dataset.ev); });
+$("#pmMovers").addEventListener("click", e=>{ const c = e.target.closest(".pm-mv"); if(c) pmOpen(c.dataset.ev, c.dataset.m); });
+$("#pmSheet").addEventListener("click", e=>{
+  if(e.target.closest("[data-close]")) return pmClose();
+  const o = e.target.closest(".pm-opt[data-m]");
+  if(o && pm.sheet){ pm.sheet.m = pm.sheet.e.markets.find(x=>x.id === o.dataset.m) || pm.sheet.m; pmRenderOutcomes(); pmChart(); pmLoadRule(); return; }
+  const r = e.target.closest("#pmSRange .chip");
+  if(r && pm.sheet){ pm.sheet.range = r.dataset.r; $$("#pmSRange .chip").forEach(c=>c.classList.toggle("active", c===r)); pmChart(); }
+});
+document.addEventListener("keydown", e=>{ if(e.key === "Escape" && pm.sheet) pmClose(); });
+$("#pmSWatch").addEventListener("click", ()=>{
+  const e = pm.sheet && pm.sheet.e; if(!e) return;
+  if(pm.watch[e.id]) delete pm.watch[e.id];
+  else pm.watch[e.id] = { t: e.t, m: e.markets.slice(0, 5).map(m=>m.id), at: Date.now() };
+  $("#pmSWatch").textContent = pm.watch[e.id] ? "★ ウォッチ中" : "☆ ウォッチ";
+  toast(pm.watch[e.id] ? "⭐ ウォッチに入れました (1時間ごとの記録にも入ります)" : "ウォッチから外しました");
+  pmSyncWatch(); pmRenderCats(); pmRender();
+});
+$("#pmSHide").addEventListener("click", ()=>{
+  const e = pm.sheet && pm.sheet.e; if(!e) return;
+  if(pm.hide[e.id]) delete pm.hide[e.id]; else pm.hide[e.id] = e.t;
+  pmLS.set("pm_hide_v1", pm.hide);
+  toast(pm.hide[e.id] ? "🙅 興味なしにしました (一覧に出なくなります)" : "興味なしを取り消しました");
+  pmClose(); pmRenderCats(); pmRender();
+});
+
+/* ---- 設定: 和訳とあなた向け ---- */
+async function pmAiSettingsLoad(){
+  const st = $("#pmAiState"); if(!st) return;
+  if(!state.settings.gasUrl){ st.textContent = "先に下の「サーバー」のURLを設定してください"; return; }
+  try{
+    const d = await gasCheck();
+    const ai = d && d.pm && d.pm.ai;
+    if(!ai){ st.textContent = "サーバーが古い版です (自動公開を待ってから確認してください)"; return; }
+    st.innerHTML = (ai.key ? `✅ Gemini のキー: 登録済み` : `⚠ Gemini のキー: 未登録 (和訳・あなた向け・ルールの要約に必要です)`)
+      + ` ／ 今日の利用 ${ai.today} / ${ai.max} 回`;
+    if(!$("#pmProfile").value) $("#pmProfile").value = ai.profile || "";
+  }catch(err){ st.textContent = "確認できません: " + err.message; }
+}
+$("#pmAiSave") && $("#pmAiSave").addEventListener("click", async ()=>{
+  const r = $("#pmAiResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    saveGasSettings();
+    const prev = pmLS.get("pm_profile_sent", "");
+    const profile = $("#pmProfile").value.trim();
+    const d = await pmGasPost({ action:"pmConfig", geminiKey: $("#pmGemKey").value.trim() || undefined, profile: profile || undefined });
+    if(!d || !d.ok) throw new Error((d && d.error) || "保存できませんでした");
+    $("#pmGemKey").value = "";
+    if(profile && profile !== prev){ pm.sc = {}; pmLS.set("pm_sc_v1", {}); pmLS.set("pm_profile_sent", profile); }
+    r.textContent = "✅ 保存しました"; r.style.color = "var(--ok)";
+    pmAiSettingsLoad(); pmAiFill();
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
 
 /* ================= BTC macro ================= */
 async function fetchJson(url){
@@ -3232,8 +3777,8 @@ function switchTab(t){
   sec.classList.add("active");
   window.scrollTo({ top:0 });
   if(t==="home") renderHome();
-  if(t==="settings" && !loaded.settings){ loaded.settings=1; renderTgIngestStatus(); }
-  if(t==="poly" && !loaded.poly){ loaded.poly=1; loadPoly(); }
+  if(t==="settings" && !loaded.settings){ loaded.settings=1; renderTgIngestStatus(); pmAiSettingsLoad(); }
+  if(t==="poly" && !loaded.poly){ loaded.poly=1; pmLoad(); }
   if(t==="btc" && !loaded.btc){ loaded.btc=1; loadBtc(); loadFred(); }
 }
 $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));

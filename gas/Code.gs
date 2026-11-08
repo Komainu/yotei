@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.08';
+const GAS_VERSION = '2026.11.09';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -453,6 +453,15 @@ function repeatNote_(made) {
 // =====================================================================
 
 function doPost(e) {
+  // Polymarket の操作 (和訳など時間のかかるもの) は、予定データのロックを取らずに先に処理する
+  try {
+    const raw0 = (e && e.parameter && e.parameter.payload) ? e.parameter.payload : (e && e.postData ? e.postData.contents : '{}');
+    const d0 = JSON.parse(raw0);
+    if (d0 && typeof d0.action === 'string' && /^pm[A-Z]/.test(d0.action)) {
+      if (!authOk_(d0.key != null ? d0.key : (e && e.parameter && e.parameter.key))) return authError_();
+      return json(pmDoPost_(d0));
+    }
+  } catch (err) { /* 下の処理で改めてエラーにする */ }
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
@@ -570,6 +579,7 @@ function doGetInner_(e) {  const props = PropertiesService.getScriptProperties()
   base.inbox = getInbox_();
   try { base.game = gameSummary_(); } catch (e) { base.game = null; }
   base.pm = pmStatus_();   // Polymarket の記録の状況
+  base.pm.ai = pmAiStatus_();
   if (e && e.parameter && e.parameter.action === 'load') { base.projects = list; base.deleted = getTombs_(); }
   if (e && e.parameter && e.parameter.action === 'history') {
     base.hist = getHist_();
@@ -1810,4 +1820,221 @@ function pmStatus_() {
     error: props.getProperty('PM_LAST_ERROR') || null,
     watch: pmWatchIds_().length,
   };
+}
+
+// =====================================================================
+//  Polymarket — 和訳・あなた向けの判定・ルールの要約 (Gemini)。結果はドライブに保存して使い回す
+//    tr.json    … { 原文: 訳 }
+//    score.json … { イベントid: { s: 0〜3 (興味との関係), c: 分野, h: 興味プロフィールの控え } }
+//    rule.json  … { 市場id: { ja: 要約, h: 原文の控え } }
+// =====================================================================
+
+const PM_AI_MODEL = 'gemini-2.5-flash-lite';
+const PM_TR_BATCH = 40;          // 1回の Gemini で訳す数
+const PM_SC_BATCH = 30;          // 1回の Gemini で判定するイベント数
+const PM_AI_BUDGET = 25000;      // アプリからの1回の問い合わせで Gemini に使う時間の上限 (ms)
+const PM_AI_DAY_MAX = 400;       // 1日に Gemini を呼ぶ回数の上限 (無料枠を超えないため)
+const PM_CATS = ['暗号資産', '経済・金融', '政治', '選挙', '国際情勢', 'テクノロジー', 'スポーツ', 'eスポーツ', 'エンタメ', 'その他'];
+const PM_DEFAULT_PROFILE = 'ビットコイン・HYPE など暗号資産の価格、FRBの金利と米国経済、暗号資産の規制・ETF、エアドロップやトークンの発行に関わるもの';
+
+/** 訳語をそろえるための用語集 (足す時はここに1行) */
+const PM_GLOSSARY = [
+  ['Fed / Federal Reserve', 'FRB'], ['rate cut', '利下げ'], ['rate hike', '利上げ'], ['bps', 'bp'],
+  ['interest rates', '政策金利'], ['FOMC', 'FOMC'], ['CPI', 'CPI (消費者物価指数)'], ['recession', '景気後退'],
+  ['government shutdown', '政府機関の閉鎖'], ['tariff', '関税'], ['Bitcoin / BTC', 'ビットコイン'],
+  ['Ethereum / ETH', 'イーサリアム'], ['Solana / SOL', 'ソラナ'], ['Hyperliquid / HYPE', 'Hyperliquid (HYPE)'],
+  ['ETF', 'ETF'], ['airdrop', 'エアドロップ'], ['token launch / TGE', 'トークン発行 (TGE)'], ['FDV', 'FDV (完全希薄化時価総額)'],
+  ['market cap', '時価総額'], ['all time high / ATH', '過去最高値'], ['Up or Down', '上がるか下がるか'],
+  ['Yes', 'はい'], ['No', 'いいえ'], ['Other', 'その他'], ['Draw / Tie', '引き分け'], ['Over / Under', 'オーバー / アンダー'],
+  ['election', '選挙'], ['presidential', '大統領'], ['Senate', '上院'], ['House', '下院'], ['Prime Minister', '首相'],
+  ['nominee', '候補'], ['ceasefire', '停戦'], ['Trump', 'トランプ'], ['Winner', '勝者'], ['Champion', '優勝'],
+  ['Game 1 Winner', '第1ゲームの勝者'], ['Map 1 Winner', '第1マップの勝者'], ['BO5 / BO3', 'BO5 / BO3'],
+];
+
+function pmAiDayOk_() {
+  const props = PropertiesService.getScriptProperties();
+  const day = todayJst_();
+  let c = {};
+  try { c = JSON.parse(props.getProperty('PM_AI_DAY') || '{}'); } catch (e) {}
+  if (c.d !== day) c = { d: day, n: 0 };
+  if (c.n >= PM_AI_DAY_MAX) return false;
+  c.n++;
+  props.setProperty('PM_AI_DAY', JSON.stringify(c));
+  return true;
+}
+
+/** Gemini に JSON で答えさせる (配列/オブジェクトを返す。失敗したら例外) */
+function pmGemini_(sys, input, maxTokens) {
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('GEMINI_KEY');
+  if (!key) throw new Error('GEMINI_KEY がありません');
+  if (!pmAiDayOk_()) throw new Error('今日の Gemini の上限 (' + PM_AI_DAY_MAX + '回) に達しました');
+  const model = props.getProperty('PM_MODEL') || PM_AI_MODEL;
+  const res = UrlFetchApp.fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key),
+    {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      payload: JSON.stringify({
+        system_instruction: { parts: [{ text: sys }] },
+        contents: [{ role: 'user', parts: [{ text: typeof input === 'string' ? input : JSON.stringify(input) }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: maxTokens || 8192, responseMimeType: 'application/json' },
+      }),
+    });
+  if (res.getResponseCode() !== 200) throw new Error('Gemini ' + res.getResponseCode() + ': ' + String(res.getContentText()).slice(0, 200));
+  const d = JSON.parse(res.getContentText());
+  const out = d && d.candidates && d.candidates[0] && d.candidates[0].content
+    && d.candidates[0].content.parts.map(function (p) { return p.text; }).join('');
+  if (!out) throw new Error('Gemini の応答が空でした');
+  try { return JSON.parse(out); }
+  catch (e) { const m = out.match(/[\[{][\s\S]*[\]}]/); if (m) return JSON.parse(m[0]); throw e; }
+}
+
+function pmTrPrompt_() {
+  return 'あなたは Polymarket (予測市場) の英語を日本語に訳す翻訳者です。\n'
+    + '入力は JSON 配列 [{"i":番号,"t":"原文"}]。出力は JSON 配列 [{"i":番号,"ja":"訳"}] だけにしてください。\n'
+    + 'ルール:\n'
+    + '・文の形の質問は、自然な日本語の問いかけにする (例: "Will the Fed cut rates in December?" → 「FRBは12月に利下げするか？」)\n'
+    + '・短い語句 (選択肢・人名・チーム名・項目名・イベント名) は問いかけにせず、名詞のまま訳す\n'
+    + '・人名・団体名・チーム名は一般的なカタカナ表記。定着した英字表記 (NBA, ETF, OpenAI など) は英字のまま\n'
+    + '・数字・金額・%・時刻は変えない。日付は「12月31日」の形にする。ET などの時間帯の表記は残す\n'
+    + '・説明や補足は足さない。訳せない固有名詞は原文のまま\n'
+    + '・用語集 (原文 → 訳):\n' + PM_GLOSSARY.map(function (g) { return '  ' + g[0] + ' → ' + g[1]; }).join('\n');
+}
+
+function pmProfile_() {
+  return PropertiesService.getScriptProperties().getProperty('PM_PROFILE') || PM_DEFAULT_PROFILE;
+}
+function pmHash_(s) {
+  let h = 0; s = String(s || '');
+  for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0; }
+  return (h >>> 0).toString(36);
+}
+function pmScPrompt_(likes, dislikes) {
+  return 'あなたは、利用者の興味に合う予測市場 (Polymarket) を選ぶ係です。\n'
+    + '利用者の興味: ' + pmProfile_() + '\n'
+    + (likes.length ? '利用者がウォッチに入れた例: ' + likes.join(' / ') + '\n' : '')
+    + (dislikes.length ? '利用者が「興味なし」にした例: ' + dislikes.join(' / ') + '\n' : '')
+    + '入力は JSON 配列 [{"i":番号,"t":"イベント名","m":"代表的な質問"}]。\n'
+    + '出力は JSON 配列 [{"i":番号,"s":点数,"c":"分野"}] だけにしてください。\n'
+    + '・s: 3=興味の中心そのもの / 2=関係が深い / 1=少し関係 / 0=関係なし\n'
+    + '・c: 次から1つ: ' + PM_CATS.join(', ');
+}
+function pmRulePrompt_() {
+  return 'Polymarket (予測市場) の決着ルールを、日本語で3〜5行の箇条書きに要約してください。\n'
+    + '必ず含める: 何が起きたら「はい」か / 締切 (日付・時間帯) / 判定に使う情報源。\n'
+    + '出力は JSON {"ja":"・…\\n・…"} だけ。用語集: ' + PM_GLOSSARY.map(function (g) { return g[0] + '→' + g[1]; }).join(', ');
+}
+
+function pmLoadJson_(name) { const s = pmRead_(name); return s ? JSON.parse(s) : {}; }
+/** キャッシュに書き足す (読み直してから合わせて書く。ほかの実行の書き込みを消さないため) */
+function pmMergeJson_(name, add) {
+  if (!Object.keys(add).length) return;
+  const lock = LockService.getScriptLock();
+  const got = lock.tryLock(8000);
+  try {
+    const cur = pmLoadJson_(name);
+    Object.keys(add).forEach(function (k) { cur[k] = add[k]; });
+    pmWrite_(name, JSON.stringify(cur));
+  } finally { if (got) try { lock.releaseLock(); } catch (e) {} }
+}
+
+/**
+ * アプリから: 訳と「あなた向け」の点数をまとめて返す。
+ * data.texts: 原文の配列 / data.events: [{id, t, m}] / data.likes, data.dislikes: 例 (イベント名)
+ * 保存済みのものはすぐ返し、無いものは時間の許す範囲で Gemini に聞く
+ */
+function pmAi_(data) {
+  const t0 = Date.now();
+  const props = PropertiesService.getScriptProperties();
+  const hasKey = !!props.getProperty('GEMINI_KEY');
+  const texts = (Array.isArray(data.texts) ? data.texts : []).map(String).filter(function (s) { return s && s.length <= 600; }).slice(0, 400);
+  const events = (Array.isArray(data.events) ? data.events : []).filter(function (e) { return e && e.id != null; }).slice(0, 200);
+  const trAll = pmLoadJson_('tr.json'), scAll = pmLoadJson_('score.json');
+  const h = pmHash_(pmProfile_());
+  const tr = {}, sc = {}, trNew = {}, scNew = {};
+  const needT = [], needE = [];
+  texts.forEach(function (s) { if (trAll[s] != null) tr[s] = trAll[s]; else if (needT.indexOf(s) < 0) needT.push(s); });
+  events.forEach(function (e) {
+    const x = scAll[String(e.id)];
+    if (x && x.h === h) sc[e.id] = { s: x.s, c: x.c }; else needE.push(e);
+  });
+  let error = null;
+  if (hasKey) {
+    try {
+      for (let i = 0; i < needT.length && Date.now() - t0 < PM_AI_BUDGET; i += PM_TR_BATCH) {
+        const chunk = needT.slice(i, i + PM_TR_BATCH);
+        const out = pmGemini_(pmTrPrompt_(), chunk.map(function (t, j) { return { i: j, t: t }; }));
+        (Array.isArray(out) ? out : []).forEach(function (o) {
+          const src = chunk[Number(o && o.i)];
+          if (src != null && o.ja) { tr[src] = String(o.ja); trNew[src] = String(o.ja); }
+        });
+      }
+      const likes = (data.likes || []).map(String).slice(0, 15), dislikes = (data.dislikes || []).map(String).slice(0, 15);
+      for (let i = 0; i < needE.length && Date.now() - t0 < PM_AI_BUDGET; i += PM_SC_BATCH) {
+        const chunk = needE.slice(i, i + PM_SC_BATCH);
+        const out = pmGemini_(pmScPrompt_(likes, dislikes), chunk.map(function (e, j) { return { i: j, t: String(e.t || ''), m: String(e.m || '') }; }), 4096);
+        (Array.isArray(out) ? out : []).forEach(function (o) {
+          const e = chunk[Number(o && o.i)];
+          if (!e) return;
+          const s = Math.max(0, Math.min(3, Math.round(Number(o.s) || 0)));
+          const c = PM_CATS.indexOf(o.c) >= 0 ? o.c : 'その他';
+          sc[e.id] = { s: s, c: c }; scNew[String(e.id)] = { s: s, c: c, h: h };
+        });
+      }
+    } catch (e) { error = String(e); }
+    pmMergeJson_('tr.json', trNew);
+    pmMergeJson_('score.json', scNew);
+  }
+  const left = needT.filter(function (s) { return tr[s] == null; }).length + needE.filter(function (e) { return !sc[e.id]; }).length;
+  return { ok: true, tr: tr, sc: sc, left: left, noKey: !hasKey, error: error };
+}
+
+/** アプリから: 決着ルールの日本語の要約 (市場ごとに保存) */
+function pmRule_(data) {
+  const id = String(data.id || ''), text = String(data.text || '').slice(0, 6000);
+  if (!id || !text) return { ok: false, error: '市場の情報がありません' };
+  const all = pmLoadJson_('rule.json');
+  const h = pmHash_(text);
+  if (all[id] && all[id].h === h) return { ok: true, ja: all[id].ja };
+  if (!PropertiesService.getScriptProperties().getProperty('GEMINI_KEY')) return { ok: true, ja: null, noKey: true };
+  try {
+    const out = pmGemini_(pmRulePrompt_(), text, 2048);
+    const ja = String(out && out.ja || '').trim();
+    if (!ja) throw new Error('要約が空でした');
+    const add = {}; add[id] = { ja: ja, h: h };
+    pmMergeJson_('rule.json', add);
+    return { ok: true, ja: ja };
+  } catch (e) { return { ok: false, error: String(e) }; }
+}
+
+/** アプリから: 和訳・あなた向けの設定 (空の値は変更しない) */
+function pmConfig_(data) {
+  const props = PropertiesService.getScriptProperties();
+  if (data.geminiKey) props.setProperty('GEMINI_KEY', String(data.geminiKey).trim());
+  if (data.profile != null && String(data.profile).trim()) props.setProperty('PM_PROFILE', String(data.profile).trim().slice(0, 2000));
+  if (data.model) props.setProperty('PM_MODEL', String(data.model));
+  return { ok: true, ai: pmAiStatus_() };
+}
+
+/** アプリから: ウォッチ中の市場 (1時間ごとの記録に必ず入れる) */
+function pmWatch_(data) {
+  const ids = (Array.isArray(data.ids) ? data.ids : []).map(String).filter(function (x) { return /^\d+$/.test(x); }).slice(0, 200);
+  PropertiesService.getScriptProperties().setProperty('PM_WATCH', JSON.stringify(ids));
+  return { ok: true, watch: ids.length };
+}
+
+function pmAiStatus_() {
+  const props = PropertiesService.getScriptProperties();
+  let day = {};
+  try { day = JSON.parse(props.getProperty('PM_AI_DAY') || '{}'); } catch (e) {}
+  return { key: !!props.getProperty('GEMINI_KEY'), profile: pmProfile_(), today: day.d === todayJst_() ? day.n : 0, max: PM_AI_DAY_MAX };
+}
+
+/** doPost の入口から呼ぶ (Polymarket の操作は予定データのロックを取らない) */
+function pmDoPost_(data) {
+  if (data.action === 'pmAi') return pmAi_(data);
+  if (data.action === 'pmRule') return pmRule_(data);
+  if (data.action === 'pmConfig') return pmConfig_(data);
+  if (data.action === 'pmWatch') return pmWatch_(data);
+  return { ok: false, error: '不明な操作です' };
 }
