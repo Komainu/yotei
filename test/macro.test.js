@@ -180,3 +180,40 @@ test('すべての用語: 関連する用語の先があり、別名が他の用
     assert.equal(bad, '[]');
   } finally { app.close(); }
 });
+
+test('天気図: 信号を重み付きでまとめて空模様を出し、追い風・向かい風・テーマごとの空・変わった信号を示す', async () => {
+  const clock = createClock('2026-11-09T10:00:00+09:00');
+  const gas = loadGas({ clock, fetch: macroFetch(clock.now).fetch });
+  const before = { t: clock.now - 3 * 3600000, sig: { vix: 'y', sp500: 'g' }, score: 0 };
+  let app = await openApp({ clock, gas, fetch: async () => { throw new TypeError('offline'); }, storage: { mc_sig_v1: before }, state: { projects: [], settings: { gasUrl: GAS_URL, gasAuto: false }, deleted: {} } });
+  try {
+    app.run('switchTab("btc")');
+    for (let i = 0; i < 5; i++) await app.settle();
+    const w = app.text('#mcWeather');
+    assert.match(w, /今日の相場は「(晴れ|晴れ時々くもり|くもり|雨|嵐)」/);
+    const score = app.run('mcScore(Object.keys(MC_WEIGHT), Object.fromEntries(MC_DEFS.map(d=>[d.id, mcEval(d, MC.data)]))).s');
+    assert.ok(score > -1 && score < 1);
+    assert.match(w, /🔴 向かい風/);
+    assert.match(w, /VIX \(恐怖指数\)強い不安/, '重みの大きい向かい風から');
+    assert.match(w, /🟢 追い風/);
+    assert.match(w, /S&P500/);
+    assert.match(w, /前回から変わった信号: VIX \(恐怖指数\) 🟡→🔴/);
+    assert.equal(app.doc.querySelectorAll('#mcWeather .mc-tile').length, 7);
+    // 理由を押すとそのカードへ
+    app.doc.querySelector('#mcWeather .mc-reason[data-goto="vix"]').click();
+    assert.ok(app.doc.querySelector('.mc-card[data-mc="vix"]').classList.contains('mc-flash'));
+    // 「リスクオン」の解説
+    app.doc.querySelector('#mcWeather .gq[data-term="riskon"]').click();
+    assert.match(app.text('#termBody'), /リスクオン・リスクオフ/);
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+  // 空模様の決まり
+  app = await openApp({ fetch: async () => { throw new TypeError('x'); } });
+  try {
+    assert.equal(app.run('mcSky(0.5)[2]'), '晴れ');
+    assert.equal(app.run('mcSky(0)[2]'), 'くもり');
+    assert.equal(app.run('mcSky(-0.6)[2]'), '嵐');
+    assert.equal(app.run('mcScore(["vix","hy"], { vix:{sig:"r"}, hy:{sig:"g"} }).s'), 0);
+    assert.equal(app.run('mcScore(["netliq","fng"], { netliq:{sig:"g"}, fng:{sig:"r"} }).s').toFixed(2), '0.60');
+  } finally { app.close(); }
+});
