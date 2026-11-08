@@ -442,3 +442,33 @@ test('分布と賭け金: TGE のカードに中央値、詳細に選択肢ご�
     assert.match(app.text('#pmSHead'), /賭け金の合計240万ドル/);
   } finally { app.close(); }
 });
+
+test('🤖 AIに聞く: 詳細の内容 (確率・賭け金・中央値・推移・ルール) を文章にしてコピーする', async () => {
+  const { app } = await open();
+  try {
+    let copied = '';
+    app.win.navigator.clipboard.writeText = async t => { copied = t; };
+    app.doc.querySelector('#pmCats [data-cat="tge"]').click();
+    cards(app)[0].click();
+    for (let i = 0; i < 5; i++) await app.settle();
+    app.doc.querySelector('#pmSAsk').click();
+    for (let i = 0; i < 5; i++) await app.settle();
+    assert.match(copied, /^次の Polymarket \(予測市場\) の市場について/);
+    assert.match(copied, /■ 市場: Puffpaw FDV above ___ one day after launch\?/);
+    assert.match(copied, /■ URL: https:\/\/polymarket\.com\/event\/puffpaw-fdv/);
+    assert.match(copied, /■ 賭け金の合計: 240万ドル/);
+    assert.match(copied, /- \$200M: 40% ／ 賭け金 120万ドル/);
+    assert.match(copied, /■ 直近1週間の推移 .*: 50% → 63%/);
+    assert.match(copied, /■ 決着ルール \(原文\):\nThis market resolves Yes/);
+    assert.match(app.text('#toast'), /コピーしました/);
+    // 1つだけの市場
+    app.doc.querySelector('#pmSheet .pm-x').click();
+    app.doc.querySelector('#pmCats [data-cat="all"]').click();
+    cards(app).find(c => c.dataset.ev === 'fed').click();
+    for (let i = 0; i < 5; i++) await app.settle();
+    app.doc.querySelector('#pmSAsk').click();
+    for (let i = 0; i < 5; i++) await app.settle();
+    assert.match(copied, /■ いまの確率: はい 63% ／ いいえ 37% \(1時間 ▲8pt ／ 24時間 ▲12pt/);
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});

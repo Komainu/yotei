@@ -2,7 +2,13 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- ホーム画面に追加して、アプリのように開けるようにする (PWA) -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#3b67d9">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PM記録">
 <title>ポリマーケット記録</title>
 <script>
 /* 読み込み直後に配色を決めて、一瞬だけ濃紺が見えるのを防ぐ */
@@ -379,6 +385,17 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 
 .spin{display:inline-block; width:14px; height:14px; border:2px solid var(--dim); border-top-color:var(--accent); border-radius:50%; animation:sp .7s linear infinite; vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+.appbar{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:calc(16px + env(safe-area-inset-bottom)); z-index:210;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
+  width:min(520px, calc(100vw - 24px)); padding:10px 14px; border-radius:14px;
+  background:var(--card2); border:1px solid var(--accent); color:var(--text); font-size:13.5px;
+  box-shadow:0 10px 40px rgba(0,0,0,.35);
+}
+.appbar[hidden]{display:none}
+.appbar .btn{padding:6px 12px}
+.offline-tag{display:inline-block; font-size:11.5px; padding:2px 8px; border-radius:999px; background:var(--card2); border:1px solid var(--border); color:var(--muted); margin-left:6px; vertical-align:middle}
+.offline-tag[hidden]{display:none}
 .toast{
   position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:200;
   background:var(--card2); border:1px solid var(--border); color:var(--text);
@@ -399,7 +416,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   <div class="head-inner">
     <div class="brand">
       <div class="logo">🔮</div>
-      <h1>ポリマーケット記録<small id="appVer"></small></h1>
+      <h1>ポリマーケット記録<small id="appVer"></small><span class="offline-tag" id="offlineTag" hidden title="電波がない間は、この端末に保存されている前回の内容を表示しています">📴 オフライン</span></h1>
       <div class="stats legacy">
         <span class="stat">未完了<b id="stOpen">-</b></span>
         <span class="stat alert">7日以内・超過<b id="stSoon">-</b></span>
@@ -647,6 +664,18 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 
   <div class="set-card">
+    <h3>📱 ホーム画面に追加</h3>
+    <p class="hint" style="margin-top:0">ホーム画面にアイコンを置くと、アプリのように1タップで開けます。電波が弱い時や圏外でも、前回の一覧を表示できます。</p>
+    <div class="row" style="margin-top:10px; flex-wrap:wrap">
+      <button class="btn primary" id="installBtn" type="button" hidden>📲 ホーム画面に追加する</button>
+      <span id="installState" class="hint" style="margin:0"></span>
+    </div>
+    <p class="hint"><b>iPhone (Safari):</b> 画面の下の共有ボタン (□に↑) →「ホーム画面に追加」→ 右上の「追加」。Safari 以外では追加できないことがあります。<br>
+      <b>Android (Chrome):</b> 右上の「︙」→「ホーム画面に追加」または「アプリをインストール」。上のボタンが出ている時は、ボタンからも追加できます。<br>
+      <b>新しい版が出た時:</b> 画面の下に「新しい版があります」と出ます。「読み込み直す」を押すと新しい版になります。ウォッチや訳はそのまま残ります。</p>
+  </div>
+
+  <div class="set-card">
     <h3>💾 データ管理</h3>
     <div class="row" style="flex-wrap:wrap">
       <button class="btn" id="btnExport">⬇ 旧データ (予定) をエクスポート</button>
@@ -679,6 +708,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
     <div class="pm-actions">
       <button class="btn" id="pmSWatch">☆ ウォッチ</button>
       <button class="btn" id="pmSHide">🙅 興味なし</button>
+      <button class="btn" id="pmSAsk" title="この市場の情報を文章にしてコピーします。MUSE や Claude に貼って聞けます">🤖 AIに聞く (コピー)</button>
       <a class="btn primary" id="pmSOpen" target="_blank" rel="noopener">Polymarketで開く ↗</a>
     </div>
   </div>
@@ -808,13 +838,18 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   <div class="dlg-foot"><button class="btn" id="storyClose">閉じる</button></div>
 </dialog>
 <div class="toast" id="toast"></div>
+<div class="appbar" id="updateBar" role="status" hidden>
+  <span>✨ 新しい版があります</span>
+  <button class="btn primary" id="updateReload" type="button">読み込み直す</button>
+  <button class="btn" id="updateLater" type="button">あとで</button>
+</div>
 
 <script>
 "use strict";
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.15";
+const APP_VERSION = "2026.11.16";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.12";
 const $ = s => document.querySelector(s);
@@ -2647,9 +2682,57 @@ async function pmLoadRule(){
       }catch(err){ note = "要約できませんでした: " + err.message; }
     }else note = "設定でサーバーを登録すると、日本語の要約が出ます";
     if(pm.sheet.m !== m) return;
+    pm.sheet.rule = { ja, en: desc };
     box.innerHTML = ja ? `${esc(ja)}${orig}` : `<span class="hint">${esc(note)}</span><div style="margin-top:6px">${esc(desc)}</div>`;
   }catch(err){ box.innerHTML = `<span class="hint">ルールを取得できませんでした (${esc(err.message)})</span>`; }
 }
+/* ---- 🤖 AIに聞く: 詳細の内容を文章にしてコピー (MUSE・Claude などに貼る) ---- */
+async function pmAskText(){
+  const { e, m } = pm.sheet;
+  const u = pmUntil(e.end);
+  const title = pmJa(e.multi ? e.t : m.q), en = e.multi ? e.t : m.q;
+  const pt = d => d == null || isNaN(d) ? "" : (d >= 0 ? "▲" : "▼") + Math.abs(Math.round(d*1000)/10) + "pt";
+  const opt = x => `- ${pmJa(x.g || x.q)}${x.g && pmJa(x.g) !== x.g ? " (" + x.g + ")" : ""}: ${x.c ? (x.p[0] >= 0.5 ? "決着: はい" : "決着: いいえ") : pmPct(x.p[0])}`
+    + ` ／ 賭け金 ${pmMoney(x.vol||0)}` + (x.d1 != null && !x.c ? ` ／ 24時間 ${pt(x.d1)}` : "");
+  const lines = [
+    "次の Polymarket (予測市場) の市場について、あなたの見方を教えてください。",
+    "・いまの確率は妥当か (高すぎる・低すぎると考える根拠)",
+    "・確率を動かしそうな今後の出来事やニュース",
+    "・注意点 (決着ルールの落とし穴、取引の少なさによる値段の不確かさ など)",
+    "",
+    `■ 市場: ${title}` + (title !== en ? `\n  原文: ${en}` : ""),
+    `■ URL: https://polymarket.com/event/${e.s || m.slug}`,
+    `■ 締切: ${e.end ? pmDate(e.end) + " (日本時間・" + u.txt + ")" : "未定"}`,
+    `■ 賭け金の合計: ${pmMoney(e.vol||0)} ／ 24時間: ${pmMoney(e.v24)} ／ 流動性 (注文の厚み): ${pmMoney(e.markets.reduce((n,x)=>n+x.liq,0))}`,
+  ];
+  if(e.multi){
+    lines.push(`■ 選択肢 ${e.markets.length}件 (確率・賭け金):`);
+    e.markets.slice(0, 40).forEach(x=>lines.push(opt(x)));
+    if(e.markets.length > 40) lines.push(`- ほか ${e.markets.length - 40}件`);
+    if((e.closed||[]).length) lines.push(`■ 決着済みの選択肢: ` + e.closed.map(x=>`${pmJa(x.g||x.q)} (${x.p[0] >= 0.5 ? "はい" : "いいえ"})`).join("、"));
+    const d = pmDist(e);
+    if(d){ const t = pmDistText(d); lines.push(`■ 確率から計算した中央値: ${t.med} (50%の確率で ${t.range})` + (t.mean ? ` ／ 平均の目安 ${t.mean}` : "")); }
+  }else{
+    lines.push(`■ いまの確率: ` + m.o.map((o,i)=>`${pmLabel(o)} ${pmPct(m.p[i])}`).join(" ／ ")
+      + ` (1時間 ${pt(m.h1) || "±0"} ／ 24時間 ${pt(m.d1) || "±0"} ／ 1週間 ${pt(m.w1) || "±0"})`);
+  }
+  if(m.tok[0]){
+    try{
+      const h = await pmHistory(m.tok[0], "1w");
+      if(h && h.length > 1){ const ps = h.map(x=>x.p);
+        lines.push(`■ 直近1週間の推移 (${e.multi ? pmJa(m.g || m.q) : pmLabel(m.o[0] || "Yes")}): ${pmPct(ps[0])} → ${pmPct(ps[ps.length-1])} (最低 ${pmPct(Math.min(...ps))} ／ 最高 ${pmPct(Math.max(...ps))})`); }
+    }catch(err){}
+  }
+  const r = pm.sheet.rule;
+  if(r && r.ja) lines.push("■ 決着ルール (日本語の要約):", r.ja);
+  else if(r && r.en) lines.push("■ 決着ルール (原文):", r.en.slice(0, 1500));
+  lines.push("", `(ポリマーケット記録アプリで ${new Date().toLocaleString("ja-JP")} に取得した情報です)`);
+  return lines.join("\n");
+}
+$("#pmSAsk").addEventListener("click", async ()=>{
+  if(!pm.sheet) return;
+  copyText(await pmAskText(), "🤖 コピーしました。MUSE や Claude に貼り付けて聞いてください");
+});
 function pmClose(){ $("#pmSheet").hidden = true; document.body.style.overflow = ""; pm.sheet = null; }
 async function pmSyncWatch(){
   pmLS.set("pm_watch_v1", pm.watch);
@@ -4039,6 +4122,53 @@ ${T(["日時","操作","分野","案件","どこから"], logRows)}
 `;
 }
 
+/* ================= ホーム画面アプリ (PWA) ================= */
+/* file:// で開いた時や、service worker が使えないブラウザでは何もしない (エラーにしない) */
+function pwaReload(){ location.reload(); }
+function setupPwa(){
+  const sw = navigator.serviceWorker;
+  if(!sw || !/^https?:$/.test(location.protocol) || window.isSecureContext === false) return false;
+  const bar = $("#updateBar");
+  let waiting = null, asked = false;
+  const show = w => { waiting = w; bar.hidden = false; };
+  $("#updateReload").addEventListener("click", ()=>{
+    if(!waiting){ pwaReload(); return; }
+    asked = true;
+    $("#updateReload").disabled = true;
+    waiting.postMessage({ type:"SKIP_WAITING" });
+  });
+  $("#updateLater").addEventListener("click", ()=>{ bar.hidden = true; });
+  /* 新しい版に切り替わったら1回だけ読み込み直す (初めて入った時は読み込み直さない) */
+  sw.addEventListener("controllerchange", ()=>{ if(asked){ asked = false; pwaReload(); } });
+  sw.register("sw.js").then(reg=>{
+    if(reg.waiting && sw.controller) show(reg.waiting);
+    reg.addEventListener("updatefound", ()=>{
+      const w = reg.installing; if(!w) return;
+      w.addEventListener("statechange", ()=>{ if(w.state === "installed" && sw.controller) show(w); });
+    });
+    /* 開きっぱなしのアプリに戻った時も、新しい版が出ていないか確かめる */
+    document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "visible") reg.update().catch(()=>{}); });
+  }).catch(()=>{ /* 登録できなくてもアプリはそのまま使える */ });
+  return true;
+}
+/* 電波がない時の表示 */
+function renderOnline(){ const t = $("#offlineTag"); if(t) t.hidden = navigator.onLine !== false; }
+window.addEventListener("online", ()=>{ renderOnline(); toast("📶 電波が戻りました"); });
+window.addEventListener("offline", ()=>{ renderOnline(); toast("📴 オフラインです。前回の内容を表示しています"); });
+/* Android (Chrome) の「ホーム画面に追加」ボタン */
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); installPrompt = e; $("#installBtn").hidden = false; });
+window.addEventListener("appinstalled", ()=>{ installPrompt = null; $("#installBtn").hidden = true; $("#installState").textContent = "✅ ホーム画面に追加しました"; });
+$("#installBtn").addEventListener("click", async ()=>{
+  if(!installPrompt) return;
+  installPrompt.prompt();
+  try{ await installPrompt.userChoice; }catch(e){}
+  installPrompt = null; $("#installBtn").hidden = true;
+});
+if(window.matchMedia && matchMedia("(display-mode: standalone)").matches || navigator.standalone){
+  $("#installState").textContent = "✅ ホーム画面から開いています";
+}
+
 /* ================= tabs & init ================= */
 const loaded = {};
 function switchTab(t){
@@ -4061,6 +4191,8 @@ restoreFilter();
 applyCompact();
 renderProjects();
 renderVersion();
+renderOnline();
+setupPwa();
 switchTab("poly");   /* 予定管理は MUSE に移したので、Polymarket を最初に開く */
 gasAutoResume().finally(()=>refreshInbox());
 </script>

@@ -46,7 +46,8 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
   - アプリは `save()` の中で、サーバーは Telegram の完了 (`/done`・ボタン) と同期 (`doPost`) で作る
 - `save()` は前回保存時との差分を見て、変わった案件だけ `updatedAt` を付け、消えた案件を `state.deleted` に記録する (`save({silent:true})` は設定変更用で印を付けない)
 - 同期 (`gasSync`): クラウドを取得 → `mergeProjects()` で案件ごとに新しい方を採用 → 全件+削除記録を送信。サーバーでも同じ規則で合体する。同期は直列化 (`gasChain`)
-- 版数: `APP_VERSION`, `MIN_GAS_VERSION` (サーバーが古いと警告)。変更したら日付で上げる
+- 版数: `APP_VERSION`, `MIN_GAS_VERSION` (サーバーが古いと警告)。変更したら日付で上げる。**`sw.js` の `VERSION` も必ず同じにする** (ホーム画面アプリは index.html をキャッシュから開くので、上げ忘れると古い版のままになる。テストで確認)
+- PWA: `manifest.webmanifest`・`sw.js`・`icons/` (アイコンは `python3 icons/make-icons.py` で作り直せる)
 - 機能: HOME / よてい一覧 / Polymarket / BTCマクロ(FRED) / 設定 / 「🤖 AIに渡す」(用途別プロンプト・JSON/Markdown表の取り込み・📈振り返り分析) / 部屋の背景(手帳の線画SVG、家具・段ボール・日替わりイベント・季節) / ものがたり(完了数で進む全21話) / レベル・XP・連続記録の表示
 - 秘密情報 (`key, tgToken, tgChat, gasUrl, gasKey, fredKey`) はエクスポートに含めない
 - サーバーとの通信は必ず `gasGetUrl()` (GET) / `withGasKey()` (POST・フォーム送信) を通し、合言葉 `settings.gasKey` を付ける
