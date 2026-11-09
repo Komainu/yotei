@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.25';
+const GAS_VERSION = '2026.11.27';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -559,6 +559,10 @@ function doGet(e) {
 function doGetInner_(e) {
   if (e && e.parameter && e.parameter.action === 'report') {
     return json(Object.assign({ version: GAS_VERSION }, pmReport_({ days: e.parameter.days, parts: String(e.parameter.parts || '').split(',').filter(Boolean) })));
+  }
+  if (e && e.parameter && e.parameter.action === 'llama') {
+    const d = llamaData_(e.parameter.force === '1');
+    return json({ ok: !!(d && d.chains), version: GAS_VERSION, llama: d });
   }
   if (e && e.parameter && e.parameter.action === 'hl') {
     let snap = null, err = null;
@@ -2741,6 +2745,7 @@ function pmDailyJobs_() {
     }
   } catch (e) { Logger.log('日ごとの要約に失敗: ' + e); }
   try { pmMacroLog_(); } catch (e) { Logger.log('マクロの日誌に失敗: ' + e); }
+  try { llamaLog_(); } catch (e) { Logger.log('DefiLlama の記録に失敗: ' + e); }
 }
 function pmSummarizeDay_(day) {
   const s = pmRead_('snap-' + day + '.json');
@@ -2810,7 +2815,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -2836,6 +2841,7 @@ function pmReport_(opt) {
   lines.push('・答え合わせから見た、予測市場の当たりやすさ・外れやすさの傾向');
   lines.push('・Polymarket と Kalshi で確率がずれた場面と、その後どちらに寄ったか');
   lines.push('・暗号資産の先物の建玉・ファンディングの変化と、価格や予測市場の動きの関係');
+  lines.push('・どのチェーンにお金 (TVL・ステーブルコイン) が集まっているか、エアドロップや TGE を狙う材料になりそうか');
   lines.push('・今後注目すべき点');
   lines.push('数字は表のとおりです。分からないことは推測と分かるように書いてください。日付は日本時間です。');
   lines.push('');
@@ -2937,6 +2943,32 @@ function pmReport_(opt) {
           ba != null ? (ba * 100).toFixed(4) + '%' : '-', ba != null ? ((fa * 8 - ba) * 100).toFixed(4) + '%' : '-'];
       })));
     });
+    lines.push('');
+  }
+  if (parts.indexOf('llama') >= 0) {
+    const all = {};
+    hlMonths_(Date.now(), Math.ceil(days / 28) + 1).forEach(function (m) { const f = pmLoadJson_('llama-' + m + '.json'); Object.keys(f).forEach(function (k) { if (k >= from && k <= to) all[k] = f[k]; }); });
+    const ds = Object.keys(all).sort();
+    const latest = llamaData_(false);
+    lines.push('## 7. チェーンごとのお金の流れと先物 DEX (DefiLlama)');
+    lines.push('TVL = チェーン上の DeFi に預けられた資産。ステーブルコイン = そのチェーン上のドル建てステーブルコインの量。先物 DEX の建玉 = 未決済の先物の総額。');
+    if (latest && latest.chains) {
+      lines.push('### いまの状態 (TVL の上位)');
+      lines.push(pmMdTable_(['チェーン', 'TVL', '1日', '7日', '30日', 'ステーブルコイン', 'ステーブル30日'], latest.chains.slice(0, 15).map(function (c) {
+        const p = function (x) { return x == null ? '-' : (x >= 0 ? '+' : '') + x.toFixed(1) + '%'; };
+        return [c.n, pmMoneyJa_(c.tvl), p(c.c1), p(c.c7), p(c.c30), c.st ? pmMoneyJa_(c.st) : '-', p(c.s30)];
+      })));
+      lines.push('### 先物 DEX の建玉 (上位)');
+      lines.push(pmMdTable_(['名前', '分類', 'チェーン', '建玉', '1日', '7日', '30日'], (latest.perps || []).slice(0, 12).map(function (x) {
+        const p = function (v) { return v == null ? '-' : (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '%'; };
+        return [x.n, x.cat, x.ch.join('・'), pmMoneyJa_(x.oi), p(x.c1), p(x.c7), p(x.c30)];
+      })));
+    }
+    if (ds.length) {
+      const key = ['Ethereum', 'Base', 'Solana', 'Hyperliquid L1', 'Arbitrum', 'BSC'];
+      lines.push('### 記録 (日ごとの TVL)');
+      lines.push(pmMdTable_(['日付'].concat(key), ds.map(function (d) { return [d].concat(key.map(function (k) { return all[d].tvl[k] ? pmMoneyJa_(all[d].tvl[k]) : '-'; })); })));
+    }
     lines.push('');
   }
   const text = lines.join('\n');
@@ -3200,4 +3232,81 @@ function hlSeries_(hours) {
     Object.keys(all[k]).forEach(function (c) { const x = all[k][c]; (out[c] = out[c] || []).push([k, x[0], x[1], x[2], x[3] != null ? x[3] : null, x[4] != null ? x[4] : null, x[5] != null ? x[5] : null, x[6] != null ? x[6] : null]); });
   });
   return out;
+}
+
+// =====================================================================
+//  DefiLlama — チェーンごとのお金の流れ (預かり資産 TVL・ステーブルコイン) と、先物 DEX の建玉
+//    llama-latest.json … 最新 (6時間ごとに取り直す) / llama-YYYY-MM.json … 日ごとの記録 { 日付: { tvl, st, oi } }
+//    ※ 先物 DEX の「出来高」は DefiLlama では有料なので、無料の「建玉」を使う
+// =====================================================================
+
+const LLAMA_TTL = 6 * 3600000;
+const LLAMA_ALWAYS = ['Base', 'Solana', 'Hyperliquid L1', 'Ethereum', 'Arbitrum', 'BSC'];   // いつも推移を取るチェーン
+const LLAMA_TOP = 12;            // 推移を取るチェーンの数 (TVL の上位 + 上の固定分)
+const LLAMA_DAYS = 120;
+
+function llamaJson_(url) { return JSON.parse(macroFetchText_(url)); }
+function llamaDay_(sec) { return Utilities.formatDate(new Date(Number(sec) * 1000), 'Asia/Tokyo', 'yyyy-MM-dd'); }
+/** 系列の n 日前からの変化率 (%) */
+function llamaChg_(s, days) {
+  if (!s || s.length < 2) return null;
+  const last = s[s.length - 1], t = Date.parse(last[0]) - days * 86400000;
+  for (let i = s.length - 1; i >= 0; i--) if (Date.parse(s[i][0]) <= t) return s[i][1] > 0 ? (last[1] / s[i][1] - 1) * 100 : null;
+  return null;
+}
+function llamaFetchAll_() {
+  const out = { at: Date.now(), chains: [], perps: [], errors: [] };
+  let chains = [];
+  try { chains = llamaJson_('https://api.llama.fi/v2/chains').filter(function (c) { return c.tvl > 0; }).sort(function (a, b) { return b.tvl - a.tvl; }); }
+  catch (e) { out.errors.push('チェーンの一覧'); }
+  let stc = {};
+  try { llamaJson_('https://stablecoins.llama.fi/stablecoinchains').forEach(function (c) { stc[c.name] = ((c.totalCirculatingUSD || {}).peggedUSD) || 0; }); }
+  catch (e) { out.errors.push('ステーブルコイン'); }
+  const pick = chains.slice(0, LLAMA_TOP).map(function (c) { return c.name; });
+  LLAMA_ALWAYS.forEach(function (n) { if (pick.indexOf(n) < 0 && chains.some(function (c) { return c.name === n; })) pick.push(n); });
+  out.chains = chains.slice(0, 30).map(function (c) {
+    const x = { n: c.name, tvl: Math.round(c.tvl), st: Math.round(stc[c.name] || 0), sym: c.tokenSymbol || '' };
+    if (pick.indexOf(c.name) >= 0) {
+      try {
+        x.h = llamaJson_('https://api.llama.fi/v2/historicalChainTvl/' + encodeURIComponent(c.name)).slice(-LLAMA_DAYS)
+          .map(function (r) { return [llamaDay_(r.date), Math.round(r.tvl)]; });
+      } catch (e) { out.errors.push('TVL の推移 ' + c.name); }
+      try {
+        x.sh = llamaJson_('https://stablecoins.llama.fi/stablecoincharts/' + encodeURIComponent(c.name)).slice(-LLAMA_DAYS)
+          .map(function (r) { return [llamaDay_(r.date), Math.round(((r.totalCirculating || r.totalCirculatingUSD || {}).peggedUSD) || 0)]; })
+          .filter(function (r) { return r[1] > 0; });
+      } catch (e) { out.errors.push('ステーブルコインの推移 ' + c.name); }
+    }
+    x.c1 = llamaChg_(x.h, 1); x.c7 = llamaChg_(x.h, 7); x.c30 = llamaChg_(x.h, 30);
+    x.s7 = llamaChg_(x.sh, 7); x.s30 = llamaChg_(x.sh, 30);
+    if (x.sh && x.sh.length > 30) x.s30d = x.sh[x.sh.length - 1][1] - x.sh[x.sh.length - 31][1];   // 30日でのステーブルコインの増減 (ドル)
+    return x;
+  });
+  try {
+    const d = llamaJson_('https://api.llama.fi/overview/open-interest?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true');
+    out.oiTotal = Math.round(d.total24h || 0); out.oiC1 = d.change_1d; out.oiC7 = d.change_7d;
+    out.perps = (d.protocols || []).filter(function (p) { return (p.total24h || 0) > 0; }).sort(function (a, b) { return b.total24h - a.total24h; }).slice(0, 30)
+      .map(function (p) { return { n: p.displayName || p.name, cat: p.category || '', ch: (p.chains || []).slice(0, 2), oi: Math.round(p.total24h), c1: p.change_1d, c7: p.change_7d, c30: p.change_1m }; });
+  } catch (e) { out.errors.push('先物 DEX の建玉'); }
+  return out;
+}
+/** 最新 (古ければ取り直す) */
+function llamaData_(force) {
+  let cur = null;
+  try { cur = JSON.parse(pmRead_('llama-latest.json') || 'null'); } catch (e) {}
+  if (force || !cur || Date.now() - cur.at > LLAMA_TTL) {
+    const fresh = llamaFetchAll_();
+    if (fresh.chains.length || !cur) { cur = fresh; try { pmWrite_('llama-latest.json', JSON.stringify(cur)); } catch (e) {} }
+  }
+  return cur;
+}
+/** 毎日: その日の値を1行残す */
+function llamaLog_() {
+  const d = llamaData_(false);
+  if (!d || !d.chains.length) return;
+  const row = { tvl: {}, st: {}, oi: {} };
+  d.chains.forEach(function (c) { row.tvl[c.n] = c.tvl; if (c.st) row.st[c.n] = c.st; });
+  d.perps.forEach(function (p) { row.oi[p.n] = p.oi; });
+  const day = pmJstDay_(Date.now()), name = 'llama-' + day.slice(0, 7) + '.json';
+  const cur = pmLoadJson_(name); cur[day] = row; pmWrite_(name, JSON.stringify(cur));
 }

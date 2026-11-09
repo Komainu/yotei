@@ -23,6 +23,7 @@
 > - Kalshi 比較 (gas/Code.gs 末尾 `fedCompare_`): Kalshi の公開 API (KXFEDDECISION) と Polymarket の「Fed decision in ○月」を、箱 (hold/cut25/cut50/hike) にそろえて比べる。`pmRecord` の後に `fedCompareRecord_` が fed-compare.json に記録し、買値・売値の幅を考えて5pt以上ずれたら通知。`doGet ?action=compare`
 > - Hyperliquid の建玉 (`hlRecord_`): 1時間ごとに hl-YYYY-MM.json (キーは日本時間 'YYYY-MM-DDTHH:00')。24時間で建玉 ±20%・ファンディングの極端で通知。マクロの `D.hl` (doGet macro に直近8日分) から「建玉」カード
 > - Hyperliquid タブ (index.html「Hyperliquid」の囲み): `doGet ?action=hl` (サーバーの `hlSnapshot_`: 先物全部・`predictedFundings` で Binance/Bybit のファンディングを8時間に直したもの・現物の流通量/総発行量) と記録 (`hlSeries_`)。記録の配列は [建玉, ファンディング(1h), 価格, 出来高, プレミアム, Binance8h, Bybit8h]。☆ で `pmHlWatch` → `HL_WATCH` (BTC/ETH/SOL/HYPE はいつも記録)。現物は hl-spot-YYYY-MM.json に日ごと
+> - お金の流れタブ (DefiLlama): サーバーの `llamaData_` が /v2/chains・historicalChainTvl・stablecoinchains・stablecoincharts・overview/open-interest を取り llama-latest.json に6時間保存 (`doGet ?action=llama`)。`pmDailyJobs_` の `llamaLog_` が llama-YYYY-MM.json に日ごと。先物 DEX の出来高 (overview/derivatives) は有料なので使わない
 > - 用語集: index.html の `GLOSS` (n 名前 / a 別名=自動リンクする言葉 / s ひとことで / w なぜ大事か / u・d 上がると・下がると / r 関連)。`linkTerms()` で本文に下線リンク、`termBtn()` で ? ボタン。用語を足す時は GLOSS に1つ足すだけ (テストで関連先と別名の重複を確認)
 > - 端末の保存: `pm_tr_v1` `pm_sc_v1` `pm_watch_v1` `pm_hide_v1` (予定の `sakiyomi_v1` とは別)
 
