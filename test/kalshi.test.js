@@ -105,25 +105,57 @@ test('レポート: Kalshi とのずれ・先物の建玉とファンディン�
   assert.match(t, /### BTC\n[\s\S]*\| 2026-11-10 \| \$74,000 \| 12億ドル \| 20\.0% \|/);
 });
 
-test('アプリ: マクロ画面に Kalshi との比較 (⚠ ずれ)・カレンダーに Kalshi の確率・建玉のカードを出す', async () => {
+test('アプリ: Polymarket タブの「⚖️ Kalshi 比較」で、ずれを赤・黄で色分けして大きい順に並べる。FOMC のカードと詳細にも出す', async () => {
   const { gas, clock, st } = world();
   for (let i = 0; i < 26; i++) { if (i === 25) st.oi = 1.25e9; gas.ctx.pmRecord(); clock.tick(3600000); }
-  const app = await openApp({ clock, gas, fetch: async () => { throw new TypeError('offline'); }, state: { projects: [], settings: { gasUrl: GAS_URL, gasAuto: false }, deleted: {} } });
+  // Polymarket の一覧 (アプリが直接取る) に FOMC のイベントを入れる
+  const mk = (id, g, p) => ({ id, question: 'Fed ' + g, groupItemTitle: g, outcomes: '["Yes","No"]', outcomePrices: JSON.stringify([String(p), String(1 - p)]), negRisk: true,
+    volume24hr: 100000, volumeNum: 1e6, liquidityNum: 1e4, endDate: '2026-12-10T00:00:00Z', clobTokenIds: '["t' + id + '"]', closed: false, events: [{ id: 'fedev', title: 'Fed Decision in December?', slug: 'fed-decision-in-december' }] });
+  const fetch = async url => {
+    const u = new URL(url);
+    const reply = o => ({ ok: true, status: 200, json: async () => o });
+    if (u.pathname === '/markets' && !u.searchParams.get('id')) return reply(Number(u.searchParams.get('offset')) === 0 ? [mk('a', 'No change', 0.62), mk('b', '25+ bps increase', 0.35)] : []);
+    if (u.pathname.startsWith('/events/') || u.pathname === '/public-search') return reply({ events: [] });
+    if (u.host === 'clob.polymarket.com') return reply({ history: [] });
+    throw new TypeError('offline');
+  };
+  const app = await openApp({ clock, gas, fetch, state: { projects: [], settings: { gasUrl: GAS_URL, gasAuto: false }, deleted: {} } });
   try {
+    for (let i = 0; i < 8; i++) await app.settle();
+    // 分野ボタンに件数 (赤が2つ)
+    const chip = app.doc.querySelector('#pmCats [data-cat="kalshi"]');
+    assert.match(chip.textContent, /⚖️ Kalshi 比較 🔴2/);
+    // カードの印
+    const card = app.doc.querySelector('.pm-card[data-ev="fedev"]');
+    assert.match(card.querySelector('.cmp-badge').textContent.replace(/\s+/g, ' '), /⚖️ Kalshi: (据え置き 22%|利上げ 78%) \(差 [+-]4\dpt\) ⚠ 大きくずれています/);
+    assert.ok(card.querySelector('.cmp-badge').classList.contains('cmp-bg-r'));
+    // 比較の画面: ずれの大きい順・色分け・どちらが高いか
+    chip.click();
+    const rows = [...app.doc.querySelectorAll('#pmList .cmp-row')];
+    assert.equal(rows.length, 4);
+    assert.match(rows[0].textContent.replace(/\s+/g, ''), /利上げ.*35%.*78%.*-42pt.*Kalshiが高い↓.*幅を考えたずれ40pt/);
+    assert.ok(rows[0].classList.contains('cmp-bg-r'));
+    assert.match(rows[1].textContent.replace(/\s+/g, ''), /据え置き.*62%.*22%.*\+40pt.*Polymarketが高い↑/);
+    assert.ok(rows.slice(2).every(r => r.classList.contains('cmp-bg-n')), '差が小さいものは色なし');
+    // 会合ごと
+    app.doc.querySelector('#pmList [data-cmpsort="meet"]').click();
+    assert.match(app.text('#pmList'), /FOMC \(米国時間 2026-12-09\)/);
+    assert.equal(app.doc.querySelector('#pmMovers').innerHTML, '', '急変の帯は出さない');
+    // 詳細シートにも比較
+    app.doc.querySelector('#pmCats [data-cat="all"]').click();
+    app.doc.querySelector('.pm-card[data-ev="fedev"]').click();
+    for (let i = 0; i < 3; i++) await app.settle();
+    assert.match(app.text('#pmSOutcomes'), /⚖️ Kalshi との比較/);
+    assert.ok(app.doc.querySelector('#pmSOutcomes .cmp-row.cmp-bg-r'));
+    app.doc.querySelector('#pmSheet .pm-x').click();
+    // マクロ: 大きなカードは無く、カレンダーの FOMC の行に Kalshi の確率だけ
     app.run('switchTab("btc")');
     for (let i = 0; i < 8; i++) await app.settle();
-    const cmp = app.text('#mcCmp').replace(/\s+/g, '');
-    assert.match(cmp, /PolymarketとKalshiの比較\(FOMC\)/);
-    assert.match(cmp, /据え置き62%\(売61%・買63%\)22%\(売21%・買23%\)\+40pt⚠/);
-    assert.match(cmp, /利上げ35%\(売34%・買36%\)78%\(売76%・買79%\)-42pt⚠/);
+    assert.equal(app.doc.querySelector('#mcCmp'), null);
     assert.match(app.text('#mcCal').replace(/\s+/g, ' '), /Kalshi: 利上げ 78% ／ 据え置き 22%/);
     const oi = app.doc.querySelector('.mc-card[data-mc="oi"]').textContent.replace(/\s+/g, ' ');
-    assert.match(oi, /建玉 \(BTC 先物\)/);
-    assert.match(oi, /12\.50億ドル|13億ドル|12億ドル/);
     assert.match(oi, /24時間 \+25\.0%/);
     assert.match(oi, /🔴 建玉が急増/);
-    app.doc.querySelector('#mcCmp .gq[data-term="kalshi"]').click();
-    assert.match(app.text('#termBody'), /Kalshi \(カルシ\)/);
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });

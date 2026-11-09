@@ -395,30 +395,22 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .rep-pre{white-space:pre-wrap; font-size:11.5px; max-height:280px; overflow:auto; background:var(--card2); padding:10px; border-radius:8px; margin-top:6px}
 .cmp-meet{padding:8px 0; border-top:1px solid var(--border)}
 .cmp-h{font-size:13.5px; font-weight:600; display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:6px}
-.cmp-h a{font-size:12px; font-weight:400}
-.cmp-grid{display:grid; grid-template-columns:minmax(90px,1.2fr) 1.3fr 1.3fr 64px; gap:4px 10px; font-size:13px; align-items:baseline}
-.cmp-grid small{color:var(--dim); font-size:11px}
-.cmp-th{font-size:11.5px; color:var(--dim)}
-.cmp-gap{color:var(--danger); font-weight:700}
-@media (max-width:560px){ .cmp-grid{grid-template-columns:minmax(70px,1fr) 1fr 1fr 48px; font-size:12px} .cmp-grid small{display:block} }
-.hl-sum{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-bottom:14px}
-.hl-bar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px}
-.hl-bar .search{flex:1; min-width:140px; padding:6px 10px}
-.hl-bar select{width:auto; padding:6px 10px; font-size:13px}
-.hl-tbl{width:100%; border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums}
-.hl-tbl th{font-size:11px; color:var(--dim); font-weight:600; text-align:right; padding:4px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
-.hl-tbl td{text-align:right; padding:5px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
-.hl-tbl th:first-child, .hl-tbl td:first-child{text-align:left}
-.hl-tbl tr.sel td{background:var(--tint-accent)}
-.hl-tbl tbody tr{cursor:pointer}
-.hl-wrap{overflow-x:auto}
-.hl-star{border:none; background:transparent; cursor:pointer; font-size:15px; color:var(--dim); padding:0 4px}
-.hl-star.on{color:#f5b301}
-.hl-charts{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; margin-top:8px}
-.hl-chart{background:var(--card2); border-radius:10px; padding:8px 10px}
-.hl-chart .t{font-size:12px; color:var(--muted); display:flex; justify-content:space-between}
-.hl-chart svg{width:100%; height:110px; display:block}
-.hl-coins{display:flex; flex-wrap:wrap; gap:6px}
+.cmp-h a, .cmp-top a{font-size:12px; font-weight:400}
+.cmp-top{display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start; margin-bottom:8px}
+.cmp-row{display:grid; grid-template-columns:minmax(110px,1.1fr) 1fr 1fr 1.3fr; gap:6px 12px; align-items:center; padding:8px 10px; border-radius:10px; margin-bottom:6px; font-size:13px}
+.cmp-row small{color:var(--dim); font-size:11px}
+.cmp-what small{display:block}
+.cmp-th{display:block}
+.cmp-bg-n{background:var(--card2)}
+.cmp-bg-y{background:var(--tint-warn); box-shadow:inset 3px 0 0 var(--warn)}
+.cmp-bg-r{background:var(--tint-danger); box-shadow:inset 3px 0 0 var(--danger)}
+.cmp-d{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums}
+.cmp-d.cmp-r{color:var(--danger)} .cmp-d.cmp-y{color:var(--warn)} .cmp-d.cmp-n{color:var(--muted)}
+.cmp-top .cmp-d{font-size:12px}
+.cmp-who{display:block}
+.cmp-badge{margin-top:8px; padding:5px 10px; border-radius:8px; font-size:12.5px}
+.cmp-badge .cmp-d{font-size:12.5px}
+@media (max-width:560px){ .cmp-row{grid-template-columns:1fr 1fr; } .cmp-what{grid-column:1 / -1} .cmp-dd{grid-column:1 / -1} }
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -594,7 +586,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
   <div id="mcWeather"></div>
   <div id="mcCal"></div>
-  <div id="mcCmp"></div>
   <div id="mcBody"></div>
   <input id="fredKey" type="hidden">
   <p class="hint" style="margin-top:10px">ソース: FRED (セントルイス連銀) / Hyperliquid / DefiLlama / alternative.me。信号 (🟢🟡🔴) は一般的な目安で、売買の判断ではありません。</p>
@@ -973,7 +964,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.25";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.26";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.25";
 const $ = s => document.querySelector(s);
@@ -2365,6 +2356,7 @@ async function pmLoad(force){
     pm.loading = false; pmRenderInfo();
   }
   pmAiFill();
+  if(!CMP.data && !CMP.loading) loadCompare();
 }
 /** TGE・トークン発行の市場を検索で集める (以前の「🚀 TGE価格予測」と同じ探し方) */
 const PM_TGE_QUERIES = ["token launch", "token price", "TGE", "FDV", "market cap of", "airdrop"];
@@ -2420,7 +2412,9 @@ function pmRenderCats(){
   const you = pm.events.filter(e=>pmScore(e) >= 2).length;
   const nw = Object.keys(pm.watch).length;
   const nt = pm.events.filter(pmIsTge).length;
-  const chips = [["all","🔥 すべて"], ["you", `✨ あなた向け${you?" "+you:""}`], ["watch", `⭐ ウォッチ${nw?" "+nw:""}`], ["tge", `🚀 TGE${nt?" "+nt:""}`]]
+  const cc = cmpCounts();
+  const chips = [["all","🔥 すべて"], ["you", `✨ あなた向け${you?" "+you:""}`], ["watch", `⭐ ウォッチ${nw?" "+nw:""}`], ["tge", `🚀 TGE${nt?" "+nt:""}`],
+    ["kalshi", `⚖️ Kalshi 比較${cc.r ? " 🔴" + cc.r : cc.y ? " 🟡" + cc.y : ""}`]]
     .concat(PM_CATS.filter(c=>counts[c]).map(c=>[c, `${c} ${counts[c]}`]));
   $("#pmCats").innerHTML = chips.map(([k,l])=>`<button class="chip ${pm.cat===k?"active":""}" data-cat="${esc(k)}">${esc(l)}</button>`).join("");
 }
@@ -2618,6 +2612,12 @@ function pmCard(e){
       + (e.markets.length > top.length ? `<div class="hint" style="margin-top:2px">ほか ${e.markets.length-top.length}件 (押すとすべて見られます)</div>` : "") + `</div>`;
   }
   const d1 = e.multi ? e.d1 : m.d1, h1 = e.multi ? e.h1 : m.h1;
+  const cm = cmpForEvent(e);
+  if(cm){
+    const top = [...cm.rows].filter(r=>r.pm && r.k).sort((a,b)=>(b.gap||0)-(a.gap||0))[0];
+    if(top){ const lv = cmpLevel(top);
+      body += `<div class="cmp-badge cmp-bg-${lv || "n"}">⚖️ Kalshi: ${esc(top.ja)} ${cmpPct(top.k.p)} <span class="cmp-d cmp-${lv || "n"}">(差 ${top.diff > 0 ? "+" : ""}${Math.round(top.diff*100)}pt)</span>${lv === "r" ? " ⚠ 大きくずれています" : ""}</div>`; }
+  }
   const dist = pmDist(e);
   if(dist){ const t = pmDistText(dist); body += `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(t.med)}</b> <span style="color:var(--muted)">(50%の確率で ${esc(t.range)})</span>${dist.cond ? `<br><span style="color:var(--muted)">ローンチする確率 約${Math.round(dist.cond*100)}%${dist.condSrc === "launch" ? " (ローンチ日の市場より)" : ""}</span>` : ""}${dist.conf ? ` <span class="pm-tag ${dist.conf==="低"?"soon":""}">信頼度 ${dist.conf}</span>` : ""}</div>`; }
   return `<div class="pm-card ${sc===3?"you3":""}" data-ev="${esc(e.id)}">
@@ -2659,9 +2659,13 @@ function pmRenderMovers(){
   $("#pmMvHead").textContent = "⚡ いま大きく動いている市場 (スポーツを除く)";
 }
 function pmRender(){
+  const box = $("#pmList");
+  if(pm.cat === "kalshi"){
+    $("#pmMovers").innerHTML = ""; $("#pmMvHead").textContent = ""; $("#pmMore").innerHTML = "";
+    renderCompareView(box); return;
+  }
   const list = pmFiltered();
   pmRenderMovers();
-  const box = $("#pmList");
   if(!pm.events.length){ return; }
   if(!list.length){
     box.innerHTML = `<div class="empty">${pm.cat==="watch" ? "⭐ ウォッチしている市場はまだありません。<br>カードを押して「☆ ウォッチ」を選ぶと、ここに集まります。"
@@ -2817,7 +2821,9 @@ function pmRenderOutcomes(){
   const list = showAll ? all : all.slice(0, PM_SHEET_ROWS);
   const closed = e.closed || [];
   const dist = pmDist(e), dt = dist && pmDistText(dist);
-  $("#pmSOutcomes").innerHTML = (dt ? `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(dt.med)}</b> ${termBtn("median")}<br>50%の確率で ${esc(dt.range)} の間${dt.mean ? ` ／ 平均の目安 ${esc(dt.mean)}` : ""}
+  const cm = cmpForEvent(e);
+  const cmpHtml = cm ? `<div class="pm-h">⚖️ Kalshi との比較 ${termBtn("kalshi")}</div>` + cm.rows.map(r=>`<div class="cmp-row cmp-bg-${cmpLevel(r) || "n"}"><div class="cmp-what"><b>${esc(r.ja)}</b></div><div><small class="cmp-th">Polymarket</small>${cmpSide(r.pm)}</div><div><small class="cmp-th">Kalshi</small>${cmpSide(r.k)}</div><div class="cmp-dd">${cmpDiffHtml(r)}</div></div>`).join("") : "";
+  $("#pmSOutcomes").innerHTML = cmpHtml + (dt ? `<div class="pm-dist">📊 ${dist.cond ? "ローンチした場合の中央値" : "予想の中央値"} <b>${esc(dt.med)}</b> ${termBtn("median")}<br>50%の確率で ${esc(dt.range)} の間${dt.mean ? ` ／ 平均の目安 ${esc(dt.mean)}` : ""}
       ${dist.cond ? `<br>ローンチする確率 <b>約${Math.round(dist.cond*100)}%</b> ${dist.condSrc === "launch" ? "(セットのローンチ日の市場より)" : `(一番下の選択肢「${esc(pmFmtVal(e.markets.map(x=>pmNum(x.g)).reduce((a,b)=>Math.min(a,b)), dist.unit))}を上回る」の確率から推定)`}` : ""}
       ${dist.conf ? `<br>信頼度 <b>${dist.conf}</b>${dist.conf === "低" ? " — ローンチする確率が低く、FDV の数字は参考程度です (割り戻すと値段の誤差が大きくなるため)" : dist.conf === "中" ? " — ローンチするかどうかの不確かさが残っています" : ""}` : ""}
       ${pmLaunchHtml(e)}
@@ -2958,6 +2964,9 @@ $("#pmCats").addEventListener("click", e=>{
 });
 $("#pmMore").addEventListener("click", e=>{ if(e.target.id === "pmMoreBtn"){ pm.shown += PM_SHOW; pmRender(); } });
 $("#pmList").addEventListener("click", ev=>{
+  const cs = ev.target.closest("[data-cmpsort]");
+  if(cs){ CMP.sort = cs.dataset.cmpsort; pmRender(); return; }
+  if(pm.cat === "kalshi") return;
   const st = ev.target.closest("[data-star]");
   if(st){ ev.stopPropagation(); const e = pm.events.find(x=>x.id === st.dataset.star); if(e) pmToggleWatch(e); return; }
   const c = ev.target.closest(".pm-card"); if(c) pmOpen(c.dataset.ev);
@@ -3641,37 +3650,68 @@ $("#mcCal").addEventListener("click", ev=>{
   if(e) pmOpen(e.id); else window.open("https://polymarket.com/event/" + encodeURIComponent(b.dataset.pms), "_blank", "noopener");
 });
 /* ---- ⚖️ Polymarket と Kalshi の比較 (FOMC) ---- */
-const CMP = { data: null, loading: false };
+const CMP = { data: null, loading: false, error: "", sort: "gap" };
 async function loadCompare(){
   if(CMP.loading || !state.settings.gasUrl) return;
   CMP.loading = true;
   try{
     const r = await fetch(gasGetUrl("action=compare&t=" + Date.now()), { redirect:"follow" });
     const d = await r.json();
-    if(d && d.ok && d.list){ CMP.data = d; renderCompare(); renderCal(); }
-    else if(d && d.error) $("#mcCmp").innerHTML = `<div class="mc-cal"><div class="hint">Kalshi との比較を取得できませんでした: ${esc(d.error)}</div></div>`;
-  }catch(e){ /* 次に開いた時にまた試す */ }
+    if(d && d.ok && d.list){ CMP.data = d; CMP.error = ""; }
+    else CMP.error = (d && d.error) || "取得できませんでした";
+  }catch(e){ CMP.error = e.message; }
   finally{ CMP.loading = false; }
+  /* 取れたら Polymarket の一覧 (カードの印・比較の画面) とマクロのカレンダーを描き直す */
+  if(pm.events.length || pm.cat === "kalshi"){ pmRenderCats(); pmRender(); }
+  if(pm.sheet) pmRenderOutcomes();
+  if(MC.data) renderCal();
 }
 function cmpPct(x){ return x == null ? "-" : Math.round(x*100) + "%"; }
 function cmpSide(x){ return !x ? `<span class="hint" style="margin:0">なし</span>` : `<b>${cmpPct(x.p)}</b>` + (x.bid > 0 && x.ask > 0 ? `<small> (売${cmpPct(x.bid)}・買${cmpPct(x.ask)})</small>` : ""); }
-function renderCompare(){
-  const box = $("#mcCmp"); if(!box || !CMP.data) return;
+/** ずれの段階: 買値・売値の幅を考えたずれで決める ("r" 5pt以上 / "y" 2〜5pt / "" それ未満) */
+function cmpLevel(r){ return r.gap == null ? "" : r.gap >= 0.05 ? "r" : r.gap >= 0.02 ? "y" : ""; }
+function cmpDiffHtml(r){
+  if(r.diff == null) return "-";
+  const lv = cmpLevel(r), d = Math.round(r.diff*100);
+  const who = d > 0 ? "Polymarket が高い ↑" : d < 0 ? "Kalshi が高い ↓" : "同じ";
+  return `<span class="cmp-d cmp-${lv || "n"}">${d > 0 ? "+" : ""}${d}pt</span><small class="cmp-who">${who}${r.gap != null ? ` ・ 幅を考えたずれ ${Math.round(r.gap*100)}pt` : ""}</small>`;
+}
+function cmpMeetLabel(d){ return mcEtTime(d, 14, 0).toLocaleDateString("ja-JP", { timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", weekday:"short" }) + " の FOMC"; }
+/** Polymarket のイベントに対応する Kalshi の比較 (無ければ null) */
+function cmpForEvent(e){
+  if(!CMP.data || !e.s) return null;
+  return (CMP.data.list || []).find(m=>m.pm && m.pm.url.endsWith("/" + encodeURIComponent(e.s))) || null;
+}
+function cmpCounts(){
+  const n = { r:0, y:0 };
+  ((CMP.data && CMP.data.list) || []).forEach(m=>m.rows.forEach(r=>{ const lv = cmpLevel(r); if(lv) n[lv]++; }));
+  return n;
+}
+/** Polymarket タブの「⚖️ Kalshi 比較」の画面 */
+function renderCompareView(box){
+  if(!CMP.data){
+    box.innerHTML = CMP.error ? `<div class="empty">Kalshi との比較を取得できませんでした: ${esc(CMP.error)}</div>` : `<div class="empty"><span class="spin"></span> Kalshi のデータを取得中…</div>`;
+    if(!CMP.loading && !CMP.error) loadCompare();
+    return;
+  }
   const list = CMP.data.list || [];
-  if(!list.length){ box.innerHTML = ""; return; }
-  const meet = m => {
-    const at = mcEtTime(m.d, 14, 0).toLocaleDateString("ja-JP", { timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", weekday:"short" });
-    return `<div class="cmp-meet"><div class="cmp-h">🏦 ${esc(at)} の FOMC (米国時間 ${esc(m.d)})
-        ${m.pm ? `<a href="${esc(m.pm.url)}" target="_blank" rel="noopener">Polymarket ↗</a>` : `<span class="hint" style="margin:0">Polymarket の市場なし</span>`}
-        <a href="${esc(m.k.url)}" target="_blank" rel="noopener">Kalshi ↗</a></div>
-      <div class="cmp-grid"><span class="cmp-th">結果</span><span class="cmp-th">Polymarket</span><span class="cmp-th">Kalshi</span><span class="cmp-th">差</span>
-      ${m.rows.map(r=>`<span>${esc(r.ja)}</span><span>${cmpSide(r.pm)}</span><span>${cmpSide(r.k)}</span>
-        <span class="${r.gap != null && r.gap >= 0.05 ? "cmp-gap" : ""}">${r.diff == null ? "-" : (r.diff >= 0 ? "+" : "") + Math.round(r.diff*100) + "pt"}${r.gap != null && r.gap >= 0.05 ? " ⚠" : ""}</span>`).join("")}</div></div>`;
-  };
   const t = new Date(CMP.data.at).toLocaleTimeString("ja-JP", { hour:"2-digit", minute:"2-digit" });
-  box.innerHTML = `<div class="mc-cal"><div class="mc-w-h" style="margin-top:0">⚖️ Polymarket と Kalshi の比較 (FOMC) ${termBtn("kalshi")} <span class="hint" style="font-weight:400; margin:0">${esc(t)} 時点・差 = Polymarket − Kalshi</span></div>
-    ${list.map(meet).join("")}
-    <div class="hint">⚠ は、買値と売値の幅を考えても 5pt 以上ずれているもの (通知メールも送ります)。決着のルールが少し違うことがあります。</div></div>`;
+  const head = `<div class="cmp-top"><div><b>⚖️ Polymarket と Kalshi の比較 (FOMC)</b> ${termBtn("kalshi")}<div class="hint" style="margin:2px 0 0">${esc(t)} 時点 ・ 差 = Polymarket − Kalshi ・ <span class="cmp-d cmp-r">赤</span> 幅を考えても5pt以上ずれ (通知も送ります) ・ <span class="cmp-d cmp-y">黄</span> 2〜5pt</div></div>
+    <div class="chips"><button class="chip ${CMP.sort === "gap" ? "active" : ""}" data-cmpsort="gap">ずれの大きい順</button><button class="chip ${CMP.sort === "meet" ? "active" : ""}" data-cmpsort="meet">会合ごと</button></div></div>`;
+  const row = (m, r, showMeet) => `<div class="cmp-row cmp-bg-${cmpLevel(r) || "n"}">
+      <div class="cmp-what">${showMeet ? `<small>${esc(cmpMeetLabel(m.d))}</small>` : ""}<b>${esc(r.ja)}</b></div>
+      <div><small class="cmp-th">Polymarket</small>${cmpSide(r.pm)}</div><div><small class="cmp-th">Kalshi</small>${cmpSide(r.k)}</div><div class="cmp-dd">${cmpDiffHtml(r)}</div></div>`;
+  const links = m => `${m.pm ? `<a href="${esc(m.pm.url)}" target="_blank" rel="noopener">Polymarket ↗</a>` : `<span class="hint" style="margin:0">Polymarket の市場なし</span>`} <a href="${esc(m.k.url)}" target="_blank" rel="noopener">Kalshi ↗</a>`;
+  let body;
+  if(CMP.sort === "gap"){
+    const flat = [];
+    list.forEach(m=>m.rows.forEach(r=>{ if(r.pm && r.k) flat.push([m, r]); }));
+    flat.sort((a,b)=> (b[1].gap || 0) - (a[1].gap || 0) || Math.abs(b[1].diff||0) - Math.abs(a[1].diff||0));
+    body = flat.length ? flat.map(([m,r])=>row(m, r, true)).join("") : `<div class="hint">両方にある選択肢がありません</div>`;
+  }else{
+    body = list.map(m=>`<div class="cmp-meet"><div class="cmp-h">🏦 ${esc(cmpMeetLabel(m.d))} (米国時間 ${esc(m.d)}) ${links(m)}</div>${m.rows.map(r=>row(m, r, false)).join("")}</div>`).join("");
+  }
+  box.innerHTML = `<div class="mc-cal">${head}${body}<div class="hint" style="margin-top:8px">決着のルールが少し違うことがあります (両方のページで確認してください)。Kalshi は日本から取引できない場合があり、ここでは情報として比べています。</div></div>`;
 }
 function renderMacro(){
   const box = $("#mcBody");
@@ -3682,7 +3722,7 @@ function renderMacro(){
   MC_DEFS.forEach(d=>{ res[d.id] = mcEval(d, D); });
   renderWeather(res);
   renderCal();
-  if(CMP.data) renderCompare(); else loadCompare();
+  if(!CMP.data) loadCompare();
   box.innerHTML = MC_THEMES.map(([th, name])=>{
     const defs = MC_DEFS.filter(d=>d.th === th);
     return `<section class="mc-theme" id="mc-th-${th}"><h3>${esc(name)}</h3><div class="mc-grid">${defs.map(d=>mcCard(d, D, res[d.id])).join("")}</div></section>`;
