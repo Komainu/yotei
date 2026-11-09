@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.24';
+const GAS_VERSION = '2026.11.25';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -559,6 +559,11 @@ function doGet(e) {
 function doGetInner_(e) {
   if (e && e.parameter && e.parameter.action === 'report') {
     return json(Object.assign({ version: GAS_VERSION }, pmReport_({ days: e.parameter.days, parts: String(e.parameter.parts || '').split(',').filter(Boolean) })));
+  }
+  if (e && e.parameter && e.parameter.action === 'hl') {
+    let snap = null, err = null;
+    try { snap = hlSnapshot_(); } catch (x) { err = String(x); }
+    return json({ ok: !!snap, version: GAS_VERSION, error: err, snap: snap, series: hlSeries_(Number(e.parameter.hours) || 192), watch: hlWatch_(), fixed: HL_COINS });
   }
   if (e && e.parameter && e.parameter.action === 'compare') {
     return json(Object.assign({ version: GAS_VERSION }, fedCompareLatest_()));
@@ -2079,6 +2084,11 @@ function pmDoPost_(data) {
   if (data.action === 'pmConfig') return pmConfig_(data);
   if (data.action === 'pmWatch') return pmWatch_(data);
   if (data.action === 'pmMailTest') return pmMailTest_();
+  if (data.action === 'pmHlWatch') {
+    const coins = (Array.isArray(data.coins) ? data.coins : []).map(String).filter(function (c) { return /^[A-Za-z0-9:_\-]{1,20}$/.test(c); }).slice(0, 30);
+    PropertiesService.getScriptProperties().setProperty('HL_WATCH', JSON.stringify(coins));
+    return { ok: true, watch: coins };
+  }
   return { ok: false, error: '不明な操作です' };
 }
 
@@ -2915,14 +2925,16 @@ function pmReport_(opt) {
     const all = hlLoad_(hlMonths_(Date.now(), Math.ceil(days / 28) + 1));
     lines.push('## 6. 暗号資産の先物 (Hyperliquid の建玉・ファンディング、日ごと)');
     lines.push('建玉 = 未決済の先物の総額 (ドル)。ファンディング = その日の平均 (8時間あたり)。プラスで大きいほど買いが過熱。');
-    HL_COINS.forEach(function (c) {
+    HL_COINS.concat(hlWatch_().filter(function (c) { return HL_COINS.indexOf(c) < 0; })).forEach(function (c) {
       const byDay = {};
-      Object.keys(all).sort().forEach(function (k) { const d = k.slice(0, 10); const x = all[k][c]; if (!x || d < from) return; const b = byDay[d] || (byDay[d] = { oi: 0, px: 0, f: [] }); b.oi = x[0]; b.px = x[2]; b.f.push(x[1]); });
+      Object.keys(all).sort().forEach(function (k) { const d = k.slice(0, 10); const x = all[k][c]; if (!x || d < from) return; const b = byDay[d] || (byDay[d] = { oi: 0, px: 0, f: [], bin: [] }); b.oi = x[0]; b.px = x[2]; b.f.push(x[1]); if (x[5] != null) b.bin.push(x[5]); });
       const ds = Object.keys(byDay).sort();
       lines.push('### ' + c);
-      lines.push(pmMdTable_(['日付', '価格', '建玉', '建玉の前日比', 'ファンディング (8時間)'], ds.map(function (d, i) {
+      lines.push(pmMdTable_(['日付', '価格', '建玉', '建玉の前日比', 'ファンディング (8時間)', 'Binance (8時間)', '差 (HL−Binance)'], ds.map(function (d, i) {
         const b = byDay[d], p = i ? byDay[ds[i - 1]] : null, fa = b.f.reduce(function (a, x) { return a + x; }, 0) / b.f.length;
-        return [d, '$' + Number(b.px).toLocaleString(), pmMoneyJa_(b.oi), p && p.oi ? ((b.oi / p.oi - 1) * 100).toFixed(1) + '%' : '-', (fa * 800).toFixed(4) + '%'];
+        const ba = b.bin.length ? b.bin.reduce(function (a, x) { return a + x; }, 0) / b.bin.length : null;
+        return [d, '$' + Number(b.px).toLocaleString(), pmMoneyJa_(b.oi), p && p.oi ? ((b.oi / p.oi - 1) * 100).toFixed(1) + '%' : '-', (fa * 800).toFixed(4) + '%',
+          ba != null ? (ba * 100).toFixed(4) + '%' : '-', ba != null ? ((fa * 8 - ba) * 100).toFixed(4) + '%' : '-'];
       })));
     });
     lines.push('');
@@ -3097,20 +3109,57 @@ function hlMonths_(t, n) {
   for (let i = n - 1; i >= 0; i--) { const d = new Date(t); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - i); res.push(Utilities.formatDate(new Date(d.getTime() + 15 * 86400000), 'Asia/Tokyo', 'yyyy-MM')); }
   return res.filter(function (x, i) { return res.indexOf(x) === i; });
 }
-function hlRecord_() {
+/** 今の状態: 先物全部 (他の取引所のファンディングつき) と、現物トークン (出来高の上位) */
+function hlSnapshot_() {
   const meta = macroHl_({ type: 'metaAndAssetCtxs' });
-  const rows = meta[0].universe.map(function (u, i) {
-    const c = meta[1][i] || {};
-    return { n: u.name, d: !!u.isDelisted, oi: Number(c.openInterest) * Number(c.markPx), f: Number(c.funding), px: Number(c.markPx) };
-  }).filter(function (r) { return !r.d && r.oi > 0 && !isNaN(r.px); });
-  const pick = rows.filter(function (r) { return HL_COINS.indexOf(r.n) >= 0; })
-    .concat(rows.filter(function (r) { return HL_COINS.indexOf(r.n) < 0; }).sort(function (a, b) { return b.oi - a.oi; }).slice(0, HL_TOP_EXTRA));
+  const pmap = {};
+  try {
+    (macroHl_({ type: 'predictedFundings' }) || []).forEach(function (x) {
+      const v = {};
+      (x[1] || []).forEach(function (y) { const r = y[1]; if (r && r.fundingRate != null) v[y[0]] = Number(r.fundingRate) * (8 / (Number(r.fundingIntervalHours) || 8)); });
+      pmap[x[0]] = v;
+    });
+  } catch (e) { Logger.log('他の取引所のファンディングを取れません: ' + e); }
+  const perps = meta[0].universe.map(function (u, i) {
+    const c = meta[1][i] || {}, px = Number(c.markPx), pf = pmap[u.name] || {};
+    return { n: u.name, d: !!u.isDelisted, px: px, prev: Number(c.prevDayPx), oi: Number(c.openInterest) * px, f: Number(c.funding),
+      prem: Number(c.premium), vol: Number(c.dayNtlVlm), bin: pf.BinPerp != null ? pf.BinPerp : null, byb: pf.BybitPerp != null ? pf.BybitPerp : null, lev: u.maxLeverage };
+  }).filter(function (r) { return !r.d && r.oi > 0 && !isNaN(r.px); }).sort(function (a, b) { return b.oi - a.oi; });
+  let spot = [];
+  try {
+    const sp = macroHl_({ type: 'spotMetaAndAssetCtxs' });
+    const tokens = sp[0].tokens || [];
+    const byCoin = {};
+    (sp[1] || []).forEach(function (c) { byCoin[c.coin] = c; });
+    spot = (sp[0].universe || []).map(function (u) {
+      const c = byCoin[u.name] || {}, base = tokens[(u.tokens || [])[0]] || {}, quote = tokens[(u.tokens || [])[1]] || {};
+      const px = Number(c.markPx);
+      return { n: String(base.name || u.name), q: String(quote.name || ''), px: px, prev: Number(c.prevDayPx), vol: Number(c.dayNtlVlm), circ: Number(c.circulatingSupply), total: Number(c.totalSupply) };
+    }).filter(function (r) { return r.q === 'USDC' && r.px > 0 && r.vol > 0; }).sort(function (a, b) { return b.vol - a.vol; }).slice(0, 60);
+  } catch (e) { Logger.log('現物を取れません: ' + e); }
+  return { at: Date.now(), perps: perps, spot: spot };
+}
+function hlWatch_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('HL_WATCH') || '[]').map(String); } catch (e) { return []; } }
+function hlRecord_() {
+  const snap = hlSnapshot_();
+  const rows = snap.perps;
+  const watch = hlWatch_();
+  const fixed = HL_COINS.concat(watch);
+  const pick = rows.filter(function (r) { return fixed.indexOf(r.n) >= 0; })
+    .concat(rows.filter(function (r) { return fixed.indexOf(r.n) < 0; }).slice(0, HL_TOP_EXTRA));
   const now = Date.now(), key = hlKey_(now), month = key.slice(0, 7);
   const entry = {};
-  pick.forEach(function (r) { entry[r.n] = [Math.round(r.oi), r.f, r.px]; });
+  // [建玉(ドル), ファンディング(1時間), 価格, 24時間出来高, プレミアム, Binance(8時間), Bybit(8時間)]
+  pick.forEach(function (r) { entry[r.n] = [Math.round(r.oi), r.f, r.px, Math.round(r.vol || 0), r.prem, r.bin, r.byb]; });
   const add = {}; add[key] = entry;
   const name = 'hl-' + month + '.json';
   const cur = pmLoadJson_(name); cur[key] = entry; pmWrite_(name, JSON.stringify(cur));
+  // 現物 (出来高の上位): その日の最後の値を残す { 日付: { 銘柄: [価格, 流通量, 総発行量, 24時間出来高] } }
+  if (snap.spot.length) {
+    const sname = 'hl-spot-' + month + '.json', sc = pmLoadJson_(sname), sd = {};
+    snap.spot.forEach(function (r) { sd[r.n] = [r.px, Math.round(r.circ || 0), Math.round(r.total || 0), Math.round(r.vol)]; });
+    sc[key.slice(0, 10)] = sd; pmWrite_(sname, JSON.stringify(sc));
+  }
   // 通知: 24時間前と比べた建玉の急変・ファンディングの極端
   const props = PropertiesService.getScriptProperties();
   const to = pmMailTo_();
@@ -3148,7 +3197,7 @@ function hlSeries_(hours) {
   const since = hlKey_(now - (hours || 192) * 3600000);
   const out = {};
   Object.keys(all).filter(function (k) { return k >= since; }).sort().forEach(function (k) {
-    Object.keys(all[k]).forEach(function (c) { (out[c] = out[c] || []).push([k, all[k][c][0], all[k][c][1], all[k][c][2]]); });
+    Object.keys(all[k]).forEach(function (c) { const x = all[k][c]; (out[c] = out[c] || []).push([k, x[0], x[1], x[2], x[3] != null ? x[3] : null, x[4] != null ? x[4] : null, x[5] != null ? x[5] : null, x[6] != null ? x[6] : null]); });
   });
   return out;
 }

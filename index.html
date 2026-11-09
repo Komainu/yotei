@@ -84,7 +84,8 @@ header{
 }
 .stat b{color:var(--text); margin-left:4px}
 .stat.alert b{color:var(--warn)}
-nav.tabs{display:flex; gap:4px; margin-top:12px; overflow-x:auto; scrollbar-width:none}
+nav.tabs{display:flex; flex-wrap:wrap; gap:2px 4px; margin-top:12px}
+@media (max-width:560px){ nav.tabs button{padding-left:8px !important; padding-right:8px !important; font-size:13.5px} }
 nav.tabs::-webkit-scrollbar{display:none}
 nav.tabs button{
   background:none; border:none; color:var(--muted); font-size:14.5px;
@@ -400,6 +401,24 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .cmp-th{font-size:11.5px; color:var(--dim)}
 .cmp-gap{color:var(--danger); font-weight:700}
 @media (max-width:560px){ .cmp-grid{grid-template-columns:minmax(70px,1fr) 1fr 1fr 48px; font-size:12px} .cmp-grid small{display:block} }
+.hl-sum{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-bottom:14px}
+.hl-bar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px}
+.hl-bar .search{flex:1; min-width:140px; padding:6px 10px}
+.hl-bar select{width:auto; padding:6px 10px; font-size:13px}
+.hl-tbl{width:100%; border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums}
+.hl-tbl th{font-size:11px; color:var(--dim); font-weight:600; text-align:right; padding:4px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
+.hl-tbl td{text-align:right; padding:5px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
+.hl-tbl th:first-child, .hl-tbl td:first-child{text-align:left}
+.hl-tbl tr.sel td{background:var(--tint-accent)}
+.hl-tbl tbody tr{cursor:pointer}
+.hl-wrap{overflow-x:auto}
+.hl-star{border:none; background:transparent; cursor:pointer; font-size:15px; color:var(--dim); padding:0 4px}
+.hl-star.on{color:#f5b301}
+.hl-charts{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; margin-top:8px}
+.hl-chart{background:var(--card2); border-radius:10px; padding:8px 10px}
+.hl-chart .t{font-size:12px; color:var(--muted); display:flex; justify-content:space-between}
+.hl-chart svg{width:100%; height:110px; display:block}
+.hl-coins{display:flex; flex-wrap:wrap; gap:6px}
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -477,6 +496,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <button data-tab="projects" class="legacy">📋 よてい</button>
       <button data-tab="poly" class="active">📊 Polymarket</button>
       <button data-tab="btc">🌐 マクロ</button>
+      <button data-tab="hl">🟢 Hyperliquid</button>
       <button data-tab="gloss">📖 用語集</button>
       <button data-tab="settings">⚙️ 設定</button>
       <button id="themeBtn" title="配色を切り替え" style="margin-left:auto">🌙</button>
@@ -578,6 +598,34 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   <div id="mcBody"></div>
   <input id="fredKey" type="hidden">
   <p class="hint" style="margin-top:10px">ソース: FRED (セントルイス連銀) / Hyperliquid / DefiLlama / alternative.me。信号 (🟢🟡🔴) は一般的な目安で、売買の判断ではありません。</p>
+</section>
+
+<!-- ============ Hyperliquid ============ -->
+<section class="tab" id="tab-hl">
+  <div class="toolbar">
+    <span class="hint" style="margin:0">Hyperliquid の先物・現物の今と、このアプリが1時間ごとに貯めている記録です。⭐ を押した銘柄は記録の対象になります。</span>
+    <span id="hlInfo" class="pm-info" style="margin-left:auto"></span>
+    <button class="btn small" data-ai-report="1">🤖 記録</button>
+    <button class="btn small" id="hlReload" title="最新にする">↻</button>
+  </div>
+  <div id="hlSum"></div>
+  <div class="mc-cal" id="hlChartBox"></div>
+  <div class="mc-cal">
+    <div class="mc-w-h" style="margin-top:0">⚖️ ファンディングの差 (Binance・Bybit と比べて大きい順) <button class="gq" data-term="fundarb" aria-label="解説">?</button></div>
+    <div id="hlArb"></div>
+  </div>
+  <div class="mc-cal">
+    <div class="hl-bar"><b>📈 先物の一覧</b>
+      <input class="search" id="hlQ" placeholder="🔍 銘柄 (例: BTC)" autocomplete="off">
+      <select id="hlSort"><option value="oi">建玉が大きい順</option><option value="vol">出来高が多い順</option><option value="chg">24時間で動いた順</option><option value="f">ファンディングが高い順</option><option value="fl">ファンディングが低い順</option><option value="diff">取引所との差が大きい順</option></select></div>
+    <div id="hlPerps"></div>
+    <div id="hlMore" style="text-align:center; margin-top:8px"></div>
+  </div>
+  <div class="mc-cal">
+    <div class="mc-w-h" style="margin-top:0">🪙 現物トークン (出来高の上位)</div>
+    <div id="hlSpot"></div>
+  </div>
+  <p class="hint">ソース: Hyperliquid の公開データ。ファンディングは比べやすいよう、すべて8時間あたりに直しています (Hyperliquid は1時間ごと、Binance・Bybit は多くが8時間ごと)。売買はしていません。</p>
 </section>
 
 <!-- ============ 用語集 ============ -->
@@ -925,9 +973,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.24";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.25";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.24";
+const MIN_GAS_VERSION = "2026.11.25";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -2989,6 +3037,144 @@ $("#pmAiSave") && $("#pmAiSave").addEventListener("click", async ()=>{
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
 
+/* ================= Hyperliquid ================= */
+const HL = { data: null, loading: false, sel: "BTC", shown: 40 };
+const hlPct = (x, d) => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "") + x.toFixed(d == null ? 1 : d) + "%";
+const hlF8 = x => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "") + (x*100).toFixed(4) + "%";   /* 8時間あたりの率 (小数) → % */
+function hlPx(x){ if(x == null || isNaN(x)) return "-"; return "$" + (x >= 1000 ? Math.round(x).toLocaleString() : x >= 1 ? x.toFixed(2) : x.toPrecision(3)); }
+function hlUsd(x){ return x == null || isNaN(x) ? "-" : x >= 1e8 ? (x/1e8).toFixed(x >= 1e10 ? 0 : 1) + "億ドル" : x >= 1e4 ? Math.round(x/1e4).toLocaleString() + "万ドル" : Math.round(x).toLocaleString() + "ドル"; }
+function hlWatchSet(){ return new Set((HL.data && HL.data.watch) || []); }
+function hlTracked(){ const d = HL.data; return d ? Object.keys(d.series || {}) : []; }
+/** 記録から 24時間前の建玉 (無ければ null) */
+function hlOi24(coin){
+  const s = HL.data && HL.data.series && HL.data.series[coin];
+  if(!s || s.length < 25) return null;
+  const a = s[s.length-25], l = s[s.length-1];
+  return a[1] > 0 ? (l[1]/a[1]-1)*100 : null;
+}
+async function loadHl(){
+  if(HL.loading) return;
+  if(!state.settings.gasUrl){ $("#hlSum").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると表示されます。</div>`; return; }
+  const cache = pmLS.get("hl_cache_v1", null);
+  if(cache && !HL.data){ HL.data = cache; renderHl(); }
+  if(!HL.data) $("#hlSum").innerHTML = Array.from({length:3}, ()=>`<div class="pm-skel"></div>`).join("");
+  HL.loading = true; $("#hlInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=hl&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !d.snap) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    HL.data = d; pmLS.set("hl_cache_v1", d);
+    renderHl();
+  }catch(err){
+    if(!HL.data) $("#hlSum").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`;
+    else $("#hlInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ HL.loading = false; }
+}
+function renderHl(){
+  const d = HL.data; if(!d || !d.snap) return;
+  const P = d.snap.perps || [];
+  const totalOi = P.reduce((n,r)=>n+r.oi, 0), totalVol = P.reduce((n,r)=>n+(r.vol||0), 0);
+  const btc = P.find(r=>r.n === "BTC") || {}, hype = P.find(r=>r.n === "HYPE") || {};
+  const card = (n, v, sub, t) => `<div class="mc-card"><div class="mc-h"><span>${esc(n)}</span>${t ? termBtn(t) : ""}</div><div class="mc-v">${v}</div><div class="mc-sub">${sub}</div></div>`;
+  const b24 = hlOi24("BTC");
+  $("#hlSum").innerHTML = `<div class="hl-sum">
+    ${card("建玉の合計", esc(hlUsd(totalOi)), `${P.length}銘柄 ／ BTC の建玉 ${esc(hlUsd(btc.oi))}${b24 != null ? ` (24時間 ${esc(hlPct(b24))})` : ""}`, "oi")}
+    ${card("24時間の出来高", esc(hlUsd(totalVol)), "先物の合計", "pmvol")}
+    ${card("BTC のファンディング", esc(hlF8(btc.f*8)), `8時間あたり ／ Binance ${esc(hlF8(btc.bin))} ／ Bybit ${esc(hlF8(btc.byb))}`, "funding")}
+    ${card("HYPE", esc(hlPx(hype.px)), `24時間 ${esc(hlPct(hype.prev ? (hype.px/hype.prev-1)*100 : null))} ／ ファンディング ${esc(hlF8(hype.f*8))}`, "")}
+  </div>`;
+  /* ファンディングの差 (HL − 他の取引所の平均)。建玉100万ドル以上 */
+  const arb = P.filter(r=>r.oi >= 1e6 && (r.bin != null || r.byb != null)).map(r=>{
+    const others = [r.bin, r.byb].filter(x=>x != null), avg = others.reduce((a,x)=>a+x,0)/others.length;
+    return Object.assign({ diff: r.f*8 - avg }, r);
+  }).sort((a,b)=>Math.abs(b.diff) - Math.abs(a.diff)).slice(0, 10);
+  $("#hlArb").innerHTML = arb.length ? `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>銘柄</th><th>Hyperliquid</th><th>Binance</th><th>Bybit</th><th>差 (8時間)</th><th>差 (年率)</th><th>建玉</th></tr></thead><tbody>`
+    + arb.map(r=>`<tr data-coin="${esc(r.n)}"><td><b>${esc(r.n)}</b></td><td>${hlF8(r.f*8)}</td><td>${hlF8(r.bin)}</td><td>${hlF8(r.byb)}</td><td class="${r.diff > 0 ? "up" : "down"}"><b>${hlF8(r.diff)}</b></td><td>${hlPct(r.diff*3*365*100, 0)}</td><td>${hlUsd(r.oi)}</td></tr>`).join("")
+    + `</tbody></table></div><div class="hint">差がプラス = Hyperliquid のほうが買い手の支払いが多い (Hyperliquid で売り・他で買いの組み合わせで受け取れる側)。年率は単純に3回×365日を掛けた目安で、手数料や値動きの損益は含みません。</div>`
+    : `<div class="hint">他の取引所のファンディングを取得できませんでした</div>`;
+  renderHlPerps(); renderHlChart(); renderHlSpot();
+  const t = new Date(d.snap.at).toLocaleTimeString("ja-JP", { hour:"2-digit", minute:"2-digit" });
+  $("#hlInfo").textContent = t + " 時点 ・ 記録中 " + hlTracked().length + "銘柄";
+}
+function renderHlPerps(){
+  const d = HL.data; if(!d) return;
+  const q = ($("#hlQ").value || "").trim().toUpperCase(), sort = $("#hlSort").value, W = hlWatchSet();
+  const avg = r => { const o = [r.bin, r.byb].filter(x=>x != null); return o.length ? o.reduce((a,x)=>a+x,0)/o.length : null; };
+  let list = (d.snap.perps || []).filter(r=>!q || r.n.toUpperCase().includes(q)).map(r=>Object.assign({ chg: r.prev ? (r.px/r.prev-1)*100 : 0, dif: avg(r) == null ? null : r.f*8 - avg(r) }, r));
+  const by = { oi:(a,b)=>b.oi-a.oi, vol:(a,b)=>(b.vol||0)-(a.vol||0), chg:(a,b)=>Math.abs(b.chg)-Math.abs(a.chg), f:(a,b)=>b.f-a.f, fl:(a,b)=>a.f-b.f, diff:(a,b)=>Math.abs(b.dif||0)-Math.abs(a.dif||0) }[sort];
+  list.sort(by);
+  const rows = list.slice(0, HL.shown).map(r=>{ const o24 = hlOi24(r.n);
+    return `<tr data-coin="${esc(r.n)}" class="${r.n === HL.sel ? "sel" : ""}"><td><button class="hl-star ${W.has(r.n) || HL_FIXED.includes(r.n) ? "on" : ""}" data-hlstar="${esc(r.n)}" title="${HL_FIXED.includes(r.n) ? "いつも記録しています" : W.has(r.n) ? "記録から外す" : "記録する"}">${W.has(r.n) || HL_FIXED.includes(r.n) ? "★" : "☆"}</button><b>${esc(r.n)}</b></td>
+      <td>${hlPx(r.px)}</td><td class="${r.chg >= 0 ? "up" : "down"}">${hlPct(r.chg)}</td><td>${hlUsd(r.oi)}</td><td>${o24 == null ? "-" : `<span class="${o24 >= 0 ? "up" : "down"}">${hlPct(o24, 0)}</span>`}</td>
+      <td>${hlF8(r.f*8)}</td><td>${hlF8(r.dif)}</td><td>${hlUsd(r.vol)}</td></tr>`; }).join("");
+  $("#hlPerps").innerHTML = `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>銘柄</th><th>価格</th><th>24時間</th><th>建玉</th><th>建玉24h</th><th>ファンディング (8h)</th><th>他との差</th><th>出来高</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  $("#hlMore").innerHTML = list.length > HL.shown ? `<button class="btn small" id="hlMoreBtn">もっと見る (残り ${list.length - HL.shown})</button>` : "";
+}
+const HL_FIXED = ["BTC","ETH","SOL","HYPE"];
+/** 記録のグラフ (選んだ銘柄): 価格・建玉・ファンディング (Binance と比べる) */
+function hlLine(pts, opts){
+  pts = pts.filter(p=>p[1] != null && !isNaN(p[1]));
+  if(pts.length < 2) return `<div class="hint">記録が2時間分以上たまると描きます</div>`;
+  const W = 300, H = 110, L = 4, R = 4, T = 6, B = 16;
+  const all = pts.map(p=>p[1]).concat((opts.second||[]).filter(p=>p[1] != null).map(p=>p[1]));
+  let lo = Math.min(...all), hi = Math.max(...all); if(hi === lo){ hi += Math.abs(hi)*0.01 || 1; lo -= Math.abs(lo)*0.01 || 1; }
+  const X = i => L + i/(pts.length-1)*(W-L-R), Y = v => T + (1-(v-lo)/(hi-lo))*(H-T-B);
+  const path = arr => arr.map((p,i)=>p[1] == null ? "" : (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(p[1]).toFixed(1)).join("");
+  const zero = opts.zero && lo < 0 && hi > 0 ? `<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--border)" stroke-dasharray="3 3"/>` : "";
+  const sec = opts.second ? `<path d="${path(opts.second.slice(-pts.length))}" fill="none" stroke="var(--warn)" stroke-width="1.4" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>` : "";
+  const lab = i => { const k = pts[i][0]; return k.slice(5,10).replace("-","/") + " " + k.slice(11,13) + "時"; };
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${zero}${sec}<path d="${path(pts)}" fill="none" stroke="var(--accent)" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
+    <text x="${L}" y="${H-3}" font-size="9" fill="var(--dim)">${lab(0)}</text><text x="${W-R}" y="${H-3}" font-size="9" text-anchor="end" fill="var(--dim)">${lab(pts.length-1)}</text></svg>`;
+}
+function renderHlChart(){
+  const d = HL.data; if(!d) return;
+  const coins = hlTracked().sort((a,b)=> (HL_FIXED.indexOf(a) + 1 || 99) - (HL_FIXED.indexOf(b) + 1 || 99));
+  if(!coins.includes(HL.sel) && coins.length) HL.sel = coins[0];
+  const s = (d.series || {})[HL.sel] || [];
+  const last = s[s.length-1];
+  $("#hlChartBox").innerHTML = `<div class="mc-w-h" style="margin-top:0">📼 記録の推移 (直近8日・1時間ごと)</div>
+    <div class="hl-coins">${coins.map(c=>`<button class="chip ${c === HL.sel ? "active" : ""}" data-hlsel="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+    ${s.length ? `<div class="hl-charts">
+      <div class="hl-chart"><div class="t"><span>価格</span><b>${last ? hlPx(last[3]) : ""}</b></div>${hlLine(s.map(r=>[r[0], r[3]]), {})}</div>
+      <div class="hl-chart"><div class="t"><span>建玉 ${termBtn("oi")}</span><b>${last ? hlUsd(last[1]) : ""}</b></div>${hlLine(s.map(r=>[r[0], r[1]]), {})}</div>
+      <div class="hl-chart"><div class="t"><span>ファンディング (8h) — <span style="color:var(--warn)">点線: Binance</span></span><b>${last ? hlF8(last[2]*8) : ""}</b></div>${hlLine(s.map(r=>[r[0], r[2]*8*100]), { zero:true, second: s.map(r=>[r[0], r[6] != null ? r[6]*100 : null]) })}</div>
+      <div class="hl-chart"><div class="t"><span>24時間の出来高</span><b>${last && last[4] != null ? hlUsd(last[4]) : "-"}</b></div>${hlLine(s.map(r=>[r[0], r[4]]), {})}</div>
+    </div>` : `<div class="hint" style="margin-top:8px">まだ記録がありません (サーバーが1時間ごとに記録します)</div>`}`;
+}
+function renderHlSpot(){
+  const d = HL.data; if(!d) return;
+  const S = d.snap.spot || [];
+  $("#hlSpot").innerHTML = S.length ? `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>銘柄</th><th>価格</th><th>24時間</th><th>出来高</th><th>流通時価総額</th><th>FDV ${termBtn("fdv")}</th><th>流通率</th></tr></thead><tbody>`
+    + S.slice(0, 30).map(r=>`<tr><td><b>${esc(r.n)}</b></td><td>${hlPx(r.px)}</td><td class="${r.px >= r.prev ? "up" : "down"}">${hlPct(r.prev ? (r.px/r.prev-1)*100 : null)}</td><td>${hlUsd(r.vol)}</td>
+      <td>${r.circ ? hlUsd(r.circ*r.px) : "-"}</td><td>${r.total ? hlUsd(r.total*r.px) : "-"}</td><td>${r.circ && r.total ? Math.round(r.circ/r.total*100) + "%" : "-"}</td></tr>`).join("")
+    + `</tbody></table></div><div class="hint">FDV = 価格 × 総発行量。流通率が低いほど、今後出回る分 (売り圧力) が多いことになります。</div>` : `<div class="hint">現物のデータを取得できませんでした</div>`;
+}
+async function hlToggleWatch(coin){
+  if(HL_FIXED.includes(coin)){ toast(coin + " はいつも記録しています"); return; }
+  const W = hlWatchSet();
+  if(W.has(coin)) W.delete(coin); else W.add(coin);
+  const coins = [...W];
+  try{
+    const d = await pmGasPost({ action:"pmHlWatch", coins });
+    if(!d || !d.ok) throw new Error((d && d.error) || "保存できませんでした");
+    HL.data.watch = d.watch; pmLS.set("hl_cache_v1", HL.data);
+    toast(W.has(coin) ? `⭐ ${coin} を記録の対象にしました (次の記録から)` : `${coin} を記録の対象から外しました`);
+    renderHlPerps();
+  }catch(err){ toast("❌ " + err.message); }
+}
+$("#tab-hl").addEventListener("click", ev=>{
+  if(ev.target.closest("[data-term]")) return;
+  const st = ev.target.closest("[data-hlstar]"); if(st){ ev.stopPropagation(); hlToggleWatch(st.dataset.hlstar); return; }
+  const sel = ev.target.closest("[data-hlsel]"); if(sel){ HL.sel = sel.dataset.hlsel; renderHlChart(); return; }
+  if(ev.target.id === "hlMoreBtn"){ HL.shown += 40; renderHlPerps(); return; }
+  if(ev.target.id === "hlReload"){ loadHl(); return; }
+  const tr = ev.target.closest("tr[data-coin]");
+  if(tr && hlTracked().includes(tr.dataset.coin)){ HL.sel = tr.dataset.coin; renderHlChart(); renderHlPerps(); $("#hlChartBox").scrollIntoView && $("#hlChartBox").scrollIntoView({ behavior:"smooth", block:"start" }); }
+  else if(tr) toast(tr.dataset.coin + " はまだ記録していません (☆ を押すと記録を始めます)");
+});
+$("#hlQ").addEventListener("input", ()=>{ HL.shown = 40; renderHlPerps(); });
+$("#hlSort").addEventListener("change", ()=>{ HL.shown = 40; renderHlPerps(); });
 /* ================= 記録を AI に渡す ================= */
 const REP_COPY_MAX = 30000;   /* これより長い時はファイルで渡すのをすすめる (貼り付けると長すぎることがあるため) */
 let repText = "";
@@ -3072,6 +3258,7 @@ const GLOSS = {
   fng: { n:"恐怖と強欲指数", a:["恐怖と強欲指数","Fear & Greed","Fear and Greed"], s:"暗号資産の投資家の気分を 0 (極端な恐怖) 〜 100 (極端な強欲) で表した指数 (alternative.me)。", w:"極端な恐怖は売られすぎ、極端な強欲は買われすぎの目安にされます (逆張りの参考)。", r:["btc","funding"] },
   funding: { n:"ファンディングレート", a:["ファンディングレート","資金調達率","funding"], s:"先物 (無期限先物) の値段を現物に近づけるため、買い手と売り手の間で定期的にやり取りするお金の率。", w:"プラスで大きいと買いが過熱、マイナスだと売りが優勢。このアプリは Hyperliquid の値を8時間あたりに直して表示します。", u:"買いが混み合っている (急落の燃料になることも)。", d:"売りが混み合っている (急騰の燃料になることも)。", r:["btc","fng"] },
   oi: { n:"建玉 (OI・オープンインタレスト)", a:["建玉","オープンインタレスト","OI"], s:"まだ決済されていない先物の総額。どれだけのお金が先物で勝負しているかを表します。", w:"建玉が急に増えるのは、借金 (レバレッジ) をして賭ける人が増えたサイン。値段が少し動くだけで強制決済 (清算) が連鎖し、急騰・急落の燃料になります。過去の値は取り出せないので、このアプリが1時間ごとに記録しています。", u:"レバレッジが積み上がっている (急な値動きに注意)。", d:"手じまいや清算が進み、過熱が冷めた。", r:["funding","btc"] },
+  fundarb: { n:"ファンディングの差 (取引所どうし)", a:["ファンディングの差","ファンディング差"], s:"同じ銘柄でも、取引所ごとにファンディングレートが違うことがあります。その差のことです。", w:"差が大きい時は、払う側の取引所で売り・受け取る側の取引所で買うと、値動きを打ち消しつつ差を受け取れる (裁定) と言われます。ただし手数料・価格のずれ・取引所のリスクがあり、差はすぐ縮むこともあります。", r:["funding","oi"] },
   kalshi: { n:"Kalshi (カルシ)", a:["Kalshi","カルシ"], s:"アメリカ政府 (CFTC) の規制を受けている公認の予測市場。FOMC・CPI・景気後退など、経済の市場が多いのが特徴です。", w:"同じ出来事について Polymarket と確率を比べると、どちらかが割安・割高になっている場面や、どちらが先に動くかが分かります。決着のルールが少し違うことがあるので注意が必要です。", r:["pm","pmspread","fomc"] },
   bp: { n:"bp・pt", a:["bp","ベーシスポイント"], s:"bp は金利の 0.01% のこと (25bp = 0.25%)。pt はこのアプリでは確率の「ポイント」(40% → 50% は 10pt) の意味で使っています。", r:["cut"] },
   riskon: { n:"リスクオン・リスクオフ", a:["リスクオン","リスクオフ"], s:"投資家が値動きの大きい資産 (株・暗号資産) を積極的に買う気分がリスクオン、安全な資産 (国債・金・ドル) に逃げる気分がリスクオフです。", r:["vix","hy","dxy"] },
@@ -4655,6 +4842,7 @@ function switchTab(t){
   if(t==="poly" && !loaded.poly){ loaded.poly=1; pmLoad(); }
   if(t==="btc" && !loaded.btc){ loaded.btc=1; loadMacro(); }
   if(t==="gloss"){ renderGloss(); }
+  if(t==="hl" && !loaded.hl){ loaded.hl=1; loadHl(); }
 }
 $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
 
