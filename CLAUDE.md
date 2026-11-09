@@ -20,6 +20,8 @@
 > - **マクロの計算は index.html と gas/Code.gs に同じコードの囲み** (「マクロの計算」の囲み。指標の定義 `MC_DEFS`・天気図 `mcSummary`・カレンダー `MC_CAL`)。変える時は両方を同じに直す (テストで一致を確認)。毎朝のまとめメール (`pmDigest`) の先頭に天気図・昨日から変わった信号 (`PM_MC_SIG`)・7日以内の予定を入れる
 > - 天気図 (`renderWeather`): 信号 🟢+1/🟡0/🔴−1 を `MC_WEIGHT` で重み付き平均。経済カレンダー (`MC_CAL`): FOMC・CPI・雇用統計の公式日程 (2027年末まで。**毎年、翌年分を federalreserve.gov と bls.gov から足す**)。関連する Polymarket の市場は public-search で日付と言葉が合うものを探す
 > - AI に渡す記録 (gas/Code.gs 末尾): `pmResolve` の後の `pmDailyJobs_` が毎日 `daily-YYYY-MM.json` (市場ごと [始値,終値,高値,安値,24h出来高]) と `macro-log.json` (天気図の1行) を作る。`pmAlert` が `alerts.json` に急変を記録。`doGet ?action=report&days=&parts=macro,watch,alerts,resolve` が依頼文つき Markdown を返す。アプリは「🤖 記録をAIに渡す」シート (30,000文字を超えたらファイル保存をすすめる)
+> - Kalshi 比較 (gas/Code.gs 末尾 `fedCompare_`): Kalshi の公開 API (KXFEDDECISION) と Polymarket の「Fed decision in ○月」を、箱 (hold/cut25/cut50/hike) にそろえて比べる。`pmRecord` の後に `fedCompareRecord_` が fed-compare.json に記録し、買値・売値の幅を考えて5pt以上ずれたら通知。`doGet ?action=compare`
+> - Hyperliquid の建玉 (`hlRecord_`): 1時間ごとに hl-YYYY-MM.json (キーは日本時間 'YYYY-MM-DDTHH:00')。24時間で建玉 ±20%・ファンディングの極端で通知。マクロの `D.hl` (doGet macro に直近8日分) から「建玉」カード
 > - 用語集: index.html の `GLOSS` (n 名前 / a 別名=自動リンクする言葉 / s ひとことで / w なぜ大事か / u・d 上がると・下がると / r 関連)。`linkTerms()` で本文に下線リンク、`termBtn()` で ? ボタン。用語を足す時は GLOSS に1つ足すだけ (テストで関連先と別名の重複を確認)
 > - 端末の保存: `pm_tr_v1` `pm_sc_v1` `pm_watch_v1` `pm_hide_v1` (予定の `sakiyomi_v1` とは別)
 

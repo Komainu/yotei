@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.23';
+const GAS_VERSION = '2026.11.24';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -560,8 +560,13 @@ function doGetInner_(e) {
   if (e && e.parameter && e.parameter.action === 'report') {
     return json(Object.assign({ version: GAS_VERSION }, pmReport_({ days: e.parameter.days, parts: String(e.parameter.parts || '').split(',').filter(Boolean) })));
   }
+  if (e && e.parameter && e.parameter.action === 'compare') {
+    return json(Object.assign({ version: GAS_VERSION }, fedCompareLatest_()));
+  }
   if (e && e.parameter && e.parameter.action === 'macro') {
-    return json({ ok: true, version: GAS_VERSION, macro: macroData_(e.parameter.force === '1') });
+    const mac = macroData_(e.parameter.force === '1');
+    try { mac.hl = hlSeries_(192); } catch (err) { mac.hl = null; }
+    return json({ ok: true, version: GAS_VERSION, macro: mac });
   }
   const props = PropertiesService.getScriptProperties();
   const list = getProjects_();
@@ -1768,6 +1773,8 @@ function pmRecord() {
     try { lock.releaseLock(); } catch (e) {}
   }
   macroRefresh();   // マクロの指標も1時間ごとに取り直しておく (アプリを開いた時にすぐ出るように)
+  try { fedCompareRecord_(); } catch (e) { Logger.log('Kalshi との比較に失敗: ' + e); }
+  try { hlRecord_(); } catch (e) { Logger.log('Hyperliquid の記録に失敗: ' + e); }
 }
 
 /** 決着を確認する市場: 結果が未記録で、締切を過ぎたか・上位から外れて6時間以上たったもの (締切の古い順) */
@@ -2530,6 +2537,12 @@ const MC_DEFS = [
       const lab = l[1] <= 24 ? "極端な恐怖" : l[1] <= 44 ? "恐怖" : l[1] <= 55 ? "中立" : l[1] <= 74 ? "強欲" : "極端な強欲";
       return { v: l[1] + " " + lab, sub: "0: 極端な恐怖 〜 100: 極端な強欲", s, d: l[0],
         sig: l[1] <= 24 ? "y" : l[1] >= 75 ? "r" : "g", why: l[1] <= 24 ? "売られすぎの目安にされる水準 (逆張りの参考)" : l[1] >= 75 ? "買われすぎ・過熱" : "極端ではない" }; } },
+  { id:"oi", th:"crypto", n:"建玉 (BTC 先物)", t:"oi", f:D=>{ const s = D.hl && D.hl.BTC; if(!s || s.length < 2) return null;
+      const l = s[s.length-1], a = s.length >= 25 ? s[s.length-25] : null;
+      const ch = a && a[1] > 0 ? (l[1]/a[1]-1)*100 : null, pc = a && a[3] > 0 ? (l[3]/a[3]-1)*100 : null;
+      const others = ["ETH","SOL","HYPE"].map(c=>{ const x = D.hl[c]; if(!x || x.length < 25) return ""; const y = x[x.length-1], z = x[x.length-25]; return z[1] > 0 ? `${c} ${mcPct((y[1]/z[1]-1)*100, 0)}` : ""; }).filter(Boolean);
+      return { v: mcMoney(l[1]/1e9), sub: (ch != null ? `24時間 ${mcPct(ch)} ／ 価格 ${mcPct(pc)}` : "記録が24時間分たまると変化を出します") + (others.length ? ` ／ ${others.join("・")}` : ""), s: s.map(r=>[r[0], r[1]]), d: "",
+        sig: ch == null ? null : ch >= 15 ? "r" : ch <= -15 ? "y" : "g", why: ch == null ? "" : ch >= 15 ? "建玉が急増: レバレッジが積み上がり、急な値動きの燃料になりやすい" : ch <= -15 ? "建玉が急減: 手じまい・清算が進んだ" : "建玉は落ち着いている" }; } },
   { id:"funding", th:"crypto", n:"ファンディングレート (BTC)", t:"funding", f:D=>{ const n = ((D.crypto||{}).now||{}).BTC; if(!n || n.funding == null) return null;
       const r8 = n.funding*8*100, yr = n.funding*24*365*100, h = ((D.crypto||{}).now||{}).HYPE, e = ((D.crypto||{}).now||{}).ETH;
       return { v: (r8 >= 0 ? "+" : "") + r8.toFixed(4) + "%", sub: `8時間あたり ／ 年率 ${mcPct(yr)}` + (e ? ` ／ ETH ${(e.funding*800).toFixed(4)}%` : "") + (h ? ` ／ HYPE ${(h.funding*800).toFixed(4)}%` : ""), d: "",
@@ -2539,7 +2552,7 @@ const MC_SIG = { g:"🟢", y:"🟡", r:"🔴" };
 function mcEval(def, D){ try{ return def.f(D) || null; }catch(e){ return null; } }
 /* ---- 相場の天気図: 信号を重み付きで足して、追い風 (リスクオン) か向かい風 (リスクオフ) かを出す ----
    🟢 = +1 / 🟡 = 0 / 🔴 = −1 に重みを掛けて平均 (−1〜+1)。重みは影響の大きさの目安 (お金の量・不安の度合いを重く) */
-const MC_WEIGHT = { netliq:2, vix:2, hy:2, sp500:1.5, unrate:1.5, curve:1, sofr:1, dgs10:1, dxy:1, cpi:1, nasdaq:1, btc:1, stable:1, tga:1, jpy:1, eth:0.5, fng:0.5, funding:0.5 };
+const MC_WEIGHT = { netliq:2, vix:2, hy:2, sp500:1.5, unrate:1.5, curve:1, sofr:1, dgs10:1, dxy:1, cpi:1, nasdaq:1, btc:1, stable:1, tga:1, jpy:1, eth:0.5, fng:0.5, funding:0.5, oi:0.5 };
 const MC_SKY = [
   [0.4, "☀️", "晴れ", "リスクオン (追い風が強い)"],
   [0.15, "🌤", "晴れ時々くもり", "やや追い風"],
@@ -2642,6 +2655,7 @@ function mcJstWhen_(d) {
 function pmMacroSection_() {
   const D = macroData_(false);
   D.fred = D.fred || {};
+  try { D.hl = hlSeries_(48); } catch (e) {}
   const res = {};
   MC_DEFS.forEach(function (d) { res[d.id] = mcEval(d, D); });
   const sum = mcSummary(res);
@@ -2738,6 +2752,7 @@ function pmSummarizeDay_(day) {
 function pmMacroLog_() {
   const D = macroData_(false);
   D.fred = D.fred || {};
+  try { D.hl = hlSeries_(48); } catch (e) {}
   const res = {};
   MC_DEFS.forEach(function (d) { res[d.id] = mcEval(d, D); });
   const sum = mcSummary(res);
@@ -2785,7 +2800,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -2809,6 +2824,8 @@ function pmReport_(opt) {
   lines.push('・ウォッチ中の市場で、確率が大きく動いた日と、そのきっかけになりそうな出来事');
   lines.push('・急変のあと、確率はそのまま進んだか・戻ったか (急変を信じてよい場面・よくない場面)');
   lines.push('・答え合わせから見た、予測市場の当たりやすさ・外れやすさの傾向');
+  lines.push('・Polymarket と Kalshi で確率がずれた場面と、その後どちらに寄ったか');
+  lines.push('・暗号資産の先物の建玉・ファンディングの変化と、価格や予測市場の動きの関係');
   lines.push('・今後注目すべき点');
   lines.push('数字は表のとおりです。分からないことは推測と分かるように書いてください。日付は日本時間です。');
   lines.push('');
@@ -2881,6 +2898,257 @@ function pmReport_(opt) {
       Object.keys(buckets).sort(function (a, b) { return a - b; }).map(function (b) { const x = buckets[b]; return [(b * 10) + '〜' + (b * 10 + 10) + '%', x.n, Math.round(x.y / x.n * 100) + '%']; })));
     lines.push('');
   }
+  if (parts.indexOf('kalshi') >= 0) {
+    const log = pmRead_('fed-compare.json') ? JSON.parse(pmRead_('fed-compare.json')) : { rows: [] };
+    // 日ごとの最後の記録
+    const last = {};
+    log.rows.forEach(function (r) { const d = pmJstDay_(Date.parse(r.t)); if (d >= from && d <= to) last[d + '|' + r.d] = r; });
+    const rows = [];
+    Object.keys(last).sort().forEach(function (k) { const r = last[k], d = k.split('|')[0];
+      FED_BOXES.forEach(function (b) { const x = r.b[b]; if (x && (x[0] != null || x[1] != null)) rows.push([d, r.d, FED_BOX_JA[b], pmP_(x[0]), pmP_(x[1]), x[0] != null && x[1] != null ? Math.round((x[0] - x[1]) * 100) + 'pt' : '-']); }); });
+    lines.push('## 5. Polymarket と Kalshi の FOMC 予想のずれ (日ごとの最後の値)');
+    lines.push('同じ会合・同じ結果についての、2つの予測市場の確率。差 = Polymarket − Kalshi。');
+    lines.push(pmMdTable_(['日付', 'FOMC の日', '結果', 'Polymarket', 'Kalshi', '差'], rows));
+    lines.push('');
+  }
+  if (parts.indexOf('hl') >= 0) {
+    const all = hlLoad_(hlMonths_(Date.now(), Math.ceil(days / 28) + 1));
+    lines.push('## 6. 暗号資産の先物 (Hyperliquid の建玉・ファンディング、日ごと)');
+    lines.push('建玉 = 未決済の先物の総額 (ドル)。ファンディング = その日の平均 (8時間あたり)。プラスで大きいほど買いが過熱。');
+    HL_COINS.forEach(function (c) {
+      const byDay = {};
+      Object.keys(all).sort().forEach(function (k) { const d = k.slice(0, 10); const x = all[k][c]; if (!x || d < from) return; const b = byDay[d] || (byDay[d] = { oi: 0, px: 0, f: [] }); b.oi = x[0]; b.px = x[2]; b.f.push(x[1]); });
+      const ds = Object.keys(byDay).sort();
+      lines.push('### ' + c);
+      lines.push(pmMdTable_(['日付', '価格', '建玉', '建玉の前日比', 'ファンディング (8時間)'], ds.map(function (d, i) {
+        const b = byDay[d], p = i ? byDay[ds[i - 1]] : null, fa = b.f.reduce(function (a, x) { return a + x; }, 0) / b.f.length;
+        return [d, '$' + Number(b.px).toLocaleString(), pmMoneyJa_(b.oi), p && p.oi ? ((b.oi / p.oi - 1) * 100).toFixed(1) + '%' : '-', (fa * 800).toFixed(4) + '%'];
+      })));
+    });
+    lines.push('');
+  }
   const text = lines.join('\n');
   return { ok: true, text: text, chars: text.length, from: from, to: to };
+}
+
+// =====================================================================
+//  Kalshi と Polymarket の比較 (FOMC の決定)
+//    Kalshi の公開データ (登録なし) と Polymarket の同じ会合の市場を、選択肢を4つの箱にそろえて比べる
+//      hold: 据え置き / cut25: 0.25%利下げ / cut50: 0.5%以上の利下げ / hike: 利上げ (幅は問わない)
+//    fed-compare.json … 1時間ごとの記録 { rows: [{ t, d: 会合日, b: { 箱: [Polymarket, Kalshi] } }] } (180日分)
+// =====================================================================
+
+const KALSHI_URL = 'https://api.elections.kalshi.com/trade-api/v2';
+const FED_BOXES = ['hold', 'cut25', 'cut50', 'hike'];
+const FED_BOX_JA = { hold: '据え置き', cut25: '0.25%利下げ', cut50: '0.5%以上の利下げ', hike: '利上げ' };
+const FED_GAP_ALERT = 0.05;        // 買値・売値を考えても5pt以上ずれていたら通知
+const FED_GAP_COOLDOWN = 12 * 3600000;
+
+function kalshiFetch_(path) { return JSON.parse(macroFetchText_(KALSHI_URL + path)); }
+/** 値段: 買値と売値の真ん中 (片方しか無ければ最後の取引値) */
+function fedMid_(bid, ask, last) {
+  if (bid > 0 && ask > 0 && ask >= bid) return (bid + ask) / 2;
+  return last != null && !isNaN(last) ? last : (ask > 0 ? ask : bid);
+}
+/** Kalshi の選択肢 (custom_strike) → 箱 */
+function fedBoxKalshi_(cs) {
+  cs = cs || {};
+  if (cs.Hike != null) return String(cs.Hike) === '0' ? 'hold' : 'hike';
+  if (cs.Cut != null) return String(cs.Cut) === '25' ? 'cut25' : 'cut50';
+  return null;
+}
+/** Polymarket の選択肢名 → 箱 ("No change" "25 bps decrease" "50+ bps decrease" "25+ bps increase") */
+function fedBoxPm_(label) {
+  const s = String(label || '').toLowerCase();
+  if (/no change|maintain|hold|unchanged/.test(s)) return 'hold';
+  const n = Number((s.match(/(\d+)/) || [])[1]);
+  if (/decrease|cut|lower/.test(s)) return n >= 50 ? 'cut50' : 'cut25';
+  if (/increase|hike|raise/.test(s)) return 'hike';
+  return null;
+}
+function fedAdd_(boxes, k, x) {
+  if (!k) return;
+  const b = boxes[k] || (boxes[k] = { p: 0, bid: 0, ask: 0, v: 0, n: 0 });
+  b.p += x.p; b.bid += x.bid || 0; b.ask += x.ask || 0; b.v += x.v || 0; b.n++;
+}
+const fedR_ = function (x) { return Math.round(x * 1000) / 1000; };
+/** Kalshi: 開いている FOMC の会合 → [{ d: 'YYYY-MM-DD', t: 題名, ticker, boxes }] */
+function kalshiFedMeetings_() {
+  const d = kalshiFetch_('/events?status=open&series_ticker=KXFEDDECISION&with_nested_markets=true&limit=10');
+  return (d.events || []).map(function (ev) {
+    const boxes = {};
+    (ev.markets || []).forEach(function (m) {
+      const bid = Number(m.yes_bid_dollars), ask = Number(m.yes_ask_dollars), last = Number(m.last_price_dollars);
+      fedAdd_(boxes, fedBoxKalshi_(m.custom_strike), { p: fedMid_(bid, ask, last), bid: bid, ask: ask, v: Number(m.volume_24h_fp) || 0 });
+    });
+    return { d: String(ev.strike_date || '').slice(0, 10), t: ev.title, ticker: ev.event_ticker, boxes: boxes };
+  }).filter(function (x) { return x.d; }).sort(function (a, b) { return a.d < b.d ? -1 : 1; });
+}
+/** Polymarket: 同じ会合の「Fed decision in ○月」市場 */
+function pmFedMeeting_(date) {
+  const mon = MC_MON_EN[Number(date.slice(5, 7)) - 1];
+  const r = pmFetch_('/public-search?q=' + encodeURIComponent('Fed decision in ' + mon) + '&limit_per_type=10&events_status=active');
+  const day = Date.parse(date + 'T12:00:00Z');
+  const ev = ((r && r.events) || []).filter(function (e) {
+    return /fed/i.test(e.title || '') && !e.closed && Math.abs((Date.parse(e.endDate) || 0) - day) <= 4 * 86400000;
+  }).sort(function (a, b) { return (Number(b.volume) || 0) - (Number(a.volume) || 0); })[0];
+  if (!ev) return null;
+  const boxes = {};
+  (ev.markets || []).filter(function (m) { return !m.closed; }).forEach(function (m) {
+    const p = Number(pmJsonArr_(m.outcomePrices)[0]);
+    if (isNaN(p)) return;
+    const bid = Number(m.bestBid) || 0, ask = Number(m.bestAsk) || 0;
+    fedAdd_(boxes, fedBoxPm_(m.groupItemTitle || m.question), { p: bid > 0 && ask > 0 ? fedMid_(bid, ask, p) : p, bid: bid, ask: ask, v: Number(m.volume24hr) || 0 });
+  });
+  return { t: ev.title, s: ev.slug, boxes: boxes };
+}
+/** 比較を作る (次の4回の会合)。失敗したら null */
+function fedCompare_() {
+  const ks = kalshiFedMeetings_().slice(0, 4);
+  return ks.map(function (k) {
+    let pm = null;
+    try { pm = pmFedMeeting_(k.d); } catch (e) { Logger.log('Polymarket の FOMC 市場を探せません: ' + e); }
+    const rows = FED_BOXES.filter(function (b) { return k.boxes[b] || (pm && pm.boxes[b]); }).map(function (b) {
+      const kk = k.boxes[b], pp = pm && pm.boxes[b];
+      // 買値と売値の幅を考えたずれ: 2つの幅が重ならない分だけ (幅が無い時は値段の差)
+      let gap = null;
+      if (kk && pp) {
+        const hasK = kk.bid > 0 && kk.ask > 0, hasP = pp.bid > 0 && pp.ask > 0;
+        gap = hasK && hasP ? Math.max(0, Math.max(kk.bid, pp.bid) - Math.min(kk.ask, pp.ask)) : Math.abs(kk.p - pp.p);
+      }
+      return { b: b, ja: FED_BOX_JA[b],
+        k: kk ? { p: fedR_(kk.p), bid: fedR_(kk.bid), ask: fedR_(kk.ask), v: Math.round(kk.v) } : null,
+        pm: pp ? { p: fedR_(pp.p), bid: fedR_(pp.bid), ask: fedR_(pp.ask), v: Math.round(pp.v) } : null,
+        diff: kk && pp ? fedR_(pp.p - kk.p) : null, gap: gap != null ? fedR_(gap) : null };
+    });
+    return { d: k.d, k: { t: k.t, ticker: k.ticker, url: 'https://kalshi.com/markets/kxfeddecision' }, pm: pm ? { t: pm.t, url: 'https://polymarket.com/event/' + pm.s } : null, rows: rows };
+  });
+}
+/** 1時間ごと: 比較を記録し、大きなずれを通知する */
+function fedCompareRecord_() {
+  const list = fedCompare_();
+  const now = Date.now();
+  pmWrite_('fed-compare-latest.json', JSON.stringify({ at: now, list: list }));
+  const cur = pmRead_('fed-compare.json');
+  const log = cur ? JSON.parse(cur) : { rows: [] };
+  list.forEach(function (m) {
+    const b = {};
+    m.rows.forEach(function (r) { b[r.b] = [r.pm ? r.pm.p : null, r.k ? r.k.p : null]; });
+    log.rows.push({ t: new Date(now).toISOString(), d: m.d, b: b });
+  });
+  const since = new Date(now - 180 * 86400000).toISOString();
+  log.rows = log.rows.filter(function (r) { return r.t >= since; });
+  pmWrite_('fed-compare.json', JSON.stringify(log));
+  // 大きなずれの通知
+  const props = PropertiesService.getScriptProperties();
+  const to = pmMailTo_();
+  if (!to || !pmMailOn_('PM_ALERT_ON')) return list;
+  let sent = {};
+  try { sent = JSON.parse(props.getProperty('FED_GAP_SENT') || '{}'); } catch (e) {}
+  const hits = [];
+  list.forEach(function (m) { m.rows.forEach(function (r) {
+    const key = m.d + ':' + r.b;
+    if (r.gap != null && r.gap >= FED_GAP_ALERT && !(sent[key] && now - sent[key] < FED_GAP_COOLDOWN)) { hits.push({ m: m, r: r }); sent[key] = now; }
+  }); });
+  if (!hits.length) return list;
+  const pct = function (x) { return Math.round(x * 100) + '%'; };
+  const body = 'Polymarket と Kalshi で、FOMC の予想が大きくずれています (買値・売値の幅を考えても ' + Math.round(FED_GAP_ALERT * 100) + 'pt 以上)。\n\n'
+    + hits.map(function (h) {
+      return '・' + h.m.d + ' の FOMC ― ' + h.r.ja + ': Polymarket ' + pct(h.r.pm.p) + ' (買' + pct(h.r.pm.ask) + '/売' + pct(h.r.pm.bid) + ') ／ Kalshi ' + pct(h.r.k.p) + ' (買' + pct(h.r.k.ask) + '/売' + pct(h.r.k.bid) + ') → ずれ ' + Math.round(h.r.gap * 100) + 'pt';
+    }).join('\n')
+    + '\n\n' + (hits[0].m.pm ? 'Polymarket: ' + hits[0].m.pm.url + '\n' : '') + 'Kalshi: ' + hits[0].m.k.url
+    + '\n\n※ 決着のルールが少し違うことがあります。売買はしていません。';
+  MailApp.sendEmail({ to: to, subject: '【ポリマーケット】Kalshi とのずれ ' + hits.length + '件: ' + hits[0].m.d + ' FOMC ' + hits[0].r.ja, body: body });
+  Object.keys(sent).forEach(function (k) { if (now - sent[k] > 3 * 86400000) delete sent[k]; });
+  props.setProperty('FED_GAP_SENT', JSON.stringify(sent));
+  return list;
+}
+/** アプリから: 最新の比較 (1時間より古ければ取り直す) */
+function fedCompareLatest_() {
+  let cur = null;
+  try { cur = JSON.parse(pmRead_('fed-compare-latest.json') || 'null'); } catch (e) {}
+  if (!cur || Date.now() - cur.at > 3600000) {
+    try { cur = { at: Date.now(), list: fedCompare_() }; pmWrite_('fed-compare-latest.json', JSON.stringify(cur)); }
+    catch (e) { if (!cur) return { ok: false, error: String(e) }; }
+  }
+  return { ok: true, at: cur.at, list: cur.list };
+}
+
+// =====================================================================
+//  Hyperliquid の建玉 (OI)・ファンディングの記録 (1時間ごと)
+//    hl-YYYY-MM.json … { 'YYYY-MM-DDTHH:00' (日本時間): { 銘柄: [建玉(ドル), ファンディング(1時間), 価格] } }
+//    建玉は過去の値を取り出せないので、自分で貯める価値がある
+// =====================================================================
+
+const HL_COINS = ['BTC', 'ETH', 'SOL', 'HYPE'];
+const HL_TOP_EXTRA = 6;              // それ以外に建玉の大きい銘柄をいくつ記録するか
+const HL_OI_ALERT = 20;              // 24時間で建玉が ±20% 以上
+const HL_FUND_HI = 0.0005, HL_FUND_LO = -0.0003;   // 8時間あたり +0.05% 以上 / −0.03% 以下
+const HL_COOLDOWN = 12 * 3600000;
+
+function hlKey_(t) { return Utilities.formatDate(new Date(t), 'Asia/Tokyo', 'yyyy-MM-dd HH:00').replace(' ', 'T'); }
+function hlLoad_(months) {
+  const out = {};
+  months.forEach(function (m) { const f = pmLoadJson_('hl-' + m + '.json'); Object.keys(f).forEach(function (k) { out[k] = f[k]; }); });
+  return out;
+}
+function hlMonths_(t, n) {
+  const res = [];
+  for (let i = n - 1; i >= 0; i--) { const d = new Date(t); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - i); res.push(Utilities.formatDate(new Date(d.getTime() + 15 * 86400000), 'Asia/Tokyo', 'yyyy-MM')); }
+  return res.filter(function (x, i) { return res.indexOf(x) === i; });
+}
+function hlRecord_() {
+  const meta = macroHl_({ type: 'metaAndAssetCtxs' });
+  const rows = meta[0].universe.map(function (u, i) {
+    const c = meta[1][i] || {};
+    return { n: u.name, d: !!u.isDelisted, oi: Number(c.openInterest) * Number(c.markPx), f: Number(c.funding), px: Number(c.markPx) };
+  }).filter(function (r) { return !r.d && r.oi > 0 && !isNaN(r.px); });
+  const pick = rows.filter(function (r) { return HL_COINS.indexOf(r.n) >= 0; })
+    .concat(rows.filter(function (r) { return HL_COINS.indexOf(r.n) < 0; }).sort(function (a, b) { return b.oi - a.oi; }).slice(0, HL_TOP_EXTRA));
+  const now = Date.now(), key = hlKey_(now), month = key.slice(0, 7);
+  const entry = {};
+  pick.forEach(function (r) { entry[r.n] = [Math.round(r.oi), r.f, r.px]; });
+  const add = {}; add[key] = entry;
+  const name = 'hl-' + month + '.json';
+  const cur = pmLoadJson_(name); cur[key] = entry; pmWrite_(name, JSON.stringify(cur));
+  // 通知: 24時間前と比べた建玉の急変・ファンディングの極端
+  const props = PropertiesService.getScriptProperties();
+  const to = pmMailTo_();
+  if (!to || !pmMailOn_('PM_ALERT_ON')) return entry;
+  const prev = hlLoad_(hlMonths_(now - 86400000, 1))[hlKey_(now - 86400000)] || {};
+  let sent = {};
+  try { sent = JSON.parse(props.getProperty('HL_ALERT_SENT') || '{}'); } catch (e) {}
+  const hits = [];
+  Object.keys(entry).forEach(function (c) {
+    const x = entry[c], p = prev[c];
+    if (p && p[0] > 0) {
+      const ch = (x[0] / p[0] - 1) * 100, pxch = p[2] > 0 ? (x[2] / p[2] - 1) * 100 : 0;
+      if (Math.abs(ch) >= HL_OI_ALERT && !(sent[c + ':oi'] && now - sent[c + ':oi'] < HL_COOLDOWN)) {
+        hits.push(c + ' の建玉が24時間で ' + (ch > 0 ? '+' : '') + ch.toFixed(0) + '% (' + pmMoneyJa_(p[0]) + ' → ' + pmMoneyJa_(x[0]) + ')、価格 ' + (pxch > 0 ? '+' : '') + pxch.toFixed(1) + '%'
+          + (ch > 0 ? ' — レバレッジが急に積み上がっています' : ' — 手じまい・清算が進みました'));
+        sent[c + ':oi'] = now;
+      }
+    }
+    const f8 = x[1] * 8;
+    if ((f8 >= HL_FUND_HI || f8 <= HL_FUND_LO) && !(sent[c + ':f'] && now - sent[c + ':f'] < HL_COOLDOWN)) {
+      hits.push(c + ' のファンディングレート ' + (f8 * 100).toFixed(3) + '% / 8時間 — ' + (f8 > 0 ? '買いが過熱' : '売りが優勢'));
+      sent[c + ':f'] = now;
+    }
+  });
+  if (hits.length) {
+    MailApp.sendEmail({ to: to, subject: '【ポリマーケット】暗号資産の先物: ' + hits[0].split(' — ')[0].slice(0, 40), body: 'Hyperliquid の先物で大きな変化がありました (' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M/d HH:mm') + ')\n\n' + hits.map(function (h) { return '・' + h; }).join('\n') + '\n\n※ 1時間ごとの記録から判定しています。売買はしていません。' });
+    Object.keys(sent).forEach(function (k) { if (now - sent[k] > 3 * 86400000) delete sent[k]; });
+    props.setProperty('HL_ALERT_SENT', JSON.stringify(sent));
+  }
+  return entry;
+}
+/** 直近 hours 時間の記録 → { 銘柄: [[時刻, 建玉, ファンディング, 価格], ...] } */
+function hlSeries_(hours) {
+  const now = Date.now(), all = hlLoad_(hlMonths_(now, 2));
+  const since = hlKey_(now - (hours || 192) * 3600000);
+  const out = {};
+  Object.keys(all).filter(function (k) { return k >= since; }).sort().forEach(function (k) {
+    Object.keys(all[k]).forEach(function (c) { (out[c] = out[c] || []).push([k, all[k][c][0], all[k][c][1], all[k][c][2]]); });
+  });
+  return out;
 }

@@ -392,6 +392,14 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .rep-parts{display:grid; gap:4px}
 .set-lbl{display:block; font-size:13px; color:var(--muted); margin:12px 0 5px}
 .rep-pre{white-space:pre-wrap; font-size:11.5px; max-height:280px; overflow:auto; background:var(--card2); padding:10px; border-radius:8px; margin-top:6px}
+.cmp-meet{padding:8px 0; border-top:1px solid var(--border)}
+.cmp-h{font-size:13.5px; font-weight:600; display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:6px}
+.cmp-h a{font-size:12px; font-weight:400}
+.cmp-grid{display:grid; grid-template-columns:minmax(90px,1.2fr) 1.3fr 1.3fr 64px; gap:4px 10px; font-size:13px; align-items:baseline}
+.cmp-grid small{color:var(--dim); font-size:11px}
+.cmp-th{font-size:11.5px; color:var(--dim)}
+.cmp-gap{color:var(--danger); font-weight:700}
+@media (max-width:560px){ .cmp-grid{grid-template-columns:minmax(70px,1fr) 1fr 1fr 48px; font-size:12px} .cmp-grid small{display:block} }
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -566,6 +574,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
   <div id="mcWeather"></div>
   <div id="mcCal"></div>
+  <div id="mcCmp"></div>
   <div id="mcBody"></div>
   <input id="fredKey" type="hidden">
   <p class="hint" style="margin-top:10px">ソース: FRED (セントルイス連銀) / Hyperliquid / DefiLlama / alternative.me。信号 (🟢🟡🔴) は一般的な目安で、売買の判断ではありません。</p>
@@ -764,6 +773,8 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <label class="check"><input type="checkbox" value="watch" checked style="width:auto">⭐ ウォッチ中の市場の推移 (日ごと)</label>
       <label class="check"><input type="checkbox" value="alerts" checked style="width:auto">⚡ 急変の記録と、その後</label>
       <label class="check"><input type="checkbox" value="resolve" checked style="width:auto">✅ 答え合わせ (決着前の確率と結果)</label>
+      <label class="check"><input type="checkbox" value="kalshi" checked style="width:auto">⚖️ Polymarket と Kalshi のずれ (FOMC)</label>
+      <label class="check"><input type="checkbox" value="hl" checked style="width:auto">📊 暗号資産の先物 (建玉・ファンディング)</label>
     </div>
     <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
     <div id="repOut"></div>
@@ -914,9 +925,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.23";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.24";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.23";
+const MIN_GAS_VERSION = "2026.11.24";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -3060,6 +3071,8 @@ const GLOSS = {
   stable: { n:"ステーブルコイン", a:["ステーブルコイン","USDT","USDC"], s:"1ドルなどと同じ値段になるよう作られた暗号資産 (USDT・USDC など)。その発行額の合計です。", w:"暗号資産の世界に入ってきているお金の量の目安。増えている時は買う力が増えていると見られます。", u:"新しいお金が入ってきている (追い風)。", d:"お金が出ていっている (逆風)。", r:["btc","netliq"] },
   fng: { n:"恐怖と強欲指数", a:["恐怖と強欲指数","Fear & Greed","Fear and Greed"], s:"暗号資産の投資家の気分を 0 (極端な恐怖) 〜 100 (極端な強欲) で表した指数 (alternative.me)。", w:"極端な恐怖は売られすぎ、極端な強欲は買われすぎの目安にされます (逆張りの参考)。", r:["btc","funding"] },
   funding: { n:"ファンディングレート", a:["ファンディングレート","資金調達率","funding"], s:"先物 (無期限先物) の値段を現物に近づけるため、買い手と売り手の間で定期的にやり取りするお金の率。", w:"プラスで大きいと買いが過熱、マイナスだと売りが優勢。このアプリは Hyperliquid の値を8時間あたりに直して表示します。", u:"買いが混み合っている (急落の燃料になることも)。", d:"売りが混み合っている (急騰の燃料になることも)。", r:["btc","fng"] },
+  oi: { n:"建玉 (OI・オープンインタレスト)", a:["建玉","オープンインタレスト","OI"], s:"まだ決済されていない先物の総額。どれだけのお金が先物で勝負しているかを表します。", w:"建玉が急に増えるのは、借金 (レバレッジ) をして賭ける人が増えたサイン。値段が少し動くだけで強制決済 (清算) が連鎖し、急騰・急落の燃料になります。過去の値は取り出せないので、このアプリが1時間ごとに記録しています。", u:"レバレッジが積み上がっている (急な値動きに注意)。", d:"手じまいや清算が進み、過熱が冷めた。", r:["funding","btc"] },
+  kalshi: { n:"Kalshi (カルシ)", a:["Kalshi","カルシ"], s:"アメリカ政府 (CFTC) の規制を受けている公認の予測市場。FOMC・CPI・景気後退など、経済の市場が多いのが特徴です。", w:"同じ出来事について Polymarket と確率を比べると、どちらかが割安・割高になっている場面や、どちらが先に動くかが分かります。決着のルールが少し違うことがあるので注意が必要です。", r:["pm","pmspread","fomc"] },
   bp: { n:"bp・pt", a:["bp","ベーシスポイント"], s:"bp は金利の 0.01% のこと (25bp = 0.25%)。pt はこのアプリでは確率の「ポイント」(40% → 50% は 10pt) の意味で使っています。", r:["cut"] },
   riskon: { n:"リスクオン・リスクオフ", a:["リスクオン","リスクオフ"], s:"投資家が値動きの大きい資産 (株・暗号資産) を積極的に買う気分がリスクオン、安全な資産 (国債・金・ドル) に逃げる気分がリスクオフです。", r:["vix","hy","dxy"] },
   pm: { n:"予測市場 (Polymarket)", a:["予測市場","Polymarket"], s:"「○○は起きるか」に「はい/いいえ」でお金を賭ける市場。値段 (0〜1ドル) がそのまま、市場が考える確率になります。", w:"お金がかかっているので、アンケートより正直な予想になりやすいと言われます。ただし取引が少ない市場は値段が当てになりません。", r:["pmspread","pmliq","pmvol"] },
@@ -3229,6 +3242,12 @@ const MC_DEFS = [
       const lab = l[1] <= 24 ? "極端な恐怖" : l[1] <= 44 ? "恐怖" : l[1] <= 55 ? "中立" : l[1] <= 74 ? "強欲" : "極端な強欲";
       return { v: l[1] + " " + lab, sub: "0: 極端な恐怖 〜 100: 極端な強欲", s, d: l[0],
         sig: l[1] <= 24 ? "y" : l[1] >= 75 ? "r" : "g", why: l[1] <= 24 ? "売られすぎの目安にされる水準 (逆張りの参考)" : l[1] >= 75 ? "買われすぎ・過熱" : "極端ではない" }; } },
+  { id:"oi", th:"crypto", n:"建玉 (BTC 先物)", t:"oi", f:D=>{ const s = D.hl && D.hl.BTC; if(!s || s.length < 2) return null;
+      const l = s[s.length-1], a = s.length >= 25 ? s[s.length-25] : null;
+      const ch = a && a[1] > 0 ? (l[1]/a[1]-1)*100 : null, pc = a && a[3] > 0 ? (l[3]/a[3]-1)*100 : null;
+      const others = ["ETH","SOL","HYPE"].map(c=>{ const x = D.hl[c]; if(!x || x.length < 25) return ""; const y = x[x.length-1], z = x[x.length-25]; return z[1] > 0 ? `${c} ${mcPct((y[1]/z[1]-1)*100, 0)}` : ""; }).filter(Boolean);
+      return { v: mcMoney(l[1]/1e9), sub: (ch != null ? `24時間 ${mcPct(ch)} ／ 価格 ${mcPct(pc)}` : "記録が24時間分たまると変化を出します") + (others.length ? ` ／ ${others.join("・")}` : ""), s: s.map(r=>[r[0], r[1]]), d: "",
+        sig: ch == null ? null : ch >= 15 ? "r" : ch <= -15 ? "y" : "g", why: ch == null ? "" : ch >= 15 ? "建玉が急増: レバレッジが積み上がり、急な値動きの燃料になりやすい" : ch <= -15 ? "建玉が急減: 手じまい・清算が進んだ" : "建玉は落ち着いている" }; } },
   { id:"funding", th:"crypto", n:"ファンディングレート (BTC)", t:"funding", f:D=>{ const n = ((D.crypto||{}).now||{}).BTC; if(!n || n.funding == null) return null;
       const r8 = n.funding*8*100, yr = n.funding*24*365*100, h = ((D.crypto||{}).now||{}).HYPE, e = ((D.crypto||{}).now||{}).ETH;
       return { v: (r8 >= 0 ? "+" : "") + r8.toFixed(4) + "%", sub: `8時間あたり ／ 年率 ${mcPct(yr)}` + (e ? ` ／ ETH ${(e.funding*800).toFixed(4)}%` : "") + (h ? ` ／ HYPE ${(h.funding*800).toFixed(4)}%` : ""), d: "",
@@ -3238,7 +3257,7 @@ const MC_SIG = { g:"🟢", y:"🟡", r:"🔴" };
 function mcEval(def, D){ try{ return def.f(D) || null; }catch(e){ return null; } }
 /* ---- 相場の天気図: 信号を重み付きで足して、追い風 (リスクオン) か向かい風 (リスクオフ) かを出す ----
    🟢 = +1 / 🟡 = 0 / 🔴 = −1 に重みを掛けて平均 (−1〜+1)。重みは影響の大きさの目安 (お金の量・不安の度合いを重く) */
-const MC_WEIGHT = { netliq:2, vix:2, hy:2, sp500:1.5, unrate:1.5, curve:1, sofr:1, dgs10:1, dxy:1, cpi:1, nasdaq:1, btc:1, stable:1, tga:1, jpy:1, eth:0.5, fng:0.5, funding:0.5 };
+const MC_WEIGHT = { netliq:2, vix:2, hy:2, sp500:1.5, unrate:1.5, curve:1, sofr:1, dgs10:1, dxy:1, cpi:1, nasdaq:1, btc:1, stable:1, tga:1, jpy:1, eth:0.5, fng:0.5, funding:0.5, oi:0.5 };
 const MC_SKY = [
   [0.4, "☀️", "晴れ", "リスクオン (追い風が強い)"],
   [0.15, "🌤", "晴れ時々くもり", "やや追い風"],
@@ -3417,8 +3436,10 @@ function renderCal(){
     const odds = pmx === undefined ? `<span class="hint" style="margin:0"><span class="spin"></span> 予想市場を確認中…</span>`
       : !pmx || !pmx.opts.length ? `<span class="hint" style="margin:0">関連する予想市場は見つかりませんでした</span>`
       : `<button class="mc-cal-pm" data-pmev="${esc(pmx.id)}" data-pms="${esc(pmx.s)}">📊 ${pmx.opts.slice(0,3).map(o=>`${esc(pmJa(o.g))} <b>${pmPct(o.p)}</b>`).join(" ／ ")}</button>`;
+    const km = e.k === "fomc" && CMP.data ? (CMP.data.list || []).find(m=>m.d === e.d) : null;
+    const kal = km ? `<span class="hint" style="margin:0">Kalshi: ${km.rows.filter(r=>r.k).sort((a,b)=>b.k.p - a.k.p).slice(0,3).map(r=>`${esc(r.ja)} <b>${cmpPct(r.k.p)}</b>`).join(" ／ ")}</span>` : "";
     return `<div class="mc-cal-row"><div class="mc-cal-when"><b>${esc(mcUntil(e.at))}</b><small>${esc(when)}</small></div>
-      <div class="mc-cal-what"><div>${k[0]} ${esc(mcCalLabel(e))} ${termBtn(k[2])}</div>${odds}</div></div>`;
+      <div class="mc-cal-what"><div>${k[0]} ${esc(mcCalLabel(e))} ${termBtn(k[2])}</div>${odds}${kal}</div></div>`;
   };
   /* Polymarket の経済・金融の注目市場 (出来高の多い順に4つ) */
   const econ = (pm.events || []).filter(e=>pmCatOf(e) === "経済・金融" && !pm.hide[e.id]).sort((a,b)=>b.v24 - a.v24).slice(0, 4);
@@ -3432,6 +3453,39 @@ $("#mcCal").addEventListener("click", ev=>{
   const e = pm.events.find(x=>x.id === b.dataset.pmev);
   if(e) pmOpen(e.id); else window.open("https://polymarket.com/event/" + encodeURIComponent(b.dataset.pms), "_blank", "noopener");
 });
+/* ---- ⚖️ Polymarket と Kalshi の比較 (FOMC) ---- */
+const CMP = { data: null, loading: false };
+async function loadCompare(){
+  if(CMP.loading || !state.settings.gasUrl) return;
+  CMP.loading = true;
+  try{
+    const r = await fetch(gasGetUrl("action=compare&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.ok && d.list){ CMP.data = d; renderCompare(); renderCal(); }
+    else if(d && d.error) $("#mcCmp").innerHTML = `<div class="mc-cal"><div class="hint">Kalshi との比較を取得できませんでした: ${esc(d.error)}</div></div>`;
+  }catch(e){ /* 次に開いた時にまた試す */ }
+  finally{ CMP.loading = false; }
+}
+function cmpPct(x){ return x == null ? "-" : Math.round(x*100) + "%"; }
+function cmpSide(x){ return !x ? `<span class="hint" style="margin:0">なし</span>` : `<b>${cmpPct(x.p)}</b>` + (x.bid > 0 && x.ask > 0 ? `<small> (売${cmpPct(x.bid)}・買${cmpPct(x.ask)})</small>` : ""); }
+function renderCompare(){
+  const box = $("#mcCmp"); if(!box || !CMP.data) return;
+  const list = CMP.data.list || [];
+  if(!list.length){ box.innerHTML = ""; return; }
+  const meet = m => {
+    const at = mcEtTime(m.d, 14, 0).toLocaleDateString("ja-JP", { timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", weekday:"short" });
+    return `<div class="cmp-meet"><div class="cmp-h">🏦 ${esc(at)} の FOMC (米国時間 ${esc(m.d)})
+        ${m.pm ? `<a href="${esc(m.pm.url)}" target="_blank" rel="noopener">Polymarket ↗</a>` : `<span class="hint" style="margin:0">Polymarket の市場なし</span>`}
+        <a href="${esc(m.k.url)}" target="_blank" rel="noopener">Kalshi ↗</a></div>
+      <div class="cmp-grid"><span class="cmp-th">結果</span><span class="cmp-th">Polymarket</span><span class="cmp-th">Kalshi</span><span class="cmp-th">差</span>
+      ${m.rows.map(r=>`<span>${esc(r.ja)}</span><span>${cmpSide(r.pm)}</span><span>${cmpSide(r.k)}</span>
+        <span class="${r.gap != null && r.gap >= 0.05 ? "cmp-gap" : ""}">${r.diff == null ? "-" : (r.diff >= 0 ? "+" : "") + Math.round(r.diff*100) + "pt"}${r.gap != null && r.gap >= 0.05 ? " ⚠" : ""}</span>`).join("")}</div></div>`;
+  };
+  const t = new Date(CMP.data.at).toLocaleTimeString("ja-JP", { hour:"2-digit", minute:"2-digit" });
+  box.innerHTML = `<div class="mc-cal"><div class="mc-w-h" style="margin-top:0">⚖️ Polymarket と Kalshi の比較 (FOMC) ${termBtn("kalshi")} <span class="hint" style="font-weight:400; margin:0">${esc(t)} 時点・差 = Polymarket − Kalshi</span></div>
+    ${list.map(meet).join("")}
+    <div class="hint">⚠ は、買値と売値の幅を考えても 5pt 以上ずれているもの (通知メールも送ります)。決着のルールが少し違うことがあります。</div></div>`;
+}
 function renderMacro(){
   const box = $("#mcBody");
   if(!MC.data){ return; }
@@ -3441,6 +3495,7 @@ function renderMacro(){
   MC_DEFS.forEach(d=>{ res[d.id] = mcEval(d, D); });
   renderWeather(res);
   renderCal();
+  if(CMP.data) renderCompare(); else loadCompare();
   box.innerHTML = MC_THEMES.map(([th, name])=>{
     const defs = MC_DEFS.filter(d=>d.th === th);
     return `<section class="mc-theme" id="mc-th-${th}"><h3>${esc(name)}</h3><div class="mc-grid">${defs.map(d=>mcCard(d, D, res[d.id])).join("")}</div></section>`;
