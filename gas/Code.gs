@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.27';
+const GAS_VERSION = '2026.11.28';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -559,6 +559,9 @@ function doGet(e) {
 function doGetInner_(e) {
   if (e && e.parameter && e.parameter.action === 'report') {
     return json(Object.assign({ version: GAS_VERSION }, pmReport_({ days: e.parameter.days, parts: String(e.parameter.parts || '').split(',').filter(Boolean) })));
+  }
+  if (e && e.parameter && e.parameter.action === 'llamaFees') {
+    return json(Object.assign({ version: GAS_VERSION }, llamaFeesHist_(e.parameter.slug)));
   }
   if (e && e.parameter && e.parameter.action === 'llama') {
     const d = llamaData_(e.parameter.force === '1');
@@ -2959,10 +2962,15 @@ function pmReport_(opt) {
         return [c.n, pmMoneyJa_(c.tvl), p(c.c1), p(c.c7), p(c.c30), c.st ? pmMoneyJa_(c.st) : '-', p(c.s30)];
       })));
       lines.push('### 先物 DEX の建玉 (上位)');
-      lines.push(pmMdTable_(['名前', '分類', 'チェーン', '建玉', '1日', '7日', '30日'], (latest.perps || []).slice(0, 12).map(function (x) {
+      lines.push(pmMdTable_(['名前', '分類', 'チェーン', '建玉', '1日', '7日', '30日', '手数料24時間', '手数料30日', 'TVL', 'トークン'], (latest.perps || []).slice(0, 20).map(function (x) {
         const p = function (v) { return v == null ? '-' : (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '%'; };
-        return [x.n, x.cat, x.ch.join('・'), pmMoneyJa_(x.oi), p(x.c1), p(x.c7), p(x.c30)];
+        return [x.n + (x.isNew ? ' (NEW)' : ''), x.cat, x.ch.join('・'), pmMoneyJa_(x.oi), p(x.c1), p(x.c7), p(x.c30), x.f24 != null ? pmMoneyJa_(x.f24) : '-', x.f30 != null ? pmMoneyJa_(x.f30) : '-', x.tvl != null ? pmMoneyJa_(x.tvl) : '-', x.token == null ? '不明' : x.token ? x.sym : '未発行'];
       })));
+      const cand = (latest.perps || []).filter(llamaIsCand_);
+      if (cand.length) {
+        lines.push('### トークン未発行の先物 DEX (エアドロップ候補)');
+        lines.push(pmMdTable_(['名前', 'チェーン', '建玉', '30日', '手数料30日'], cand.map(function (x) { return [x.n, x.ch.join('・'), pmMoneyJa_(x.oi), x.c30 == null ? '-' : (x.c30 >= 0 ? '+' : '') + Number(x.c30).toFixed(1) + '%', x.f30 != null ? pmMoneyJa_(x.f30) : '-']; })));
+      }
     }
     if (ds.length) {
       const key = ['Ethereum', 'Base', 'Solana', 'Hyperliquid L1', 'Arbitrum', 'BSC'];
@@ -3282,12 +3290,7 @@ function llamaFetchAll_() {
     if (x.sh && x.sh.length > 30) x.s30d = x.sh[x.sh.length - 1][1] - x.sh[x.sh.length - 31][1];   // 30日でのステーブルコインの増減 (ドル)
     return x;
   });
-  try {
-    const d = llamaJson_('https://api.llama.fi/overview/open-interest?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true');
-    out.oiTotal = Math.round(d.total24h || 0); out.oiC1 = d.change_1d; out.oiC7 = d.change_7d;
-    out.perps = (d.protocols || []).filter(function (p) { return (p.total24h || 0) > 0; }).sort(function (a, b) { return b.total24h - a.total24h; }).slice(0, 30)
-      .map(function (p) { return { n: p.displayName || p.name, cat: p.category || '', ch: (p.chains || []).slice(0, 2), oi: Math.round(p.total24h), c1: p.change_1d, c7: p.change_7d, c30: p.change_1m }; });
-  } catch (e) { out.errors.push('先物 DEX の建玉'); }
+  try { llamaPerps_(out); } catch (e) { out.errors.push('先物 DEX の建玉'); Logger.log(e); }
   return out;
 }
 /** 最新 (古ければ取り直す) */
@@ -3307,6 +3310,77 @@ function llamaLog_() {
   const row = { tvl: {}, st: {}, oi: {} };
   d.chains.forEach(function (c) { row.tvl[c.n] = c.tvl; if (c.st) row.st[c.n] = c.st; });
   d.perps.forEach(function (p) { row.oi[p.n] = p.oi; });
+  row.px = {};   // 先物 DEX: [建玉, 手数料24時間, TVL]
+  d.perps.forEach(function (p) { row.px[p.n] = [p.oi, p.f24 != null ? p.f24 : null, p.tvl != null ? p.tvl : null]; });
   const day = pmJstDay_(Date.now()), name = 'llama-' + day.slice(0, 7) + '.json';
   const cur = pmLoadJson_(name); cur[day] = row; pmWrite_(name, JSON.stringify(cur));
 }
+
+
+/* ---- 先物 DEX の詳しい情報 (建玉の推移・シェア・手数料・トークンの有無) ---- */
+const LLAMA_PERP_N = 40;          // 一覧に入れる数
+const LLAMA_HIST_DAYS = 90;       // 推移・シェアの期間
+const LLAMA_PROTO_TTL = 24 * 3600000;
+/** DefiLlama の先物系プロトコルの一覧 (トークン・TVL)。大きいので1日1回だけ取り、ドライブに保存 */
+function llamaProtocols_() {
+  let cur = null;
+  try { cur = JSON.parse(pmRead_('llama-protocols.json') || 'null'); } catch (e) {}
+  if (cur && Date.now() - cur.at < LLAMA_PROTO_TTL) return cur.m;
+  const m = {};
+  llamaJson_('https://api.llama.fi/protocols').forEach(function (p) {
+    if (!/derivatives|options|prediction/i.test(p.category || '')) return;
+    const sym = p.symbol && p.symbol !== '-' ? String(p.symbol) : '';
+    m[String(p.id)] = { n: p.name, sym: sym, tvl: Math.round(p.tvl || 0), par: p.parentProtocol || '' };
+  });
+  try { pmWrite_('llama-protocols.json', JSON.stringify({ at: Date.now(), m: m })); } catch (e) {}
+  return m;
+}
+function llamaPerps_(out) {
+  const d = llamaJson_('https://api.llama.fi/overview/open-interest?excludeTotalDataChart=false&excludeTotalDataChartBreakdown=false');
+  out.oiTotal = Math.round(d.total24h || 0); out.oiC1 = d.change_1d; out.oiC7 = d.change_7d;
+  let fees = {};
+  try {
+    (llamaJson_('https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true').protocols || []).forEach(function (p) {
+      fees[p.name] = { f24: p.total24h, f30: p.total30d, fc30: p.change_1m };
+    });
+  } catch (e) { out.errors.push('先物 DEX の手数料'); }
+  let protos = {};
+  try { protos = llamaProtocols_(); } catch (e) { out.errors.push('先物 DEX のトークン'); }
+  // 建玉の推移 (全体と DEX ごと): 直近90日
+  const bd = (d.totalDataChartBreakdown || []).slice(-LLAMA_HIST_DAYS);
+  const dates = bd.map(function (r) { return llamaDay_(r[0]); });
+  const firstSeen = {};   // 30日以上前から建玉があったか (NEW の判定)
+  const all = d.totalDataChartBreakdown || [];
+  for (let i = Math.max(0, all.length - 400); i < all.length; i++) {
+    Object.keys(all[i][1] || {}).forEach(function (k) { if (all[i][1][k] > 0 && firstSeen[k] == null) firstSeen[k] = all[i][0]; });
+  }
+  const nowSec = Date.now() / 1000;
+  const perps = (d.protocols || []).filter(function (p) { return (p.total24h || 0) > 0; }).sort(function (a, b) { return b.total24h - a.total24h; }).slice(0, LLAMA_PERP_N)
+    .map(function (p) {
+      const pr = protos[String(p.defillamaId)] || protos[String(p.id)] || null;
+      const par = pr && pr.par ? Object.keys(protos).map(function (k) { return protos[k]; }).find(function (x) { return x.par === pr.par && x.sym; }) : null;
+      const sym = pr ? (pr.sym || (par && par.sym) || '') : null;   // null = 分からない
+      const f = fees[p.name] || {};
+      const fs = firstSeen[p.name];
+      return { n: p.displayName || p.name, key: p.name, slug: p.slug || '', cat: p.category || '', ch: (p.chains || []).slice(0, 2), oi: Math.round(p.total24h),
+        c1: p.change_1d, c7: p.change_7d, c30: p.change_1m,
+        f24: f.f24 != null ? Math.round(f.f24) : null, f30: f.f30 != null ? Math.round(f.f30) : null, fc30: f.fc30 != null ? f.fc30 : null,
+        tvl: pr ? pr.tvl : null, sym: sym, token: sym == null ? null : !!sym,
+        isNew: fs != null && nowSec - fs < 30 * 86400 };
+    });
+  out.perps = perps;
+  // シェアと推移 (上位 + トークン未発行の候補)
+  const keys = perps.map(function (p) { return p.key; });
+  out.oiHist = { dates: dates, total: bd.map(function (r) { return Math.round(Object.keys(r[1] || {}).reduce(function (n, k) { return n + (r[1][k] || 0); }, 0)); }), s: {} };
+  keys.forEach(function (k) { out.oiHist.s[k] = bd.map(function (r) { return Math.round((r[1] || {})[k] || 0); }); });
+}
+/** アプリから: DEX の手数料の推移 (直近90日) */
+function llamaFeesHist_(slug) {
+  if (!/^[a-z0-9\-\.]{1,80}$/i.test(String(slug || ''))) return { ok: false, error: '名前が正しくありません' };
+  try {
+    const d = llamaJson_('https://api.llama.fi/summary/fees/' + encodeURIComponent(slug) + '?dataType=dailyFees&excludeTotalDataChartBreakdown=true');
+    return { ok: true, h: (d.totalDataChart || []).slice(-LLAMA_HIST_DAYS).map(function (r) { return [llamaDay_(r[0]), Math.round(r[1] || 0)]; }) };
+  } catch (e) { return { ok: false, error: '手数料の推移はありません' }; }
+}
+/** エアドロップ候補: トークン未発行の先物 DEX (予測市場・取引所の外のものは除く) */
+function llamaIsCand_(x) { return x.token === false && !/prediction/i.test(x.cat || '') && (x.ch || []).indexOf('Off Chain') < 0; }

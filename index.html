@@ -381,7 +381,7 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .mc-chg{border:1px solid var(--accent); background:var(--tint-accent); color:var(--text); border-radius:99px; padding:2px 10px; font:inherit; font-size:12.5px; cursor:pointer; margin:2px}
 .mc-trend{margin-top:12px; font-size:18px; letter-spacing:2px}
 .mc-flash{outline:2px solid var(--accent); outline-offset:2px; transition:outline .3s}
-.mc-cal{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px}
+.mc-cal{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px; min-width:0; overflow-x:auto}
 .mc-cal-row{display:flex; gap:14px; padding:8px 0; border-top:1px solid var(--border); align-items:flex-start}
 .mc-cal-row:first-of-type{border-top:none}
 .mc-cal-when{flex:none; width:118px}
@@ -415,6 +415,14 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .fl-hrow{display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:baseline; padding:4px 0; border-bottom:1px solid var(--border); font-size:13px}
 .fl-hrow small{color:var(--dim); font-size:11.5px}
 .fl-spark{width:120px; height:28px; display:block; margin-left:auto}
+.fl-cand{display:grid; grid-template-columns:minmax(120px,1.4fr) 1fr 0.8fr 1fr; gap:8px; align-items:center; padding:8px 10px; border-radius:10px; background:var(--card2); margin-bottom:6px; font-size:13px; cursor:pointer}
+.fl-cand small{display:block; color:var(--dim); font-size:11px}
+.fl-share{width:100%; height:170px; display:block}
+.fl-legend{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; margin-top:6px}
+.fl-legend i{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px}
+.fl-legend small{color:var(--dim)}
+.fl-detail{margin-top:10px; padding:10px; border-radius:10px; border:1px solid var(--accent)}
+@media (max-width:560px){ .fl-cand{grid-template-columns:1fr 1fr} }
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -639,7 +647,14 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <select id="flSort"><option value="tvl">TVL が大きい順</option><option value="c7">TVL 7日の増加率</option><option value="c30">TVL 30日の増加率</option><option value="st">ステーブルコインが多い順</option><option value="s30d">ステーブルコイン 30日の増加額</option></select></div>
     <div id="flChains"></div>
   </div>
-  <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">📊 先物 DEX の建玉 (未決済の先物の総額) <button class="gq" data-term="perpdex" aria-label="解説">?</button></div><div id="flPerps"></div></div>
+  <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🪂 トークン未発行の先物 DEX (エアドロップ候補) <button class="gq" data-term="perpdex" aria-label="解説">?</button></div><div id="flCand"></div></div>
+  <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">📈 先物 DEX の建玉のシェア (直近90日)</div><div id="flShare"></div></div>
+  <div class="mc-cal">
+    <div class="hl-bar"><b>📊 先物 DEX の一覧</b>
+      <select id="flPSort"><option value="oi">建玉が大きい順</option><option value="f24">手数料 (24時間) が多い順</option><option value="f30">手数料 (30日) が多い順</option><option value="c30">建玉 30日の伸び</option><option value="tvl">TVL が大きい順</option></select></div>
+    <div id="flPerps"></div>
+    <div id="flPDetail"></div>
+  </div>
   <p class="hint">ソース: DefiLlama の公開データ (6時間ごとに更新)。先物 DEX の出来高は DefiLlama では有料のため、建玉を使っています。チェーン名は DefiLlama の表記です。</p>
 </section>
 
@@ -989,9 +1004,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.27";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.28";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.27";
+const MIN_GAS_VERSION = "2026.11.28";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -3254,9 +3269,7 @@ function renderFlow(){
     <div><div class="hint" style="margin:0 0 4px">ステーブルコインの増加額 (30日)</div>${stIn.map(c=>`<div class="fl-hrow"><b>${esc(c.n)}</b><span class="${c.s30d >= 0 ? "up" : "down"}">${c.s30d >= 0 ? "+" : ""}${esc(flUsd(c.s30d))}</span><small>${esc(flUsd(c.st))}</small></div>`).join("") || `<div class="hint">推移を取得中です</div>`}</div></div>
     <div class="hint">ステーブルコインが増えているチェーンは、使うためのお金が流れ込んでいる目安です (エアドロップや TGE の前に増えることもあります)。</div>`;
   renderFlowChains();
-  $("#flPerps").innerHTML = P.length ? `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>名前</th><th>分類</th><th>チェーン</th><th>建玉</th><th>1日</th><th>7日</th><th>30日</th></tr></thead><tbody>`
-    + P.slice(0, 20).map(x=>`<tr><td><b>${esc(x.n)}</b></td><td>${esc(({Derivatives:"先物", Interface:"取引画面", "Prediction Market":"予測市場", Options:"オプション"})[x.cat] || x.cat)}</td><td>${esc((x.ch||[]).join("・"))}</td><td>${esc(flUsd(x.oi))}</td><td>${flPct(x.c1)}</td><td>${flPct(x.c7)}</td><td>${flPct(x.c30)}</td></tr>`).join("")
-    + `</tbody></table></div>` : `<div class="hint">取得できませんでした</div>`;
+  renderFlowPerps();
   const t = new Date(d.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" });
   $("#flInfo").textContent = t + " 時点" + (d.errors && d.errors.length ? ` ・ 取得できなかったもの: ${d.errors.length}件` : "");
 }
@@ -3269,6 +3282,76 @@ function renderFlowChains(){
     + list.map(c=>`<tr><td><b>${esc(c.n)}</b>${c.sym ? ` <small style="color:var(--dim)">${esc(c.sym)}</small>` : ""}</td><td>${esc(flUsd(c.tvl))}</td><td>${flPct(c.c1)}</td><td>${flPct(c.c7)}</td><td>${flPct(c.c30)}</td><td>${flSpark(c.h)}</td><td>${c.st ? esc(flUsd(c.st)) : "-"}</td><td>${c.s30d != null ? `<span class="${c.s30d >= 0 ? "up" : "down"}">${c.s30d >= 0 ? "+" : ""}${esc(flUsd(c.s30d))}</span>` : "-"}</td></tr>`).join("")
     + `</tbody></table></div><div class="hint">1日・7日・30日の変化と推移は、上位のチェーンと Base・Solana・Hyperliquid などについて出しています。</div>`;
 }
+const FL_CAT = { Derivatives:"先物", Interface:"取引画面", "Prediction Market":"予測市場", Options:"オプション" };
+function flIsCand(x){ return x.token === false && !/prediction/i.test(x.cat || "") && !(x.ch || []).includes("Off Chain"); }
+function flTok(x){ return x.token == null ? `<span class="hint" style="margin:0">不明</span>` : x.token ? `<span class="pm-tag">${esc(x.sym)}</span>` : `<span class="pm-tag new">未発行</span>`; }
+function renderFlowPerps(){
+  const d = FL.data; if(!d) return;
+  const P = d.perps || [];
+  /* 🪂 候補 */
+  const cand = P.filter(flIsCand).sort((a,b)=> (b.c30 == null ? -1e9 : b.c30) - (a.c30 == null ? -1e9 : a.c30));
+  $("#flCand").innerHTML = cand.length ? cand.map(x=>`<div class="fl-cand" data-perp="${esc(x.key)}"><div><b>${esc(x.n)}</b>${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}<small>${esc((x.ch||[]).join("・"))}</small></div>
+      <div><small>建玉</small><b>${esc(flUsd(x.oi))}</b></div><div><small>30日</small>${flPct(x.c30)}</div><div><small>手数料30日</small><b>${x.f30 != null ? esc(flUsd(x.f30)) : "-"}</b></div></div>`).join("")
+      + `<div class="hint">トークンをまだ出していない先物 DEX を、建玉が30日で伸びた順に並べています。トークンの有無は DefiLlama の登録情報によるもので、親プロジェクトがトークンを出している場合などは実際と違うことがあります。</div>`
+    : `<div class="hint">候補が見つかりませんでした (トークンの情報を取得中の可能性があります)</div>`;
+  renderFlowShare();
+  /* 一覧 */
+  const sort = $("#flPSort").value, v = (x,k)=> x[k] == null ? -Infinity : x[k];
+  const list = [...P].sort((a,b)=> v(b, sort) - v(a, sort));
+  $("#flPerps").innerHTML = list.length ? `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>名前</th><th>分類</th><th>チェーン</th><th>建玉</th><th>7日</th><th>30日</th><th>手数料24h</th><th>手数料30日</th><th>TVL</th><th>トークン</th></tr></thead><tbody>`
+    + list.map(x=>`<tr data-perp="${esc(x.key)}" class="${FL.sel === x.key ? "sel" : ""}"><td><b>${esc(x.n)}</b>${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}</td><td>${esc(FL_CAT[x.cat] || x.cat)}</td><td>${esc((x.ch||[]).join("・"))}</td><td>${esc(flUsd(x.oi))}</td><td>${flPct(x.c7)}</td><td>${flPct(x.c30)}</td>
+      <td>${x.f24 != null ? esc(flUsd(x.f24)) : "-"}</td><td>${x.f30 != null ? esc(flUsd(x.f30)) : "-"}</td><td>${x.tvl != null ? esc(flUsd(x.tvl)) : "-"}</td><td>${flTok(x)}</td></tr>`).join("")
+    + `</tbody></table></div><div class="hint">行を押すと、建玉と手数料の推移が出ます。手数料は取引の活発さの目安です (出来高は DefiLlama では有料のため)。NEW = 30日以内に建玉が出てきたもの。</div>`
+    : `<div class="hint">取得できませんでした</div>`;
+  if(FL.sel) renderFlowDetail();
+}
+/** シェアの推移 (積み上げ): 上位6 + その他 */
+function renderFlowShare(){
+  const d = FL.data, H = d && d.oiHist; const box = $("#flShare");
+  if(!H || !H.dates || H.dates.length < 2){ box.innerHTML = `<div class="hint">推移を取得中です</div>`; return; }
+  const top = (d.perps || []).slice(0, 6).map(p=>p.key).filter(k=>H.s[k]);
+  const cols = ["#3b67d9","#0e8f7b","#d97706","#c83f7c","#7c3aed","#0891b2","#9ca3af"];
+  const n = H.dates.length, W = 600, Hh = 170, B = 18;
+  const tot = H.total.map(x=>x || 1);
+  const series = top.map(k=>H.s[k].map((v,i)=>v/tot[i]));
+  series.push(tot.map((_,i)=>Math.max(0, 1 - series.reduce((a,s)=>a + s[i], 0))));
+  const names = top.map(k=>((d.perps || []).find(p=>p.key === k) || {}).n || k).concat(["その他"]);
+  const X = i => i/(n-1)*W, Y = v => (1-v)*(Hh-B);
+  let acc = new Array(n).fill(0), paths = "";
+  series.forEach((s, si)=>{
+    const lo = acc.slice(), hi = acc.map((a,i)=>a + s[i]);
+    const dp = hi.map((v,i)=>(i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1)).join("") + lo.map((v,i)=>"L" + X(n-1-i).toFixed(1) + " " + Y(lo[n-1-i]).toFixed(1)).join("") + "Z";
+    paths += `<path d="${dp}" fill="${cols[si % cols.length]}" opacity=".85"/>`;
+    acc = hi;
+  });
+  const lab = i => H.dates[i].slice(5).replace("-","/");
+  box.innerHTML = `<svg class="fl-share" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none">${paths}
+      <text x="2" y="${Hh-4}" font-size="10" fill="var(--dim)">${lab(0)}</text><text x="${W-2}" y="${Hh-4}" font-size="10" text-anchor="end" fill="var(--dim)">${lab(n-1)}</text></svg>
+    <div class="fl-legend">${names.map((nm,i)=>{ const s = series[i]; return `<span><i style="background:${cols[i % cols.length]}"></i>${esc(nm)} <b>${Math.round(s[n-1]*100)}%</b> <small>(${Math.round(s[0]*100)}%から)</small></span>`; }).join("")}</div>`;
+}
+/** DEX の詳細: 建玉と手数料の推移 */
+const flFeesCache = {};
+async function renderFlowDetail(){
+  const d = FL.data, x = (d.perps || []).find(p=>p.key === FL.sel), box = $("#flPDetail");
+  if(!x){ box.innerHTML = ""; return; }
+  const oi = d.oiHist && d.oiHist.s[x.key] ? d.oiHist.dates.map((dt,i)=>[dt + "T00:00", d.oiHist.s[x.key][i]]) : [];
+  const fees = flFeesCache[x.slug];
+  box.innerHTML = `<div class="fl-detail"><div class="cmp-h">${esc(x.n)} ${flTok(x)} <span class="hint" style="margin:0">${esc((x.ch||[]).join("・"))}</span> <button class="btn small" data-perpclose="1">閉じる</button></div>
+    <div class="hl-charts"><div class="hl-chart"><div class="t"><span>建玉 (90日)</span><b>${esc(flUsd(x.oi))}</b></div>${hlLine(oi, {})}</div>
+    <div class="hl-chart"><div class="t"><span>手数料 (日ごと・90日)</span><b>${x.f24 != null ? esc(flUsd(x.f24)) : "-"}</b></div>${fees ? (fees.h ? hlLine(fees.h.map(r=>[r[0] + "T00:00", r[1]]), {}) : `<div class="hint">${esc(fees.error || "推移はありません")}</div>`) : `<div class="hint"><span class="spin"></span> 読み込み中…</div>`}</div></div></div>`;
+  if(!fees && x.slug){
+    try{ const r = await fetch(gasGetUrl("action=llamaFees&slug=" + encodeURIComponent(x.slug) + "&t=" + Date.now()), { redirect:"follow" }); flFeesCache[x.slug] = await r.json(); }
+    catch(e){ flFeesCache[x.slug] = { error: e.message }; }
+    if(FL.sel === x.key) renderFlowDetail();
+  }
+}
+$("#tab-flow").addEventListener("click", ev=>{
+  if(ev.target.closest("[data-term]")) return;
+  if(ev.target.closest("[data-perpclose]")){ FL.sel = null; $("#flPDetail").innerHTML = ""; renderFlowPerps(); return; }
+  const r = ev.target.closest("[data-perp]");
+  if(r){ FL.sel = r.dataset.perp; renderFlowPerps(); const b = $("#flPDetail"); b.scrollIntoView && b.scrollIntoView({ behavior:"smooth", block:"nearest" }); }
+});
+$("#flPSort").addEventListener("change", renderFlowPerps);
 $("#flSort").addEventListener("change", renderFlowChains);
 $("#flReload").addEventListener("click", ()=>loadFlow(true));
 /* ================= 記録を AI に渡す ================= */

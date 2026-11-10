@@ -31,10 +31,23 @@ function world() {
       if (!stNow[n]) return ok([]);
       return ok(hist(now, 0).map((r, i, a) => ({ date: r.date, totalCirculating: { peggedUSD: stNow[n] - stGrow[n] * Math.min(1, (a.length - 1 - i) / 30) } })));
     }
-    if (u.host === 'api.llama.fi' && u.pathname === '/overview/open-interest') return ok({ total24h: 17.3e9, change_1d: -2, change_7d: 3, protocols: [
-      { name: 'Hyperliquid Perps', category: 'Derivatives', chains: ['Hyperliquid L1'], total24h: 7.0e9, change_1d: -5.1, change_7d: -5.5, change_1m: -8.2 },
-      { name: 'Kalshi', category: 'Prediction Market', chains: ['Off Chain'], total24h: 2.0e9, change_1d: -4.8, change_7d: -7.2, change_1m: 34 },
-      { name: 'Aster Perps', category: 'Derivatives', chains: ['BSC'], total24h: 1.36e9, change_1d: 1, change_7d: 2, change_1m: 3 }] });
+    if (u.host === 'api.llama.fi' && u.pathname === '/overview/fees') return ok({ protocols: [
+      { name: 'Hyperliquid Perps', total24h: 2.2e6, total30d: 66e6, change_1m: 5 }, { name: 'Aster Perps', total24h: 2e5, total30d: 6e6, change_1m: 40 }, { name: 'Lighter Perps', total24h: 1.5e5, total30d: 4.5e6, change_1m: 90 }] });
+    if (u.host === 'api.llama.fi' && u.pathname === '/protocols') return ok([
+      { id: '101', name: 'Hyperliquid Perps', category: 'Derivatives', symbol: 'HYPE', tvl: 1.5e8 },
+      { id: '102', name: 'Aster Perps', category: 'Derivatives', symbol: 'ASTER', tvl: 3e8 },
+      { id: '103', name: 'Lighter Perps', category: 'Derivatives', symbol: '-', tvl: 1e8 },
+      { id: '104', name: 'Kalshi', category: 'Prediction Market', symbol: '-', tvl: 0 },
+      { id: '999', name: 'Some Lending', category: 'Lending', symbol: '-', tvl: 5e9 }]);
+    if (u.host === 'api.llama.fi' && u.pathname.startsWith('/summary/fees/')) return ok({ totalDataChart: [[Math.floor((now - DAY) / 1000), 1e5], [Math.floor(now / 1000), 1.5e5]] });
+    if (u.host === 'api.llama.fi' && u.pathname === '/overview/open-interest') return ok({ total24h: 17.3e9, change_1d: -2, change_7d: 3,
+      totalDataChartBreakdown: Array.from({ length: 100 }, (_, i) => [Math.floor((now - (99 - i) * DAY) / 1000), Object.assign(
+        { 'Hyperliquid Perps': 7e9 - i * 1e6, 'Aster Perps': 1.36e9, 'Kalshi': 2e9 }, i >= 80 ? { 'Lighter Perps': 5e8 } : {})]),
+      protocols: [
+      { name: 'Hyperliquid Perps', category: 'Derivatives', chains: ['Hyperliquid L1'], total24h: 7.0e9, change_1d: -5.1, change_7d: -5.5, change_1m: -8.2, defillamaId: '101', slug: 'hyperliquid-perps' },
+      { name: 'Kalshi', category: 'Prediction Market', chains: ['Off Chain'], total24h: 2.0e9, change_1d: -4.8, change_7d: -7.2, change_1m: 34, defillamaId: '104', slug: 'kalshi' },
+      { name: 'Aster Perps', category: 'Derivatives', chains: ['BSC'], total24h: 1.36e9, change_1d: 1, change_7d: 2, change_1m: 3, defillamaId: '102', slug: 'aster-perps' },
+      { name: 'Lighter Perps', category: 'Derivatives', chains: ['zkLighter'], total24h: 5e8, change_1d: 3, change_7d: 20, change_1m: 150, defillamaId: '103', slug: 'lighter-perps' }] });
     if (/gamma-api|kalshi|hyperliquid|fred|alternative/.test(url)) throw new Error('このテストでは使わない');
     throw new Error('想定外: ' + url);
   };
@@ -97,6 +110,58 @@ test('アプリ: 「💧 お金の流れ」タブに合計・お金が集まっ�
     assert.match(app.text('#flPerps'), /Kalshi予測市場Off Chain/);
     app.doc.querySelector('#tab-flow .term[data-term="tvl"]').click();
     assert.match(app.text('#termBody'), /TVL \(預かり資産\)/);
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
+
+test('先物 DEX: 手数料・TVL・トークンの有無・NEW・建玉の推移 (シェア用) をまとめ、手数料の推移も取れる', () => {
+  const { gas } = world();
+  const d = gas.get({ action: 'llama' }).llama;
+  const by = Object.fromEntries(d.perps.map(p => [p.n, p]));
+  assert.deepEqual([by['Hyperliquid Perps'].f24, by['Hyperliquid Perps'].tvl, by['Hyperliquid Perps'].sym, by['Hyperliquid Perps'].token], [2.2e6, 1.5e8, 'HYPE', true]);
+  assert.equal(by['Lighter Perps'].token, false, 'トークン未発行');
+  assert.equal(by['Lighter Perps'].isNew, true, '20日前に登場 → NEW');
+  assert.equal(by['Aster Perps'].isNew, false);
+  assert.equal(d.oiHist.dates.length, 90);
+  assert.equal(d.oiHist.s['Lighter Perps'][89], 5e8);
+  assert.equal(d.oiHist.s['Lighter Perps'][0], 0);
+  assert.equal(d.oiHist.total[89], 7e9 - 99e6 + 1.36e9 + 2e9 + 5e8);
+  const f = gas.get({ action: 'llamaFees', slug: 'lighter-perps' });
+  assert.equal(f.ok, true);
+  assert.equal(f.h[1][1], 1.5e5);
+  assert.equal(gas.get({ action: 'llamaFees', slug: '../bad' }).ok, false);
+  // レポートにエアドロップ候補
+  const t = gas.get({ action: 'report', days: '7', parts: 'llama' }).text;
+  assert.match(t, /### トークン未発行の先物 DEX \(エアドロップ候補\)\n[\s\S]*\| Lighter Perps \| zkLighter \| 5億ドル \| \+150\.0% \| 450万ドル \|/);
+  assert.match(t, /\| Lighter Perps \(NEW\) \|/);
+});
+
+test('アプリ: 先物 DEX の欄 (エアドロップ候補・シェアの推移・手数料つきの一覧・詳細の推移)', async () => {
+  const { gas, clock } = world();
+  const app = await openApp({ clock, gas, fetch: async () => { throw new TypeError('offline'); }, state: { projects: [], settings: { gasUrl: GAS_URL, gasAuto: false }, deleted: {} } });
+  try {
+    app.doc.querySelector('nav button[data-tab="flow"]').click();
+    for (let i = 0; i < 6; i++) await app.settle();
+    const cand = [...app.doc.querySelectorAll('#flCand .fl-cand')].map(x => x.dataset.perp);
+    assert.deepEqual(cand, ['Lighter Perps'], 'トークン未発行の先物 DEX だけ (予測市場の Kalshi は除く)');
+    assert.match(app.text('#flCand').replace(/\s+/g, ''), /LighterPerpsNEWzkLighter建玉5\.0億ドル30日\+150\.0%手数料30日450万ドル/);
+    // シェア
+    assert.ok(app.doc.querySelector('#flShare svg.fl-share path'));
+    assert.match(app.text('#flShare').replace(/\s+/g, ''), /HyperliquidPerps6\d%\(6\d%から\)/);
+    assert.match(app.text('#flShare').replace(/\s+/g, ''), /LighterPerps5%\(0%から\)/);
+    // 一覧: 手数料で並べ替え・トークン表示
+    const sel = app.doc.querySelector('#flPSort'); sel.value = 'f30'; sel.dispatchEvent(new app.win.Event('change'));
+    const rows = [...app.doc.querySelectorAll('#flPerps tbody tr')];
+    assert.equal(rows[0].dataset.perp, 'Hyperliquid Perps');
+    assert.match(rows[0].textContent.replace(/\s+/g, ''), /220万ドル6,600万ドル1\.5億ドルHYPE/);
+    assert.match(app.text('#flPerps'), /未発行/);
+    // 詳細
+    app.doc.querySelector('#flPerps tr[data-perp="Lighter Perps"]').click();
+    for (let i = 0; i < 4; i++) await app.settle();
+    assert.match(app.text('#flPDetail'), /Lighter Perps/);
+    assert.equal(app.doc.querySelectorAll('#flPDetail .hl-chart svg').length, 2, '建玉と手数料のグラフ');
+    app.doc.querySelector('#flPDetail [data-perpclose]').click();
+    assert.equal(app.text('#flPDetail'), '');
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });
