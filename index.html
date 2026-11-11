@@ -423,6 +423,58 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 .fl-legend small{color:var(--dim)}
 .fl-detail{margin-top:10px; padding:10px; border-radius:10px; border:1px solid var(--accent)}
 @media (max-width:560px){ .fl-cand{grid-template-columns:1fr 1fr} }
+/* ---------- ホーム ---------- */
+.hm-date{font-size:13px; color:var(--muted); margin:2px 2px 12px}
+.hm-hero{border-radius:20px; padding:18px 20px; margin-bottom:16px; color:var(--text); border:1px solid var(--border); background:linear-gradient(135deg, var(--tint-accent), var(--card) 70%)}
+.hm-hero.hm-sky-good{background:linear-gradient(135deg, var(--tint-ok), var(--card) 70%)}
+.hm-hero.hm-sky-bad{background:linear-gradient(135deg, var(--tint-danger), var(--card) 70%)}
+.hm-hero-top{display:flex; gap:16px; align-items:center}
+.hm-hero-top > div:nth-child(2){flex:1; min-width:0}
+.hm-sky{font-size:60px; line-height:1; filter:drop-shadow(0 6px 10px rgba(0,0,0,.12))}
+.hm-hero-t{font-size:21px; font-weight:800; letter-spacing:.01em}
+.hm-hero-d{font-size:13.5px; color:var(--muted); margin-top:2px}
+.hm-hero-rows{display:grid; gap:8px; margin-top:14px}
+.hm-hero-rows > div{display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.hm-lab{font-size:12.5px; font-weight:700; margin-right:4px; white-space:nowrap}
+.hm-pill{border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:99px; padding:3px 11px; font:inherit; font-size:12.5px; cursor:pointer}
+.hm-pill:hover{border-color:var(--accent)}
+.hm-pill.hm-chg{border-color:var(--accent); background:var(--tint-accent)}
+.hm-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px}
+.hm-card{background:var(--card); border:1px solid var(--border); border-radius:18px; padding:14px 16px; min-width:0}
+.hm-card.hm-wide{grid-column:1 / -1}
+.hm-card > header{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+.hm-card h3{font-size:14.5px; flex:1; min-width:0}
+.hm-ic{width:30px; height:30px; border-radius:10px; background:var(--card2); display:grid; place-items:center; font-size:16px; flex:none}
+.hm-more{border:none; background:transparent; color:var(--accent); font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap; padding:4px 2px}
+.hm-more:hover{text-decoration:underline}
+.hm-row{display:flex; gap:10px; align-items:center; width:100%; padding:8px 8px; border:none; border-top:1px solid var(--border); background:transparent; color:var(--text); font:inherit; text-align:left; border-radius:0}
+.hm-card > header + .hm-row, .hm-sub + .hm-row, .hm-kpis + .hm-row{border-top:none}
+.hm-row.hm-click{cursor:pointer; border-radius:10px}
+.hm-row.hm-click:hover{background:var(--card2)}
+.hm-row[class*="cmp-bg-"]{border-top:none; margin-bottom:6px; border-radius:10px}
+.hm-row-main{flex:1; min-width:0}
+.hm-row-main b{display:block; font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hm-row-main small{display:block; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hm-num{font-weight:800; font-size:15px; font-variant-numeric:tabular-nums; white-space:nowrap}
+.hm-badge{font-size:12px; font-weight:700; padding:3px 10px; border-radius:99px; background:var(--card2); white-space:nowrap}
+.hm-b-r{background:var(--tint-danger); color:var(--danger)} .hm-b-y{background:var(--tint-warn); color:var(--warn)}
+.hm-sub{font-size:12px; color:var(--dim); font-weight:600; margin:10px 0 2px}
+.hm-ok{font-size:13px; padding:8px; border-radius:10px; background:var(--tint-ok)}
+.hm-ok small{color:var(--muted)}
+.hm-wait{font-size:13px; color:var(--muted); padding:8px}
+.hm-kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:6px}
+.hm-kpis > div{background:var(--card2); border-radius:12px; padding:8px 10px; min-width:0}
+.hm-kpis small{display:block; font-size:11px; color:var(--dim)}
+.hm-kpis b{display:block; font-size:15px; font-variant-numeric:tabular-nums}
+.hm-kpis span{font-size:11.5px; color:var(--muted)}
+@media (max-width:720px){ .hm-grid{grid-template-columns:1fr} .hm-sky{font-size:48px} .hm-hero-t{font-size:18px} .hm-hero-top .hm-more{display:none} }
+/* ---------- 全体の見た目: 薄い背景にカードを浮かせる ---------- */
+:root[data-theme="light"]{ --bg:#f3f5fa; }
+.pm-card, .mc-card, .mc-cal, .mc-weather, .set-card, .hm-card, .hm-hero{box-shadow:0 1px 2px rgba(20,30,60,.04), 0 6px 20px rgba(20,30,60,.05)}
+.pm-card:hover{box-shadow:0 2px 4px rgba(20,30,60,.06), 0 10px 28px rgba(20,30,60,.09)}
+nav.tabs button{border-radius:10px 10px 0 0; transition:background .15s}
+nav.tabs button.active{background:var(--tint-accent)}
+nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -498,7 +550,8 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
     <nav class="tabs">
       <button data-tab="home" class="legacy">🏠 HOME</button>
       <button data-tab="projects" class="legacy">📋 よてい</button>
-      <button data-tab="poly" class="active">📊 Polymarket</button>
+      <button data-tab="top" class="active">🏠 ホーム</button>
+      <button data-tab="poly">📊 Polymarket</button>
       <button data-tab="btc">🌐 マクロ</button>
       <button data-tab="hl">🟢 Hyperliquid</button>
       <button data-tab="flow">💧 お金の流れ</button>
@@ -564,7 +617,14 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 </section>
 
 <!-- ============ polymarket ============ -->
-<section class="tab active" id="tab-poly">
+<section class="tab active" id="tab-top">
+  <div class="hm-date" id="homeDate"></div>
+  <div id="homeBody"></div>
+  <p class="hint">各タブの要点を集めています。「くわしく →」や行を押すと、そのタブへ移動します。信号や候補は目安で、売買の判断ではありません。</p>
+</section>
+
+<!-- ============ polymarket ============ -->
+<section class="tab" id="tab-poly">
   <div class="pm-top">
     <input class="search" id="pmQ" placeholder="🔍 日本語・英語で検索 (例: 利下げ / bitcoin / 選挙)" autocomplete="off">
     <div class="chips pm-cats" id="pmCats"></div>
@@ -1004,7 +1064,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.28";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.29";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
 const MIN_GAS_VERSION = "2026.11.28";
 const $ = s => document.querySelector(s);
@@ -3753,6 +3813,7 @@ function renderWeather(res){
   const st = pmLS.get("mc_sig_v1", null);
   const base = !st ? null : Date.now() - st.t >= PM_SEEN_GAP ? st : st.prev || null;
   const changed = base ? Object.keys(now).filter(id=>base.sig[id] && base.sig[id] !== now[id]) : [];
+  MC.res = res; MC.changed = changed.map(id=>({ id, from: base.sig[id], to: now[id] }));
   if(!st || Date.now() - st.t >= 60000) pmLS.set("mc_sig_v1", { t: Date.now(), sig: now, score: all.s, prev: base });
   /* 日ごとの天気の記録 (直近14日) */
   const hist = pmLS.get("mc_hist_v1", []);
@@ -5056,8 +5117,133 @@ function switchTab(t){
   if(t==="gloss"){ renderGloss(); }
   if(t==="hl" && !loaded.hl){ loaded.hl=1; loadHl(); }
   if(t==="flow" && !loaded.flow){ loaded.flow=1; loadFlow(); }
+  if(t==="top") loadTop();
 }
 $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
+
+/* ================= 🏠 ホーム (今日のまとめ) ================= */
+/* 4つのタブ (Polymarket・マクロ・Hyperliquid・お金の流れ) の要点を1画面に集める。データは各タブのものをそのまま使う */
+function loadTop(){
+  if(!loaded.poly){ loaded.poly = 1; pmLoad(); }
+  if(!loaded.btc){ loaded.btc = 1; loadMacro(); }
+  if(!loaded.hl){ loaded.hl = 1; loadHl(); }
+  if(!loaded.flow){ loaded.flow = 1; loadFlow(); }
+  renderTop();
+}
+function topCard(icon, title, tab, body, extra){
+  return `<section class="hm-card ${extra || ""}"><header><span class="hm-ic">${icon}</span><h3>${title}</h3><button class="hm-more" data-jump="${tab}">くわしく →</button></header>${body}</section>`;
+}
+const hmWait = `<div class="hm-wait"><span class="spin"></span> 読み込み中…</div>`;
+const hmFail = `<div class="hint" style="margin:0">取得できませんでした (タブを開くと理由が出ます)</div>`;
+const hmNoGas = `<div class="hint" style="margin:0">設定でサーバー (Apps Script) の URL を入れると表示されます</div>`;
+function renderTop(){
+  const box = $("#homeBody"); if(!box || !$("#tab-top").classList.contains("active")) return;
+  const gas = !!state.settings.gasUrl;
+  const h = new Date().getHours();
+  const hello = h < 5 ? "こんばんは" : h < 11 ? "おはようございます" : h < 18 ? "こんにちは" : "こんばんは";
+  $("#homeDate").textContent = `${hello} ・ ${new Date().toLocaleDateString("ja-JP", { month:"long", day:"numeric", weekday:"short" })}`;
+
+  /* --- 相場の天気 --- */
+  let hero;
+  const sum = MC.res ? mcSummary(MC.res) : null;
+  if(sum){
+    const ch = MC.changed || [];
+    const why = ids => ids.slice(0, 3).map(id=>`<button class="hm-pill" data-jump="btc" data-mc="${id}">${esc(mcName(id))}</button>`).join("");
+    hero = `<section class="hm-hero hm-sky-${sum.all.s >= 0.15 ? "good" : sum.all.s <= -0.15 ? "bad" : "mid"}">
+      <div class="hm-hero-top"><div class="hm-sky">${sum.sky[1]}</div>
+        <div><div class="hm-hero-t">今日の相場は「${esc(sum.sky[2])}」</div><div class="hm-hero-d">${esc(sum.sky[3])}</div>
+          <div class="mc-w-meter"><i style="left:${Math.round((sum.all.s+1)/2*100)}%"></i></div></div>
+        <button class="hm-more" data-jump="btc">くわしく →</button></div>
+      <div class="hm-hero-rows">
+        ${sum.good.length ? `<div><span class="hm-lab">🟢 追い風</span>${why(sum.good)}</div>` : ""}
+        ${sum.bad.length ? `<div><span class="hm-lab">🔴 向かい風</span>${why(sum.bad)}</div>` : ""}
+        ${ch.length ? `<div><span class="hm-lab">🔄 変わった信号</span>${ch.map(c=>`<button class="hm-pill hm-chg" data-jump="btc" data-mc="${c.id}">${esc(mcName(c.id))} ${MC_SIG[c.from]}→${MC_SIG[c.to]}</button>`).join("")}</div>` : ""}
+      </div></section>`;
+  }else hero = `<section class="hm-hero hm-sky-mid"><div class="hm-hero-top"><div class="hm-sky">🌐</div><div><div class="hm-hero-t">相場の天気図</div><div class="hm-hero-d">${!gas ? "設定でサーバーを登録すると表示されます" : MC.tried ? "取得できませんでした (マクロのタブを開くと理由が出ます)" : "読み込み中…"}</div></div></div></section>`;
+
+  /* --- 予定 --- */
+  const cal = mcCalUpcoming(3);
+  const calBody = cal.length ? cal.map(e=>{ const k = MC_CAL_KIND[e.k], o = mcCalPM[e.k + e.d];
+      const when = e.at.toLocaleString("ja-JP", { timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", weekday:"short", hour:"2-digit", minute:"2-digit" });
+      return `<div class="hm-row"><div class="hm-row-main"><b>${k[0]} ${esc(mcCalLabel(e))}</b><small>${esc(when)}${o && o.opts.length ? ` ・ 予想: ${o.opts.slice(0,2).map(x=>`${esc(pmJa(x.g))} ${pmPct(x.p)}`).join(" ／ ")}` : ""}</small></div><span class="hm-badge">${esc(mcUntil(e.at))}</span></div>`; }).join("")
+    : `<div class="hint" style="margin:0">近い予定はありません</div>`;
+
+  /* --- Polymarket: ウォッチ (無ければ あなた向け) の動き --- */
+  let pmBody, pmTitle = "ウォッチ中の市場";
+  if(!pm.events.length) pmBody = hmWait;
+  else{
+    let list = pm.events.filter(e=>pm.watch[e.id]);
+    if(!list.length){ list = pm.events.filter(e=>pmScore(e) >= 2 && !pm.hide[e.id]); pmTitle = "あなた向けの市場の動き"; }
+    const mv = e => Math.max(Math.abs(e.multi ? (e.d1||0) : (pmMain(e).d1||0)), Math.abs(e.multi ? (e.h1||0) : (pmMain(e).h1||0)));
+    list = list.sort((a,b)=>mv(b) - mv(a)).slice(0, 5);
+    pmBody = list.length ? list.map(e=>{ const m = pmMain(e), d1 = e.multi ? e.d1 : m.d1, since = pmSince(e);
+        return `<button class="hm-row hm-click" data-pmopen="${esc(e.id)}"><div class="hm-row-main"><b>${esc(pmJa(e.multi ? e.t : m.q))}</b><small>${e.multi ? esc(pmJa(m.g || m.q)) + " " : "はい "}${pmPct(m.p[0])} ・ 24時間 ${pmDelta(d1) || "±0pt"}${since && Math.abs(since.d) >= 0.01 ? ` ・ 前回から ${pmDelta(since.d)}` : ""}</small></div><span class="hm-num">${pmPct(m.p[0])}</span></button>`; }).join("")
+      : `<div class="hint" style="margin:0">☆ を押してウォッチに入れた市場が、ここに並びます</div>`;
+  }
+  /* --- Kalshi とのずれ --- */
+  let kBody;
+  if(!CMP.data) kBody = gas ? (CMP.error ? `<div class="hint" style="margin:0">取得できませんでした</div>` : hmWait) : hmNoGas;
+  else{
+    const rows = [];
+    (CMP.data.list || []).forEach(m=>m.rows.forEach(r=>{ if(cmpLevel(r)) rows.push([m, r]); }));
+    rows.sort((a,b)=>(b[1].gap||0) - (a[1].gap||0));
+    kBody = rows.length ? rows.slice(0, 3).map(([m, r])=>`<button class="hm-row hm-click cmp-bg-${cmpLevel(r)}" data-jump="poly" data-cat="kalshi"><div class="hm-row-main"><b>${esc(cmpMeetLabel(m.d))} ― ${esc(r.ja)}</b><small>Polymarket ${cmpPct(r.pm.p)} ／ Kalshi ${cmpPct(r.k.p)}</small></div><span class="cmp-d cmp-${cmpLevel(r)}">${r.diff > 0 ? "+" : ""}${Math.round(r.diff*100)}pt</span></button>`).join("")
+      : `<div class="hm-ok">✅ 大きなずれはありません <small>(FOMC の予想は2つの市場でほぼ同じ)</small></div>`;
+  }
+  /* --- Hyperliquid --- */
+  let hlBody;
+  if(!HL.data || !HL.data.snap) hlBody = !gas ? hmNoGas : HL.tried ? hmFail : hmWait;
+  else{
+    const P = HL.data.snap.perps || [], btc = P.find(r=>r.n === "BTC") || {}, o24 = hlOi24("BTC");
+    const alerts = [];
+    hlTracked().forEach(c=>{ const o = hlOi24(c), r = P.find(x=>x.n === c);
+      if(o != null && Math.abs(o) >= 15) alerts.push(`<div class="hm-row"><div class="hm-row-main"><b>${esc(c)} の建玉が${o > 0 ? "急増" : "急減"}</b><small>24時間で ${hlPct(o, 0)}</small></div><span class="hm-badge ${o > 0 ? "hm-b-r" : "hm-b-y"}">${hlPct(o, 0)}</span></div>`);
+      if(r && (r.f*8 >= 0.0005 || r.f*8 <= -0.0003)) alerts.push(`<div class="hm-row"><div class="hm-row-main"><b>${esc(c)} のファンディングが${r.f > 0 ? "高い (買いが過熱)" : "マイナス (売りが優勢)"}</b><small>8時間あたり</small></div><span class="hm-badge ${r.f > 0 ? "hm-b-r" : "hm-b-y"}">${hlF8(r.f*8)}</span></div>`); });
+    const arb = P.filter(r=>r.oi >= 1e6 && (r.bin != null || r.byb != null)).map(r=>{ const o = [r.bin, r.byb].filter(x=>x != null); return [r, r.f*8 - o.reduce((a,x)=>a+x,0)/o.length]; }).sort((a,b)=>Math.abs(b[1]) - Math.abs(a[1]))[0];
+    hlBody = `<div class="hm-kpis"><div><small>BTC</small><b>${hlPx(btc.px)}</b><span class="${btc.px >= btc.prev ? "up" : "down"}">${hlPct(btc.prev ? (btc.px/btc.prev-1)*100 : null)}</span></div>
+        <div><small>BTC の建玉</small><b>${esc(hlUsd(btc.oi))}</b><span>${o24 == null ? "24時間 -" : "24時間 " + hlPct(o24)}</span></div>
+        <div><small>ファンディング</small><b>${hlF8(btc.f*8)}</b><span>8時間あたり</span></div></div>
+      ${alerts.slice(0, 3).join("") || `<div class="hm-ok">✅ 建玉・ファンディングに大きな異変はありません</div>`}
+      ${arb ? `<div class="hm-row"><div class="hm-row-main"><b>取引所との差が最大: ${esc(arb[0].n)}</b><small>Hyperliquid ${hlF8(arb[0].f*8)} ／ 他の平均との差</small></div><span class="hm-badge">${hlF8(arb[1])}</span></div>` : ""}`;
+  }
+  /* --- お金の流れ --- */
+  let flBody;
+  if(!FL.data) flBody = !gas ? hmNoGas : FL.tried ? hmFail : hmWait;
+  else{
+    const C = FL.data.chains || [];
+    const big = C.filter(c=>c.tvl >= 1e8 && c.c30 != null).sort((a,b)=>b.c30 - a.c30).slice(0, 3);
+    const st = C.filter(c=>c.s30d != null).sort((a,b)=>b.s30d - a.s30d)[0];
+    const cand = (FL.data.perps || []).filter(flIsCand).sort((a,b)=>(b.c30 == null ? -1e9 : b.c30) - (a.c30 == null ? -1e9 : a.c30)).slice(0, 3);
+    flBody = (big.length ? `<div class="hm-sub">TVL が伸びているチェーン (30日)</div>` + big.map(c=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(c.n)}</b><small>TVL ${esc(flUsd(c.tvl))}</small></div><span class="hm-num">${flPct(c.c30)}</span></div>`).join("") : "")
+      + (st ? `<div class="hm-row"><div class="hm-row-main"><b>ステーブルコインの流入が最大: ${esc(st.n)}</b><small>30日の増加額</small></div><span class="hm-num up">+${esc(flUsd(st.s30d))}</span></div>` : "")
+      + (cand.length ? `<div class="hm-sub">🪂 エアドロップ候補 (トークン未発行の先物 DEX)</div>` + cand.map(x=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(x.n)}${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}</b><small>建玉 ${esc(flUsd(x.oi))} ・ ${esc((x.ch||[]).join("・"))}</small></div><span class="hm-num">${flPct(x.c30)}</span></div>`).join("") : "")
+      || `<div class="hint" style="margin:0">データを取得中です</div>`;
+  }
+  box.innerHTML = hero + `<div class="hm-grid">`
+    + topCard("📅", "これからの予定", "btc", calBody)
+    + topCard("📊", pmTitle, "poly", pmBody)
+    + topCard("⚖️", "Polymarket と Kalshi のずれ", "poly", kBody)
+    + topCard("🟢", "暗号資産の先物 (Hyperliquid)", "hl", hlBody)
+    + topCard("💧", "お金の流れ", "flow", flBody, "hm-wide")
+    + `</div>`;
+}
+$("#tab-top").addEventListener("click", ev=>{
+  const o = ev.target.closest("[data-pmopen]");
+  if(o){ switchTab("poly"); pmOpen(o.dataset.pmopen); return; }
+  const j = ev.target.closest("[data-jump]"); if(!j) return;
+  if(j.dataset.cat){ pm.cat = j.dataset.cat; }
+  switchTab(j.dataset.jump);
+  if(j.dataset.cat){ pmRenderCats(); pmRender(); }
+  if(j.dataset.mc){ const el = $(`.mc-card[data-mc="${j.dataset.mc}"]`); if(el){ el.scrollIntoView && el.scrollIntoView({ behavior:"smooth", block:"center" }); el.classList.add("mc-flash"); setTimeout(()=>el.classList.remove("mc-flash"), 1600); } }
+});
+/* 各タブの描画のあとに、ホームも描き直す */
+{ const wrap = (name, fn) => function(){ const r = fn.apply(this, arguments); try{ renderTop(); }catch(e){} return r; };
+  pmRender = wrap("pmRender", pmRender); renderHl = wrap("renderHl", renderHl); renderFlow = wrap("renderFlow", renderFlow);
+  renderMacro = wrap("renderMacro", renderMacro); renderCal = wrap("renderCal", renderCal);
+  const lc = loadCompare; loadCompare = async function(){ await lc.apply(this, arguments); try{ renderTop(); }catch(e){} };
+  /* 読み込みが終わったら (失敗でも) 印を付けて、ホームの「読み込み中」を止める */
+  const done = (fn, obj) => async function(){ try{ return await fn.apply(this, arguments); } finally { obj.tried = true; try{ renderTop(); }catch(e){} } };
+  loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); }
 
 load();
 applyTheme();
@@ -5068,7 +5254,7 @@ renderProjects();
 renderVersion();
 renderOnline();
 setupPwa();
-switchTab("poly");   /* 予定管理は MUSE に移したので、Polymarket を最初に開く */
+switchTab("top");   /* 最初にホーム (今日のまとめ) を開く */
 gasAutoResume().finally(()=>refreshInbox());
 </script>
 </body>

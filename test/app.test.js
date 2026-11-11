@@ -30,7 +30,7 @@ test('index.html: 空の状態で開いてもエラーが出ない', async () =>
     assert.equal(app.doc.title, 'ポリマーケット記録');
     // 予定管理は画面に出さず、Polymarket を最初に開く
     assert.ok(app.doc.body.classList.contains('pm-mode'));
-    assert.ok(app.doc.querySelector('#tab-poly').classList.contains('active'));
+    assert.ok(app.doc.querySelector('#tab-top').classList.contains('active'), '最初はホーム');
     for (const sel of ['nav button[data-tab="home"]', 'nav button[data-tab="projects"]', '#tab-home', '#tab-projects']) {
       assert.ok(app.doc.querySelector(sel).classList.contains('legacy'), sel + ' は隠す');
     }
