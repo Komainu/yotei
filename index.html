@@ -475,6 +475,13 @@ body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .
 nav.tabs button{border-radius:10px 10px 0 0; transition:background .15s}
 nav.tabs button.active{background:var(--tint-accent)}
 nav.tabs button:hover:not(.active){background:var(--card2)}
+.hm-health{display:flex; justify-content:space-between; gap:10px; width:100%; margin-top:14px; padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--muted); font:inherit; font-size:13px; text-align:left; cursor:pointer}
+.hm-health span{color:var(--accent); white-space:nowrap}
+.hm-health-bad{margin:0 0 14px; background:var(--tint-danger); border-color:var(--danger); color:var(--text); font-weight:600}
+.hc-tbl td, .hc-tbl th{text-align:left !important; white-space:normal}
+.hc-tbl tbody tr{cursor:default}
+.hc-stale td, .hc-error td{background:var(--tint-danger)}
+.hc-off td, .hc-never td{color:var(--dim)}
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -1064,9 +1071,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.29";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.11.30";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.28";
+const MIN_GAS_VERSION = "2026.11.30";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -4398,7 +4405,7 @@ $("#gasCheck").addEventListener("click", async ()=>{
   try{
     const d = await gasCheck();
     const at = d.syncedAt ? new Date(d.syncedAt).toLocaleString("ja-JP") : "なし";
-    r.innerHTML = pmStatusHtml(d.pm) + `<span class="legacy">☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`
+    r.innerHTML = pmStatusHtml(d.pm) + healthHtml(d.pm && d.pm.health) + `<span class="legacy">☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`
       + (d.locked ? `<br>🔑 合言葉: 設定済み` : d.locked === false ? `<br>🔓 合言葉: 未設定 (下の「🔑 合言葉を設定・変更する」から設定できます)` : "")
       + (d.store === "drive" ? `<br>💾 保存先: Googleドライブ` + (d.backupLast ? ` ／ 最終バックアップ ${new Date(d.backupLast).toLocaleString("ja-JP")}` : "")
          : d.store === "props" ? `<br>💾 保存先: スクリプト プロパティ (Apps Script で setup を実行すると、容量の大きいGoogleドライブへ移ります)` : "") + `</span>`;
@@ -5123,7 +5130,30 @@ $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switc
 
 /* ================= 🏠 ホーム (今日のまとめ) ================= */
 /* 4つのタブ (Polymarket・マクロ・Hyperliquid・お金の流れ) の要点を1画面に集める。データは各タブのものをそのまま使う */
+/* ---- 記録の見張り (それぞれの記録が動いているか) ---- */
+const HEALTH = { data: null, loading: false };
+const HEALTH_ST = { ok:["✅","動いています"], stale:["⚠","止まっています"], error:["❌","失敗しています"], never:["⏳","まだ動いていません"], off:["⏸","オフ"] };
+function healthHtml(h){
+  if(!h || !h.jobs) return "";
+  const t = s => s ? new Date(s).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "-";
+  return `<div class="hl-wrap" style="margin:10px 0"><table class="hl-tbl hc-tbl"><thead><tr><th>記録</th><th>間隔</th><th>最後に動いた時刻</th><th>状態</th></tr></thead><tbody>`
+    + h.jobs.map(j=>`<tr class="hc-${j.st}"><td>${esc(j.n)}</td><td>${esc(j.every)}</td><td>${esc(t(j.t))}</td><td>${HEALTH_ST[j.st][0]} ${HEALTH_ST[j.st][1]}${j.err ? `<br><small>${esc(j.err)}</small>` : ""}</td></tr>`).join("")
+    + `</tbody></table></div>`
+    + (h.missing && h.missing.length ? `<div style="color:var(--danger)">⚠ 自動で動かす設定がありません (${esc(h.missing.join(", "))})。Apps Script で <b>setup</b> を実行してください。</div>` : "")
+    + (h.bad ? `<div class="hint">止まっている記録は、1〜2時間待っても直らなければ Apps Script で <b>setup</b> を実行してみてください。止まっている間はメールでもお知らせします (24時間に1回)。</div>` : "");
+}
+async function loadHealth(){
+  if(HEALTH.loading || !state.settings.gasUrl) return;
+  HEALTH.loading = true;
+  try{
+    const r = await fetch(gasGetUrl("action=health&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.health) HEALTH.data = d.health;
+  }catch(e){ /* 次に開いた時にまた試す */ }
+  finally{ HEALTH.loading = false; try{ renderTop(); }catch(e){} }
+}
 function loadTop(){
+  if(!HEALTH.data) loadHealth();
   if(!loaded.poly){ loaded.poly = 1; pmLoad(); }
   if(!loaded.btc){ loaded.btc = 1; loadMacro(); }
   if(!loaded.hl){ loaded.hl = 1; loadHl(); }
@@ -5219,13 +5249,23 @@ function renderTop(){
       + (cand.length ? `<div class="hm-sub">🪂 エアドロップ候補 (トークン未発行の先物 DEX)</div>` + cand.map(x=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(x.n)}${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}</b><small>建玉 ${esc(flUsd(x.oi))} ・ ${esc((x.ch||[]).join("・"))}</small></div><span class="hm-num">${flPct(x.c30)}</span></div>`).join("") : "")
       || `<div class="hint" style="margin:0">データを取得中です</div>`;
   }
-  box.innerHTML = hero + `<div class="hm-grid">`
+  /* --- 記録の見張り --- */
+  let healthTop = "";
+  const hd = HEALTH.data;
+  if(hd){
+    const bad = hd.jobs.filter(j=>j.st === "stale" || j.st === "error");
+    const run = hd.jobs.filter(j=>j.st === "ok").length;
+    healthTop = bad.length || (hd.missing && hd.missing.length)
+      ? `<button class="hm-health hm-health-bad" data-jump="settings">⚠ 記録が止まっています: ${bad.map(j=>esc(j.n)).join("、") || "自動で動かす設定がありません"} <span>設定で確かめる →</span></button>`
+      : `<button class="hm-health" data-jump="settings">✅ 記録は正常に動いています (${run}種類) <span>くわしく →</span></button>`;
+  }
+  box.innerHTML = (hd && !hd.ok ? healthTop : "") + hero + `<div class="hm-grid">`
     + topCard("📅", "これからの予定", "btc", calBody)
     + topCard("📊", pmTitle, "poly", pmBody)
     + topCard("⚖️", "Polymarket と Kalshi のずれ", "poly", kBody)
     + topCard("🟢", "暗号資産の先物 (Hyperliquid)", "hl", hlBody)
     + topCard("💧", "お金の流れ", "flow", flBody, "hm-wide")
-    + `</div>`;
+    + `</div>` + (hd && hd.ok ? healthTop : "");
 }
 $("#tab-top").addEventListener("click", ev=>{
   const o = ev.target.closest("[data-pmopen]");

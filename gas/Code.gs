@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.28';
+const GAS_VERSION = '2026.11.30';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -572,6 +572,9 @@ function doGetInner_(e) {
     try { snap = hlSnapshot_(); } catch (x) { err = String(x); }
     return json({ ok: !!snap, version: GAS_VERSION, error: err, snap: snap, series: hlSeries_(Number(e.parameter.hours) || 192), watch: hlWatch_(), fixed: HL_COINS });
   }
+  if (e && e.parameter && e.parameter.action === 'health') {
+    return json({ ok: true, version: GAS_VERSION, health: pmHealth_() });
+  }
   if (e && e.parameter && e.parameter.action === 'compare') {
     return json(Object.assign({ version: GAS_VERSION }, fedCompareLatest_()));
   }
@@ -604,6 +607,7 @@ function doGetInner_(e) {
   try { base.game = gameSummary_(); } catch (e) { base.game = null; }
   base.pm = pmStatus_();   // Polymarket の記録の状況
   base.pm.ai = pmAiStatus_();
+  try { base.pm.health = pmHealth_(); } catch (e) { base.pm.health = null; }
   try { base.pm.mail = pmMailStatus_(); } catch (e) { base.pm.mail = null; }
   if (e && e.parameter && e.parameter.action === 'load') { base.projects = list; base.deleted = getTombs_(); }
   if (e && e.parameter && e.parameter.action === 'history') {
@@ -1773,6 +1777,7 @@ function pmRecord() {
 
     const ids = Object.keys(cat.m);
     props.setProperty('PM_LAST_RUN', nowIso);
+    hbOk_('record');
     props.setProperty('PM_LAST_COUNT', String(rows.length));
     props.setProperty('PM_CAT_N', String(ids.length));
     props.setProperty('PM_RES_N', String(ids.filter(function (id) { return cat.m[id].r != null; }).length));
@@ -1780,13 +1785,15 @@ function pmRecord() {
     props.deleteProperty('PM_LAST_ERROR');
   } catch (e) {
     props.setProperty('PM_LAST_ERROR', new Date().toISOString() + ' ' + String(e));
+    hbErr_('record', e);
     Logger.log('ポリマーケットの記録に失敗: ' + e);
   } finally {
     try { lock.releaseLock(); } catch (e) {}
   }
-  macroRefresh();   // マクロの指標も1時間ごとに取り直しておく (アプリを開いた時にすぐ出るように)
-  try { fedCompareRecord_(); } catch (e) { Logger.log('Kalshi との比較に失敗: ' + e); }
-  try { hlRecord_(); } catch (e) { Logger.log('Hyperliquid の記録に失敗: ' + e); }
+  hbRun_('macro', function () { macroData_(false); });   // マクロの指標も1時間ごとに取り直しておく (アプリを開いた時にすぐ出るように)
+  hbRun_('fed', fedCompareRecord_);
+  hbRun_('hl', hlRecord_);
+  try { pmHealthMail_(); } catch (e) { Logger.log('記録の見張りに失敗: ' + e); }
 }
 
 /** 決着を確認する市場: 結果が未記録で、締切を過ぎたか・上位から外れて6時間以上たったもの (締切の古い順) */
@@ -1829,9 +1836,11 @@ function pmResolve() {
     const ids = Object.keys(cat.m);
     props.setProperty('PM_RES_N', String(ids.filter(function (id) { return cat.m[id].r != null; }).length));
     props.setProperty('PM_RESOLVE_LAST', nowIso + ' ' + done + '件');
+    hbOk_('resolve');
     Logger.log('決着を記録しました: ' + done + '件 (確認 ' + targets.length + '件)');
   } catch (e) {
     props.setProperty('PM_LAST_ERROR', new Date().toISOString() + ' 決着の確認: ' + String(e));
+    hbErr_('resolve', e);
     Logger.log('決着の確認に失敗: ' + e);
   } finally {
     try { lock.releaseLock(); } catch (e) {}
@@ -2226,6 +2235,7 @@ function pmAlert() {
   try {
     const watchIds = pmWatchIds_();
     const rows = pmFetchTopRaw_(PM_ALERT_PAGES).map(pmAlertRow_).filter(Boolean);
+    hbOk_('alert');
     let sent = {};
     try { sent = JSON.parse(props.getProperty('PM_ALERT_SENT') || '{}'); } catch (e) {}
     const now = Date.now();
@@ -2274,6 +2284,7 @@ function pmAlert() {
     props.setProperty('PM_ALERT_LAST', new Date().toISOString() + ' ' + lines.length + '件');
   } catch (e) {
     props.setProperty('PM_LAST_ERROR', new Date().toISOString() + ' 急変の確認: ' + String(e));
+    hbErr_('alert', e);
     Logger.log('急変の確認に失敗: ' + e);
   }
 }
@@ -2326,7 +2337,7 @@ function pmDigest() {
       + sec('24時間で大きく動いた市場', movers, '大きな動きはありませんでした') + '\n'
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
-      + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + '\n\n'
+      + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + pmHealthLine_() + '\n\n'
       + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
     const h = function (title, list, empty) {
       return '<tr><td style="padding:14px 0 4px;font-weight:700;font-size:15px">' + title + '</td></tr>'
@@ -2342,8 +2353,10 @@ function pmDigest() {
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
+    hbOk_('digest');
   } catch (e) {
     props.setProperty('PM_LAST_ERROR', new Date().toISOString() + ' 毎朝のまとめ: ' + String(e));
+    hbErr_('digest', e);
     Logger.log('毎朝のまとめに失敗: ' + e);
   }
 }
@@ -2736,7 +2749,7 @@ function pmDayAdd_(ymd, n) { const p = ymd.split('-').map(Number); const d = new
 /** 毎日 (決着の取り込みの後): まだ要約していない日の記録をまとめ、マクロの日誌に今日の1行を足す */
 function pmDailyJobs_() {
   const props = PropertiesService.getScriptProperties();
-  try {
+  hbRun_('daily', function () {
     const today = pmJstDay_(Date.now());
     let day = props.getProperty('PM_DAILY_DONE');
     day = day ? pmDayAdd_(day, 1) : (props.getProperty('PM_FIRST_DAY') || today);
@@ -2746,9 +2759,9 @@ function pmDailyJobs_() {
       props.setProperty('PM_DAILY_DONE', day);
       day = pmDayAdd_(day, 1); n++;
     }
-  } catch (e) { Logger.log('日ごとの要約に失敗: ' + e); }
-  try { pmMacroLog_(); } catch (e) { Logger.log('マクロの日誌に失敗: ' + e); }
-  try { llamaLog_(); } catch (e) { Logger.log('DefiLlama の記録に失敗: ' + e); }
+  });
+  hbRun_('macrolog', pmMacroLog_);
+  hbRun_('llama', llamaLog_);
 }
 function pmSummarizeDay_(day) {
   const s = pmRead_('snap-' + day + '.json');
@@ -3384,3 +3397,86 @@ function llamaFeesHist_(slug) {
 }
 /** エアドロップ候補: トークン未発行の先物 DEX (予測市場・取引所の外のものは除く) */
 function llamaIsCand_(x) { return x.token === false && !/prediction/i.test(x.cat || '') && (x.ch || []).indexOf('Off Chain') < 0; }
+
+// =====================================================================
+//  記録の見張り — それぞれの記録が最後にいつ動いたかを控え、止まっていたら知らせる
+//    HB_<名前> = 最後に成功した時刻 / HBE_<名前> = 最後の失敗 (時刻 + 理由)。成功したら失敗は消す
+// =====================================================================
+
+const HEALTH_JOBS = [
+  { k: 'record',   n: 'Polymarket の確率・出来高',        every: '1時間ごと', max: 3 },
+  { k: 'fed',      n: 'Kalshi との比較',                  every: '1時間ごと', max: 3 },
+  { k: 'hl',       n: 'Hyperliquid の建玉・ファンディング', every: '1時間ごと', max: 3 },
+  { k: 'macro',    n: 'マクロ指標の更新',                  every: '1時間ごと', max: 3 },
+  { k: 'resolve',  n: '決着の取り込み',                    every: '毎日5時',   max: 30 },
+  { k: 'daily',    n: '日ごとの要約',                      every: '毎日5時',   max: 30 },
+  { k: 'macrolog', n: 'マクロの日誌 (天気図)',             every: '毎日5時',   max: 30 },
+  { k: 'llama',    n: 'お金の流れ (TVL・先物 DEX)',        every: '毎日5時',   max: 30 },
+  { k: 'alert',    n: '急変の確認 (通知)',                 every: '10分おき',  max: 1, mail: 'PM_ALERT_ON' },
+  { k: 'digest',   n: '毎朝のまとめメール',                every: '毎日8時',   max: 30, mail: 'PM_DIGEST_ON' },
+];
+const HEALTH_TRIGGERS = ['pmRecord', 'pmResolve', 'pmAlert', 'pmDigest'];
+const HEALTH_MAIL_EVERY = 24 * 3600000;
+
+function hbOk_(k) {
+  const p = PropertiesService.getScriptProperties();
+  p.setProperty('HB_' + k, new Date().toISOString());
+  if (p.getProperty('HBE_' + k)) p.deleteProperty('HBE_' + k);
+}
+function hbErr_(k, e) { PropertiesService.getScriptProperties().setProperty('HBE_' + k, new Date().toISOString() + ' ' + String(e).slice(0, 200)); }
+function hbRun_(k, fn) {
+  try { fn(); hbOk_(k); }
+  catch (e) { hbErr_(k, e); Logger.log(k + ' に失敗: ' + e); }
+}
+/** 記録ごとの状態: ok (動いている) / stale (止まっている) / error (直近が失敗) / never (まだ一度も) / off (通知をオフにしている) */
+function pmHealth_() {
+  const p = PropertiesService.getScriptProperties();
+  const now = Date.now();
+  let since = Number(p.getProperty('HB_SINCE') || 0);
+  if (!since) { since = now; p.setProperty('HB_SINCE', String(now)); }
+  const mailTo = pmMailTo_();
+  const jobs = HEALTH_JOBS.map(function (j) {
+    const t = p.getProperty('HB_' + j.k), err = p.getProperty('HBE_' + j.k);
+    let st;
+    if (j.mail && (!mailTo || !pmMailOn_(j.mail))) st = 'off';
+    else if (err && (!t || err.slice(0, 24) > t)) st = 'error';
+    else if (!t) st = now - since > j.max * 3600000 ? 'stale' : 'never';
+    else st = now - Date.parse(t) > j.max * 3600000 ? 'stale' : 'ok';
+    // late = 決まった間隔を過ぎても成功していない (1回だけの失敗ではメールしないための印)
+    const late = (st === 'stale') || (st === 'error' && now - (t ? Date.parse(t) : since) > j.max * 3600000);
+    return { k: j.k, n: j.n, every: j.every, t: t || null, st: st, err: st === 'error' ? err.slice(25) : null, late: late };
+  });
+  let have = [];
+  try { have = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }); } catch (e) {}
+  const missing = HEALTH_TRIGGERS.filter(function (f) { return have.indexOf(f) < 0; });
+  const bad = jobs.filter(function (j) { return j.st === 'stale' || j.st === 'error'; });
+  return { at: now, jobs: jobs, missing: missing, bad: bad.length, ok: !bad.length && !missing.length };
+}
+function pmHealthText_(h) {
+  const lines = h.jobs.filter(function (j) { return j.st === 'stale' || j.st === 'error'; }).map(function (j) {
+    return '・' + j.n + ' (' + j.every + '): ' + (j.st === 'error' ? '失敗しています — ' + j.err : '止まっています')
+      + (j.t ? ' ／ 最後に動いたのは ' + Utilities.formatDate(new Date(j.t), 'Asia/Tokyo', 'M/d HH:mm') : ' ／ まだ一度も動いていません');
+  });
+  if (h.missing.length) lines.push('・自動で動かす設定 (トリガー) がありません: ' + h.missing.join(', ') + ' → Apps Script で setup を実行してください');
+  return lines;
+}
+/** 毎朝のまとめに入れる1行 (問題がある時だけ) */
+function pmHealthLine_() {
+  try { const h = pmHealth_(); return h.ok ? '\n・記録はすべて動いています' : '\n・⚠ 止まっている記録があります:\n' + pmHealthText_(h).join('\n'); }
+  catch (e) { return ''; }
+}
+/** 止まっている記録があればメールで知らせる (24時間に1回まで) */
+function pmHealthMail_() {
+  const p = PropertiesService.getScriptProperties();
+  const to = pmMailTo_();
+  if (!to) return;
+  const h = pmHealth_();
+  const late = h.jobs.filter(function (j) { return j.late; }).length;   // トリガーが無い時はそもそもここが動かないので、アプリの画面で知らせる
+  if (!late) { if (h.ok && p.getProperty('HEALTH_MAILED')) p.deleteProperty('HEALTH_MAILED'); return; }
+  const last = Number(p.getProperty('HEALTH_MAILED') || 0);
+  if (Date.now() - last < HEALTH_MAIL_EVERY) return;
+  MailApp.sendEmail({ to: to, subject: '【ポリマーケット】⚠ 記録が止まっています (' + (h.bad + (h.missing.length ? 1 : 0)) + '件)',
+    body: '自動の記録に問題があります。記録は貯め続けることに価値があるので、早めに確かめてください。\n\n' + pmHealthText_(h).join('\n')
+      + '\n\n確かめ方: アプリの「設定」→「状況を確認」で、それぞれの記録の状態が見られます。\n1〜2時間たっても直らない時は、Apps Script の画面で setup を実行してみてください。' });
+  p.setProperty('HEALTH_MAILED', String(Date.now()));
+}
