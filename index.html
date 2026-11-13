@@ -482,6 +482,23 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 .hc-tbl tbody tr{cursor:default}
 .hc-stale td, .hc-error td{background:var(--tint-danger)}
 .hc-off td, .hc-never td{color:var(--dim)}
+.ntf-box{margin-top:12px; border:1px solid var(--border); border-radius:12px; padding:10px 14px}
+.ntf-box summary{cursor:pointer; font-size:13.5px; font-weight:600}
+.ntf-g{margin-top:12px; padding-top:10px; border-top:1px solid var(--border)}
+.ntf-t{font-weight:600; margin:0 0 4px !important}
+.ntf-r{font-size:13px; color:var(--muted); padding:3px 0 3px 26px}
+.ntf-r input{width:5em; padding:3px 6px; font-size:13px; text-align:right; display:inline-block}
+.rel-list{display:grid; gap:6px}
+.rel-row{display:flex; gap:10px; align-items:center; width:100%; text-align:left; border:1px solid var(--border); background:var(--card2); border-radius:12px; padding:8px 12px; font:inherit; color:var(--text); cursor:pointer}
+.rel-row.rel-static{cursor:default}
+.rel-row:not(.rel-static):hover{border-color:var(--accent)}
+.rel-row > div{flex:1; min-width:0}
+.rel-row b{font-size:13.5px}
+.rel-row small{display:block; font-size:12px; color:var(--muted)}
+.rel-ic{font-size:18px; flex:none}
+.rel-go{color:var(--accent); font-weight:700}
+.rel-pills{display:flex; flex-wrap:wrap; gap:6px; margin-top:5px}
+.rel-b{border:1px solid var(--accent); background:var(--tint-accent); color:var(--accent); border-radius:99px; padding:0 8px; font:inherit; font-size:11px; cursor:pointer; white-space:nowrap}
 /* ---------- 用語 ---------- */
 .gq{flex:none; width:20px; height:20px; border-radius:50%; border:1px solid var(--border); background:var(--card2); color:var(--muted); font-size:12px; font-weight:700; line-height:1; cursor:pointer; padding:0}
 .gq:hover{border-color:var(--accent); color:var(--accent)}
@@ -798,12 +815,38 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 
   <div class="set-card">
     <h3>📧 通知メール</h3>
-    <p class="hint" style="margin-top:0">「あなた向け」とウォッチ中の市場が大きく動いた時 (1時間で10pt・24時間で15pt・出来高が普段の3倍。ウォッチは1時間で5pt) と、毎朝8時のまとめをメールで送ります。MUSE がつながっている Gmail を入れておくと、MUSE が読めます。同じ市場の通知は6時間に1回までです。</p>
+    <p class="hint" style="margin-top:0">「あなた向け」とウォッチ中の市場の急変、Kalshi とのずれ、先物の異変、毎朝8時のまとめをメールで送ります。MUSE がつながっている Gmail を入れておくと、MUSE が読めます。通知が多い・少ないと感じたら、下の「通知の条件」で調整できます。</p>
     <div id="pmMailState" style="font-size:12.5px; color:var(--muted); margin:8px 0"></div>
     <label>送り先のメールアドレス</label>
     <input id="pmMailTo" type="email" autocomplete="off" placeholder="you@gmail.com">
     <label class="check" style="margin-top:10px"><input type="checkbox" id="pmAlertOn" style="width:auto" checked>⚡ 急変の通知 (10分おきに確認)</label>
     <label class="check"><input type="checkbox" id="pmDigestOn" style="width:auto" checked>🗞 毎朝8時のまとめ</label>
+    <details id="ntfBox" class="ntf-box">
+      <summary>🎚 通知の条件を変える <span id="ntfChanged" class="pm-tag" hidden>変更あり</span></summary>
+      <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="pm" style="width:auto">📊 Polymarket の急変 (あなた向け・ウォッチ)</label>
+        <div class="ntf-r">1時間で <input type="number" data-ntf="h1" step="1"> pt 以上 動いた</div>
+        <div class="ntf-r">24時間で <input type="number" data-ntf="d1" step="1"> pt 以上 動いた</div>
+        <div class="ntf-r">ウォッチ中は 1時間で <input type="number" data-ntf="wh1" step="1"> pt 以上</div>
+        <div class="ntf-r">出来高が普段の <input type="number" data-ntf="volx" step="0.5"> 倍 以上</div>
+        <div class="ntf-r">出来高 <input type="number" data-ntf="minvol" step="1000" style="width:7.5em"> ドル以上の市場だけ (ウォッチは除く)</div>
+        <div class="ntf-r">同じ市場は <input type="number" data-ntf="cool" step="1"> 時間に1回まで</div>
+      </div>
+      <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="kalshi" style="width:auto">⚖️ Polymarket と Kalshi のずれ</label>
+        <div class="ntf-r">買値・売値の幅を考えて <input type="number" data-ntf="gap" step="1"> pt 以上 ずれた (比較の画面の赤色もこの値)</div>
+      </div>
+      <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="hl" style="width:auto">🟢 暗号資産の先物 (Hyperliquid)</label>
+        <div class="ntf-r">建玉が24時間で ± <input type="number" data-ntf="oi" step="5"> % 以上 動いた</div>
+        <div class="ntf-r">ファンディング (8時間) が <input type="number" data-ntf="fhi" step="0.01"> % 以上 (買いの過熱)</div>
+        <div class="ntf-r">ファンディング (8時間) が <input type="number" data-ntf="flo" step="0.01"> % 以下 (売りが優勢)</div>
+      </div>
+      <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="health" style="width:auto">⚠ 記録が止まった時</label>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn small" id="ntfReset" type="button">初期値に戻す</button><span class="hint" style="margin:0">変えたあと、下の「保存」を押してください。数字を小さくすると通知が増え、大きくすると減ります。</span></div>
+    </details>
     <div class="row" style="margin-top:12px; flex-wrap:wrap"><button class="btn primary" id="pmMailSave">保存</button><button class="btn" id="pmMailTest">テスト送信</button><span id="pmMailResult" style="font-size:13px"></span></div>
   </div>
 
@@ -887,6 +930,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
     <button class="pm-x" data-close="1" aria-label="閉じる">✕</button>
     <div id="pmSHead"></div>
     <div id="pmSOutcomes"></div>
+    <div id="pmSRelated"></div>
     <div class="pm-chart-box">
       <div class="pm-chart-head"><span id="pmSChartLabel"></span>
         <span class="chips" id="pmSRange"><button class="chip" data-r="1d">1日</button><button class="chip active" data-r="1w">1週</button><button class="chip" data-r="1m">1か月</button></span></div>
@@ -1071,9 +1115,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.11.30";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.02";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.11.30";
+const MIN_GAS_VERSION = "2026.12.01";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
@@ -2908,6 +2952,7 @@ function pmOpen(evId, mId){
   $("#pmSOpen").href = "https://polymarket.com/event/" + encodeURIComponent(e.s || m.slug);
   $("#pmSheet").hidden = false;
   document.body.style.overflow = "hidden";
+  pmRenderRelated();
   pmChart(); pmLoadRule();
   if(pmLaunchProject(e) && pmIsTge(e)) pmLoadLaunch(e).then(()=>{ if(pm.sheet && pm.sheet.e === e) pmRenderOutcomes(); });
 }
@@ -3111,11 +3156,33 @@ async function pmAiSettingsLoad(){
     pmMailRender(d.pm.mail);
   }catch(err){ st.textContent = "確認できません: " + err.message; }
 }
+/* ---- 通知の条件 ---- */
+let ntfDef = null;
+function ntfRender(n, def){
+  if(!n) return;
+  ntfDef = def || ntfDef;
+  $$("#ntfBox [data-ntf]").forEach(el=>{ const v = n[el.dataset.ntf]; if(v == null) return; if(el.type === "checkbox") el.checked = !!v; else el.value = v; });
+  ntfMark();
+}
+/** 画面の値 (サーバーが範囲を確かめる)。読み込み前で空の時は undefined (= 変えない) */
+function ntfRead(){
+  const out = {}; let any = false;
+  $$("#ntfBox [data-ntf]").forEach(el=>{ if(el.type === "checkbox"){ if(ntfDef) { out[el.dataset.ntf] = el.checked; any = true; } } else if(el.value !== ""){ out[el.dataset.ntf] = Number(el.value); any = true; } });
+  return any ? out : undefined;
+}
+function ntfMark(){
+  if(!ntfDef) return;
+  const ch = $$("#ntfBox [data-ntf]").some(el=> el.type === "checkbox" ? el.checked !== !!ntfDef[el.dataset.ntf] : el.value !== "" && Number(el.value) !== ntfDef[el.dataset.ntf]);
+  $("#ntfChanged").hidden = !ch;
+}
+$("#ntfBox").addEventListener("input", ntfMark);
+$("#ntfReset").addEventListener("click", ()=>{ if(ntfDef){ ntfRender(ntfDef); toast("初期値に戻しました。「保存」を押すと反映されます"); } });
 function pmMailRender(mail){
   const st = $("#pmMailState"); if(!st || !mail) return;
   const t = s => s ? new Date(String(s).split(" ")[0]).toLocaleString("ja-JP") + (String(s).includes(" ") ? " (" + String(s).split(" ").slice(1).join(" ") + ")" : "") : "まだ";
   if(!$("#pmMailTo").value) $("#pmMailTo").value = mail.to || "";
   $("#pmAlertOn").checked = !!mail.alert; $("#pmDigestOn").checked = !!mail.digest;
+  ntfRender(mail.notify, mail.notifyDef);
   st.innerHTML = (mail.to ? `送り先: ${esc(mail.to)}` : `⚠ 送り先が未設定です`)
     + (mail.scheduled ? "" : `<br><b style="color:var(--warn)">⚠ まだ動いていません: Apps Script で <code>setup</code> を1回実行してください</b>`)
     + `<br>最後の急変通知: ${esc(t(mail.alertLast))} ／ 最後のまとめ: ${esc(t(mail.digestLast))}`;
@@ -3124,7 +3191,8 @@ $("#pmMailSave") && $("#pmMailSave").addEventListener("click", async ()=>{
   const r = $("#pmMailResult"); r.innerHTML = `<span class="spin"></span>`;
   try{
     saveGasSettings();
-    const d = await pmGasPost({ action:"pmConfig", mailTo: $("#pmMailTo").value.trim(), alertOn: $("#pmAlertOn").checked, digestOn: $("#pmDigestOn").checked });
+    const d = await pmGasPost({ action:"pmConfig", mailTo: $("#pmMailTo").value.trim(), alertOn: $("#pmAlertOn").checked, digestOn: $("#pmDigestOn").checked, notify: ntfRead() });
+    CMP.data = null;   /* ずれの基準が変わったかもしれないので、比較を取り直す */
     if(!d || !d.ok) throw new Error((d && d.error) || "保存できませんでした");
     pmMailRender(d.mail);
     r.textContent = "✅ 保存しました"; r.style.color = "var(--ok)";
@@ -3262,7 +3330,7 @@ function renderHlSpot(){
   const d = HL.data; if(!d) return;
   const S = d.snap.spot || [];
   $("#hlSpot").innerHTML = S.length ? `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>銘柄</th><th>価格</th><th>24時間</th><th>出来高</th><th>流通時価総額</th><th>FDV ${termBtn("fdv")}</th><th>流通率</th></tr></thead><tbody>`
-    + S.slice(0, 30).map(r=>`<tr><td><b>${esc(r.n)}</b></td><td>${hlPx(r.px)}</td><td class="${r.px >= r.prev ? "up" : "down"}">${hlPct(r.prev ? (r.px/r.prev-1)*100 : null)}</td><td>${hlUsd(r.vol)}</td>
+    + S.slice(0, 30).map(r=>`<tr><td><b>${esc(r.n)}</b>${relBadge(r.n)}</td><td>${hlPx(r.px)}</td><td class="${r.px >= r.prev ? "up" : "down"}">${hlPct(r.prev ? (r.px/r.prev-1)*100 : null)}</td><td>${hlUsd(r.vol)}</td>
       <td>${r.circ ? hlUsd(r.circ*r.px) : "-"}</td><td>${r.total ? hlUsd(r.total*r.px) : "-"}</td><td>${r.circ && r.total ? Math.round(r.circ/r.total*100) + "%" : "-"}</td></tr>`).join("")
     + `</tbody></table></div><div class="hint">FDV = 価格 × 総発行量。流通率が低いほど、今後出回る分 (売り圧力) が多いことになります。</div>` : `<div class="hint">現物のデータを取得できませんでした</div>`;
 }
@@ -3346,7 +3414,7 @@ function renderFlowChains(){
   const v = (c, k) => c[k] == null ? -Infinity : c[k];
   const list = [...(d.chains || [])].sort((a,b)=> sort === "tvl" ? b.tvl - a.tvl : v(b, sort) - v(a, sort));
   $("#flChains").innerHTML = `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>チェーン</th><th>TVL</th><th>1日</th><th>7日</th><th>30日</th><th>推移 (90日)</th><th>ステーブルコイン</th><th>30日の増減</th></tr></thead><tbody>`
-    + list.map(c=>`<tr><td><b>${esc(c.n)}</b>${c.sym ? ` <small style="color:var(--dim)">${esc(c.sym)}</small>` : ""}</td><td>${esc(flUsd(c.tvl))}</td><td>${flPct(c.c1)}</td><td>${flPct(c.c7)}</td><td>${flPct(c.c30)}</td><td>${flSpark(c.h)}</td><td>${c.st ? esc(flUsd(c.st)) : "-"}</td><td>${c.s30d != null ? `<span class="${c.s30d >= 0 ? "up" : "down"}">${c.s30d >= 0 ? "+" : ""}${esc(flUsd(c.s30d))}</span>` : "-"}</td></tr>`).join("")
+    + list.map(c=>`<tr><td><b>${esc(c.n)}</b>${relBadge(c.n)}${c.sym ? ` <small style="color:var(--dim)">${esc(c.sym)}</small>` : ""}</td><td>${esc(flUsd(c.tvl))}</td><td>${flPct(c.c1)}</td><td>${flPct(c.c7)}</td><td>${flPct(c.c30)}</td><td>${flSpark(c.h)}</td><td>${c.st ? esc(flUsd(c.st)) : "-"}</td><td>${c.s30d != null ? `<span class="${c.s30d >= 0 ? "up" : "down"}">${c.s30d >= 0 ? "+" : ""}${esc(flUsd(c.s30d))}</span>` : "-"}</td></tr>`).join("")
     + `</tbody></table></div><div class="hint">1日・7日・30日の変化と推移は、上位のチェーンと Base・Solana・Hyperliquid などについて出しています。</div>`;
 }
 const FL_CAT = { Derivatives:"先物", Interface:"取引画面", "Prediction Market":"予測市場", Options:"オプション" };
@@ -3357,7 +3425,7 @@ function renderFlowPerps(){
   const P = d.perps || [];
   /* 🪂 候補 */
   const cand = P.filter(flIsCand).sort((a,b)=> (b.c30 == null ? -1e9 : b.c30) - (a.c30 == null ? -1e9 : a.c30));
-  $("#flCand").innerHTML = cand.length ? cand.map(x=>`<div class="fl-cand" data-perp="${esc(x.key)}"><div><b>${esc(x.n)}</b>${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}<small>${esc((x.ch||[]).join("・"))}</small></div>
+  $("#flCand").innerHTML = cand.length ? cand.map(x=>`<div class="fl-cand" data-perp="${esc(x.key)}"><div><b>${esc(x.n)}</b>${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}${relBadge(x.n)}<small>${esc((x.ch||[]).join("・"))}</small></div>
       <div><small>建玉</small><b>${esc(flUsd(x.oi))}</b></div><div><small>30日</small>${flPct(x.c30)}</div><div><small>手数料30日</small><b>${x.f30 != null ? esc(flUsd(x.f30)) : "-"}</b></div></div>`).join("")
       + `<div class="hint">トークンをまだ出していない先物 DEX を、建玉が30日で伸びた順に並べています。トークンの有無は DefiLlama の登録情報によるもので、親プロジェクトがトークンを出している場合などは実際と違うことがあります。</div>`
     : `<div class="hint">候補が見つかりませんでした (トークンの情報を取得中の可能性があります)</div>`;
@@ -3366,7 +3434,7 @@ function renderFlowPerps(){
   const sort = $("#flPSort").value, v = (x,k)=> x[k] == null ? -Infinity : x[k];
   const list = [...P].sort((a,b)=> v(b, sort) - v(a, sort));
   $("#flPerps").innerHTML = list.length ? `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>名前</th><th>分類</th><th>チェーン</th><th>建玉</th><th>7日</th><th>30日</th><th>手数料24h</th><th>手数料30日</th><th>TVL</th><th>トークン</th></tr></thead><tbody>`
-    + list.map(x=>`<tr data-perp="${esc(x.key)}" class="${FL.sel === x.key ? "sel" : ""}"><td><b>${esc(x.n)}</b>${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}</td><td>${esc(FL_CAT[x.cat] || x.cat)}</td><td>${esc((x.ch||[]).join("・"))}</td><td>${esc(flUsd(x.oi))}</td><td>${flPct(x.c7)}</td><td>${flPct(x.c30)}</td>
+    + list.map(x=>`<tr data-perp="${esc(x.key)}" class="${FL.sel === x.key ? "sel" : ""}"><td><b>${esc(x.n)}</b>${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}${relBadge(x.n)}</td><td>${esc(FL_CAT[x.cat] || x.cat)}</td><td>${esc((x.ch||[]).join("・"))}</td><td>${esc(flUsd(x.oi))}</td><td>${flPct(x.c7)}</td><td>${flPct(x.c30)}</td>
       <td>${x.f24 != null ? esc(flUsd(x.f24)) : "-"}</td><td>${x.f30 != null ? esc(flUsd(x.f30)) : "-"}</td><td>${x.tvl != null ? esc(flUsd(x.tvl)) : "-"}</td><td>${flTok(x)}</td></tr>`).join("")
     + `</tbody></table></div><div class="hint">行を押すと、建玉と手数料の推移が出ます。手数料は取引の活発さの目安です (出来高は DefiLlama では有料のため)。NEW = 30日以内に建玉が出てきたもの。</div>`
     : `<div class="hint">取得できませんでした</div>`;
@@ -3873,7 +3941,7 @@ function renderCal(){
       : !pmx || !pmx.opts.length ? `<span class="hint" style="margin:0">関連する予想市場は見つかりませんでした</span>`
       : `<button class="mc-cal-pm" data-pmev="${esc(pmx.id)}" data-pms="${esc(pmx.s)}">📊 ${pmx.opts.slice(0,3).map(o=>`${esc(pmJa(o.g))} <b>${pmPct(o.p)}</b>`).join(" ／ ")}</button>`;
     const km = e.k === "fomc" && CMP.data ? (CMP.data.list || []).find(m=>m.d === e.d) : null;
-    const kal = km ? `<span class="hint" style="margin:0">Kalshi: ${km.rows.filter(r=>r.k).sort((a,b)=>b.k.p - a.k.p).slice(0,3).map(r=>`${esc(r.ja)} <b>${cmpPct(r.k.p)}</b>`).join(" ／ ")}</span>` : "";
+    const kal = km ? `<button class="mc-cal-pm" data-relgo="poly" data-cat="kalshi">⚖️ Kalshi: ${km.rows.filter(r=>r.k).sort((a,b)=>b.k.p - a.k.p).slice(0,3).map(r=>`${esc(r.ja)} <b>${cmpPct(r.k.p)}</b>`).join(" ／ ")}${km.rows.some(r=>cmpLevel(r) === "r") ? ` <span class="cmp-d cmp-r">⚠ ずれあり</span>` : ""} →</button>` : "";
     return `<div class="mc-cal-row"><div class="mc-cal-when"><b>${esc(mcUntil(e.at))}</b><small>${esc(when)}</small></div>
       <div class="mc-cal-what"><div>${k[0]} ${esc(mcCalLabel(e))} ${termBtn(k[2])}</div>${odds}${kal}</div></div>`;
   };
@@ -3909,7 +3977,8 @@ async function loadCompare(){
 function cmpPct(x){ return x == null ? "-" : Math.round(x*100) + "%"; }
 function cmpSide(x){ return !x ? `<span class="hint" style="margin:0">なし</span>` : `<b>${cmpPct(x.p)}</b>` + (x.bid > 0 && x.ask > 0 ? `<small> (売${cmpPct(x.bid)}・買${cmpPct(x.ask)})</small>` : ""); }
 /** ずれの段階: 買値・売値の幅を考えたずれで決める ("r" 5pt以上 / "y" 2〜5pt / "" それ未満) */
-function cmpLevel(r){ return r.gap == null ? "" : r.gap >= 0.05 ? "r" : r.gap >= 0.02 ? "y" : ""; }
+function cmpGapRed(){ return (CMP.data && CMP.data.gapAlert) || 0.05; }
+function cmpLevel(r){ const red = cmpGapRed(); return r.gap == null ? "" : r.gap >= red - 1e-9 ? "r" : r.gap >= Math.min(0.02, red / 2) ? "y" : ""; }
 function cmpDiffHtml(r){
   if(r.diff == null) return "-";
   const lv = cmpLevel(r), d = Math.round(r.diff*100);
@@ -3936,7 +4005,7 @@ function renderCompareView(box){
   }
   const list = CMP.data.list || [];
   const t = new Date(CMP.data.at).toLocaleTimeString("ja-JP", { hour:"2-digit", minute:"2-digit" });
-  const head = `<div class="cmp-top"><div><b>⚖️ Polymarket と Kalshi の比較 (FOMC)</b> ${termBtn("kalshi")}<div class="hint" style="margin:2px 0 0">${esc(t)} 時点 ・ 差 = Polymarket − Kalshi ・ <span class="cmp-d cmp-r">赤</span> 幅を考えても5pt以上ずれ (通知も送ります) ・ <span class="cmp-d cmp-y">黄</span> 2〜5pt</div></div>
+  const head = `<div class="cmp-top"><div><b>⚖️ Polymarket と Kalshi の比較 (FOMC)</b> ${termBtn("kalshi")}<div class="hint" style="margin:2px 0 0">${esc(t)} 時点 ・ 差 = Polymarket − Kalshi ・ <span class="cmp-d cmp-r">赤</span> 幅を考えても${Math.round(cmpGapRed()*100)}pt以上ずれ (通知の対象) ・ <span class="cmp-d cmp-y">黄</span> それより小さなずれ</div></div>
     <div class="chips"><button class="chip ${CMP.sort === "gap" ? "active" : ""}" data-cmpsort="gap">ずれの大きい順</button><button class="chip ${CMP.sort === "meet" ? "active" : ""}" data-cmpsort="meet">会合ごと</button></div></div>`;
   const row = (m, r, showMeet) => `<div class="cmp-row cmp-bg-${cmpLevel(r) || "n"}">
       <div class="cmp-what">${showMeet ? `<small>${esc(cmpMeetLabel(m.d))}</small>` : ""}<b>${esc(r.ja)}</b></div>
@@ -5128,6 +5197,98 @@ function switchTab(t){
 }
 $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
 
+/* ================= タブどうしをつなげる ================= */
+/* Polymarket の市場 ⇄ Hyperliquid (銘柄・現物の FDV)・マクロの指標・お金の流れ (チェーン・先物 DEX) を、名前で結び付ける */
+const REL_COINS = [["BTC", /\b(bitcoin|btc)\b/i], ["ETH", /\b(ethereum|eth)\b/i], ["SOL", /\b(solana|sol)\b/i], ["HYPE", /\b(hyperliquid|hype)\b/i]];
+const REL_MACRO = [
+  [/\b(fed|fomc|interest rate|rate cut|rate hike)\b/i, ["ff", "dgs2", "sofr"]],
+  [/\b(cpi|inflation)\b/i, ["cpi", "core"]],
+  [/\b(unemployment|jobs|payroll|recession)\b/i, ["unrate", "curve", "hy"]],
+  [/\b(s&p|sp500|nasdaq|stock)\b/i, ["sp500", "nasdaq", "vix"]],
+  [/\b(treasury|yield)\b/i, ["dgs10", "dgs2", "curve"]],
+];
+function relText(e){ return e.t + " " + e.markets.slice(0, 3).map(m=>m.q).join(" "); }
+/** 市場が扱っているプロジェクトの名前 (TGE・FDV・トークン発行の市場)。分からなければ null */
+function relProject(e){
+  if(e._rp !== undefined) return e._rp;
+  let n = pmLaunchProject(e);
+  if(!n){ const m = String(e.t).match(/^will\s+(.+?)\s+(?:launch|airdrop)\b/i) || String(e.t).match(/^(.+?)\s+(?:airdrop|token launch|tge)\b/i); n = m ? m[1].replace(/^the\s+/i, "").trim() : null; }
+  return (e._rp = n && n.length <= 30 ? n : null);
+}
+const relKey = s => String(s || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
+/** 名前 (チェーン・先物 DEX・現物トークン) に合う Polymarket の市場 */
+function relFind(name){
+  const k = relKey(name), k1 = k.split(" ")[0];
+  if(!k1 || k1.length < 3) return null;
+  return pm.events.find(e=>{ const p = relKey(relProject(e)); return p && (p === k || p === k1 || p.split(" ")[0] === k1 && p.split(" ")[0].length >= 4); }) || null;
+}
+function relBadge(name){
+  const e = relFind(name); if(!e) return "";
+  return ` <button class="rel-b" data-relopen="${esc(e.id)}" title="${esc(pmJa(e.t))}">📊 予測市場あり</button>`;
+}
+/** Polymarket の詳細に出す「関連する情報」 */
+function pmRelatedHtml(e){
+  const out = [], text = relText(e);
+  /* ① Hyperliquid の銘柄 */
+  if(HL.data && HL.data.snap){
+    const P = HL.data.snap.perps || [];
+    for(const [c, re] of REL_COINS){
+      if(!re.test(text)) continue;
+      const r = P.find(x=>x.n === c); if(!r) continue;
+      const o = hlOi24(c);
+      out.push(`<button class="rel-row" data-relgo="hl" data-coin="${c}"><span class="rel-ic">🟢</span><div><b>${c} の今 (Hyperliquid)</b><small>${hlPx(r.px)} (24時間 ${hlPct(r.prev ? (r.px/r.prev-1)*100 : null)}) ・ 建玉 ${esc(hlUsd(r.oi))}${o != null ? ` (24時間 ${hlPct(o, 0)})` : ""} ・ ファンディング ${hlF8(r.f*8)}</small></div><span class="rel-go">→</span></button>`);
+      break;
+    }
+  }
+  /* ② マクロの指標 */
+  if(MC.res){
+    const hit = REL_MACRO.find(([re])=>re.test(text));
+    if(hit){
+      const items = hit[1].map(id=>[id, MC.res[id]]).filter(x=>x[1]);
+      if(items.length) out.push(`<div class="rel-row rel-static"><span class="rel-ic">🌐</span><div><b>関連するマクロの指標</b><div class="rel-pills">${items.map(([id, r])=>`<button class="hm-pill" data-relgo="btc" data-mc="${id}">${r.sig ? MC_SIG[r.sig] + " " : ""}${esc(mcName(id))} <b>${esc(r.v)}</b></button>`).join("")}</div></div></div>`);
+    }
+  }
+  /* ③ プロジェクト: 現物の FDV・チェーンのお金・先物 DEX */
+  const proj = relProject(e);
+  if(proj){
+    const k = relKey(proj), k1 = k.split(" ")[0];
+    const sp = HL.data && HL.data.snap ? (HL.data.snap.spot || []).find(x=>relKey(x.n) === k || relKey(x.n) === k1) : null;
+    if(sp && sp.total) out.push(`<button class="rel-row" data-relgo="hl"><span class="rel-ic">🪙</span><div><b>${esc(sp.n)} のいまの FDV (Hyperliquid の現物)</b><small>${esc(hlUsd(sp.total*sp.px))} ・ 価格 ${hlPx(sp.px)} ・ 流通率 ${sp.circ ? Math.round(sp.circ/sp.total*100) + "%" : "-"}</small></div><span class="rel-go">→</span></button>`);
+    if(FL.data){
+      const ch = (FL.data.chains || []).find(c=>relKey(c.n) === k || relKey(c.n).split(" ")[0] === k1);
+      if(ch) out.push(`<button class="rel-row" data-relgo="flow"><span class="rel-ic">💧</span><div><b>${esc(ch.n)} チェーンのお金の流れ</b><small>TVL ${esc(flUsd(ch.tvl))}${ch.c30 != null ? ` (30日 ${ch.c30 >= 0 ? "+" : ""}${ch.c30.toFixed(1)}%)` : ""}${ch.st ? ` ・ ステーブルコイン ${esc(flUsd(ch.st))}` : ""}${ch.s30d != null ? ` (30日 ${ch.s30d >= 0 ? "+" : ""}${esc(flUsd(ch.s30d))})` : ""}</small></div><span class="rel-go">→</span></button>`);
+      const px = (FL.data.perps || []).find(p=>relKey(p.n).split(" ")[0] === k1);
+      if(px) out.push(`<button class="rel-row" data-relgo="flow" data-perp="${esc(px.key)}"><span class="rel-ic">📊</span><div><b>${esc(px.n)} (先物 DEX)</b><small>建玉 ${esc(flUsd(px.oi))}${px.c30 != null ? ` (30日 ${px.c30 >= 0 ? "+" : ""}${Number(px.c30).toFixed(1)}%)` : ""}${px.f30 != null ? ` ・ 手数料30日 ${esc(flUsd(px.f30))}` : ""} ・ トークン ${px.token == null ? "不明" : px.token ? esc(px.sym) : "未発行"}</small></div><span class="rel-go">→</span></button>`);
+    }
+  }
+  return out.length ? `<div class="pm-h">🔗 関連する情報</div><div class="rel-list">${out.join("")}</div>` : "";
+}
+function pmRenderRelated(){
+  const box = $("#pmSRelated"); if(!box) return;
+  box.innerHTML = pm.sheet ? pmRelatedHtml(pm.sheet.e) : "";
+}
+/** ほかのタブのデータが届いたら、つながりの表示を描き直す */
+function relRefresh(){
+  try{
+    pmRenderRelated();
+    if(FL.data && loaded.flow){ renderFlowChains(); renderFlowPerps(); }
+    if(HL.data && loaded.hl) renderHlSpot();
+  }catch(e){}
+}
+document.addEventListener("click", ev=>{
+  const o = ev.target.closest("[data-relopen]");
+  if(o){ ev.preventDefault(); ev.stopPropagation(); switchTab("poly"); pmOpen(o.dataset.relopen); return; }
+  const g = ev.target.closest("[data-relgo]"); if(!g) return;
+  ev.stopPropagation();
+  if(pm.sheet) pmClose();
+  if(g.dataset.cat){ pm.cat = g.dataset.cat; }
+  switchTab(g.dataset.relgo);
+  if(g.dataset.cat){ pmRenderCats(); pmRender(); }
+  if(g.dataset.coin && HL.data && hlTracked().includes(g.dataset.coin)){ HL.sel = g.dataset.coin; renderHlChart(); renderHlPerps(); }
+  if(g.dataset.perp && FL.data){ FL.sel = g.dataset.perp; renderFlowPerps(); const b = $("#flPDetail"); b.scrollIntoView && b.scrollIntoView({ behavior:"smooth", block:"nearest" }); }
+  if(g.dataset.mc){ const el = $(`.mc-card[data-mc="${g.dataset.mc}"]`); if(el){ el.scrollIntoView && el.scrollIntoView({ behavior:"smooth", block:"center" }); el.classList.add("mc-flash"); setTimeout(()=>el.classList.remove("mc-flash"), 1600); } }
+}, true);
+
 /* ================= 🏠 ホーム (今日のまとめ) ================= */
 /* 4つのタブ (Polymarket・マクロ・Hyperliquid・お金の流れ) の要点を1画面に集める。データは各タブのものをそのまま使う */
 /* ---- 記録の見張り (それぞれの記録が動いているか) ---- */
@@ -5282,7 +5443,8 @@ $("#tab-top").addEventListener("click", ev=>{
   renderMacro = wrap("renderMacro", renderMacro); renderCal = wrap("renderCal", renderCal);
   const lc = loadCompare; loadCompare = async function(){ await lc.apply(this, arguments); try{ renderTop(); }catch(e){} };
   /* 読み込みが終わったら (失敗でも) 印を付けて、ホームの「読み込み中」を止める */
-  const done = (fn, obj) => async function(){ try{ return await fn.apply(this, arguments); } finally { obj.tried = true; try{ renderTop(); }catch(e){} } };
+  const done = (fn, obj) => async function(){ try{ return await fn.apply(this, arguments); } finally { obj.tried = true; try{ renderTop(); }catch(e){} relRefresh(); } };
+  const pl = pmLoad; pmLoad = async function(){ await pl.apply(this, arguments); relRefresh(); };
   loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); }
 
 load();

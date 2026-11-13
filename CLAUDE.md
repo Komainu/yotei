@@ -26,6 +26,8 @@
 > - お金の流れタブ (DefiLlama): サーバーの `llamaData_` が /v2/chains・historicalChainTvl・stablecoinchains・stablecoincharts・overview/open-interest を取り llama-latest.json に6時間保存 (`doGet ?action=llama`)。`pmDailyJobs_` の `llamaLog_` が llama-YYYY-MM.json に日ごと。先物 DEX の出来高 (overview/derivatives) は有料なので使わない。先物 DEX は `llamaPerps_`: 建玉の内訳の推移 (シェア・NEW 判定)・overview/fees の手数料・/protocols (1日1回 llama-protocols.json) のトークンの有無と TVL。`llamaIsCand_` = トークン未発行のエアドロップ候補。詳細の手数料の推移は `doGet ?action=llamaFees&slug=`
 > - ホーム (`tab-top`・`renderTop`): 各タブのデータ (`MC.res` `pm` `CMP` `HL` `FL`) から要点を集める。各タブの描画関数を包んで、描画のたびにホームも描き直す。旧・予定管理の `renderHome` (`tab-home`) とは別物なので名前を混ぜない
 > - 記録の見張り (gas/Code.gs 末尾): 各ジョブが `hbOk_`/`hbErr_`/`hbRun_` で `HB_<名前>`・`HBE_<名前>` に控える。`pmHealth_` が `HEALTH_JOBS` の間隔と比べて ok/stale/error/never/off を返す (`doGet ?action=health`、状況の `pm.health`)。`pmHealthMail_` (pmRecord の最後) が、間隔を過ぎても直らない時だけ24時間に1回メール。**新しい定期処理を足したら HEALTH_JOBS にも足す**
+> - 通知の条件 (gas/Code.gs 末尾 `NTF_SPEC`・`ntf_()`): 初期値と範囲を1か所で持ち、変更分だけ `PM_NOTIFY` に保存。`pmConfig` の `notify` (オブジェクト or 'reset') で変える。単位は画面と同じ (pt・%・倍・ドル・時間)。アプリは設定の「通知の条件を変える」(`data-ntf`)。**通知の基準を足す時は NTF_SPEC と画面の入力欄の両方に足す**
+> - タブどうしのつながり (index.html「タブどうしをつなげる」): `relProject(e)` で市場のプロジェクト名を取り、`relFind(name)`/`relBadge` でチェーン・先物 DEX・現物に「予測市場あり」の印。Polymarket の詳細の `#pmSRelated` (`pmRelatedHtml`) に Hyperliquid の銘柄 (`REL_COINS`)・マクロの指標 (`REL_MACRO`)・チェーン/先物 DEX/現物 FDV を出す。移動は `data-relgo` (タブ)・`data-relopen` (市場)
 > - 用語集: index.html の `GLOSS` (n 名前 / a 別名=自動リンクする言葉 / s ひとことで / w なぜ大事か / u・d 上がると・下がると / r 関連)。`linkTerms()` で本文に下線リンク、`termBtn()` で ? ボタン。用語を足す時は GLOSS に1つ足すだけ (テストで関連先と別名の重複を確認)
 > - 端末の保存: `pm_tr_v1` `pm_sc_v1` `pm_watch_v1` `pm_hide_v1` (予定の `sakiyomi_v1` とは別)
 

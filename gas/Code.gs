@@ -38,7 +38,7 @@ const URGENT_DAYS = 7;
 const POLL_MINUTES = 1;   // ボタンの反応を早くするため1分おき
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.11.30';
+const GAS_VERSION = '2026.12.01';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -2070,6 +2070,8 @@ function pmConfig_(data) {
   }
   if (data.alertOn != null) props.setProperty('PM_ALERT_ON', data.alertOn ? '1' : '0');
   if (data.digestOn != null) props.setProperty('PM_DIGEST_ON', data.digestOn ? '1' : '0');
+  if (data.notify === 'reset') props.deleteProperty('PM_NOTIFY');
+  else if (data.notify && typeof data.notify === 'object') ntfSave_(data.notify);
   return { ok: true, ai: pmAiStatus_(), mail: pmMailStatus_() };
 }
 
@@ -2084,7 +2086,8 @@ function pmMailStatus_() {
   const props = PropertiesService.getScriptProperties();
   return { to: props.getProperty('MAIL_TO') || '', alert: pmMailOn_('PM_ALERT_ON'), digest: pmMailOn_('PM_DIGEST_ON'),
     alertLast: props.getProperty('PM_ALERT_LAST') || null, digestLast: props.getProperty('PM_DIGEST_LAST') || null,
-    scheduled: ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'pmAlert'; }) };
+    scheduled: ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'pmAlert'; }),
+    notify: ntf_(), notifyDef: ntfDefaults_() };
 }
 function pmAiStatus_() {
   const props = PropertiesService.getScriptProperties();
@@ -2204,12 +2207,13 @@ function pmScoresFor_(rows) {
 
 /** 通知する理由 (無ければ null) */
 function pmAlertReason_(r, watched) {
-  if (r.v24 < PM_ALERT_MIN_VOL && !watched) return null;
+  const N = ntf_();
+  if (r.v24 < N.minvol && !watched) return null;
   const pt = function (d) { return (d > 0 ? '▲' : '▼') + Math.abs(Math.round(d * 1000) / 10) + 'pt'; };
-  if (r.h1 != null && Math.abs(r.h1) >= (watched ? PM_ALERT_WATCH_H1 : PM_ALERT_H1)) return { k: 'h1', d: r.h1, txt: '1時間で' + pt(r.h1) };
-  if (r.d1 != null && Math.abs(r.d1) >= PM_ALERT_D1) return { k: 'd1', d: r.d1, txt: '24時間で' + pt(r.d1) };
+  if (r.h1 != null && Math.abs(r.h1) >= (watched ? N.wh1 : N.h1) / 100 - 1e-9) return { k: 'h1', d: r.h1, txt: '1時間で' + pt(r.h1) };
+  if (r.d1 != null && Math.abs(r.d1) >= N.d1 / 100 - 1e-9) return { k: 'd1', d: r.d1, txt: '24時間で' + pt(r.d1) };
   const avg = r.w1 / 7;
-  if (avg > 0 && r.v24 >= PM_ALERT_MIN_VOL && r.v24 >= avg * PM_ALERT_VOL_X) return { k: 'vol', d: 0, txt: '出来高が普段の' + Math.round(r.v24 / avg * 10) / 10 + '倍' };
+  if (avg > 0 && r.v24 >= N.minvol && r.v24 >= avg * N.volx) return { k: 'vol', d: 0, txt: '出来高が普段の' + Math.round(r.v24 / avg * 10) / 10 + '倍' };
   return null;
 }
 
@@ -2236,13 +2240,15 @@ function pmAlert() {
     const watchIds = pmWatchIds_();
     const rows = pmFetchTopRaw_(PM_ALERT_PAGES).map(pmAlertRow_).filter(Boolean);
     hbOk_('alert');
+    const NT = ntf_(), cool = NT.cool * 3600000;
+    if (!NT.pm) return;
     let sent = {};
     try { sent = JSON.parse(props.getProperty('PM_ALERT_SENT') || '{}'); } catch (e) {}
     const now = Date.now();
     let hits = rows.map(function (r) {
       const watched = watchIds.indexOf(r.id) >= 0;
       const why = pmAlertReason_(r, watched);
-      return why && !(sent[r.id] && now - sent[r.id] < PM_ALERT_COOLDOWN) ? { r: r, why: why, watched: watched } : null;
+      return why && !(sent[r.id] && now - sent[r.id] < cool) ? { r: r, why: why, watched: watched } : null;
     }).filter(Boolean);
     if (!hits.length) return;
     // あなた向け (点数2以上) とウォッチだけ
@@ -3107,17 +3113,18 @@ function fedCompareRecord_() {
   // 大きなずれの通知
   const props = PropertiesService.getScriptProperties();
   const to = pmMailTo_();
-  if (!to || !pmMailOn_('PM_ALERT_ON')) return list;
+  const NT = ntf_(), gapMin = NT.gap / 100;
+  if (!to || !pmMailOn_('PM_ALERT_ON') || !NT.kalshi) return list;
   let sent = {};
   try { sent = JSON.parse(props.getProperty('FED_GAP_SENT') || '{}'); } catch (e) {}
   const hits = [];
   list.forEach(function (m) { m.rows.forEach(function (r) {
     const key = m.d + ':' + r.b;
-    if (r.gap != null && r.gap >= FED_GAP_ALERT && !(sent[key] && now - sent[key] < FED_GAP_COOLDOWN)) { hits.push({ m: m, r: r }); sent[key] = now; }
+    if (r.gap != null && r.gap >= gapMin - 1e-9 && !(sent[key] && now - sent[key] < FED_GAP_COOLDOWN)) { hits.push({ m: m, r: r }); sent[key] = now; }
   }); });
   if (!hits.length) return list;
   const pct = function (x) { return Math.round(x * 100) + '%'; };
-  const body = 'Polymarket と Kalshi で、FOMC の予想が大きくずれています (買値・売値の幅を考えても ' + Math.round(FED_GAP_ALERT * 100) + 'pt 以上)。\n\n'
+  const body = 'Polymarket と Kalshi で、FOMC の予想が大きくずれています (買値・売値の幅を考えても ' + NT.gap + 'pt 以上)。\n\n'
     + hits.map(function (h) {
       return '・' + h.m.d + ' の FOMC ― ' + h.r.ja + ': Polymarket ' + pct(h.r.pm.p) + ' (買' + pct(h.r.pm.ask) + '/売' + pct(h.r.pm.bid) + ') ／ Kalshi ' + pct(h.r.k.p) + ' (買' + pct(h.r.k.ask) + '/売' + pct(h.r.k.bid) + ') → ずれ ' + Math.round(h.r.gap * 100) + 'pt';
     }).join('\n')
@@ -3136,7 +3143,7 @@ function fedCompareLatest_() {
     try { cur = { at: Date.now(), list: fedCompare_() }; pmWrite_('fed-compare-latest.json', JSON.stringify(cur)); }
     catch (e) { if (!cur) return { ok: false, error: String(e) }; }
   }
-  return { ok: true, at: cur.at, list: cur.list };
+  return { ok: true, at: cur.at, list: cur.list, gapAlert: ntf_().gap / 100 };
 }
 
 // =====================================================================
@@ -3216,7 +3223,8 @@ function hlRecord_() {
   // 通知: 24時間前と比べた建玉の急変・ファンディングの極端
   const props = PropertiesService.getScriptProperties();
   const to = pmMailTo_();
-  if (!to || !pmMailOn_('PM_ALERT_ON')) return entry;
+  const NT = ntf_();
+  if (!to || !pmMailOn_('PM_ALERT_ON') || !NT.hl) return entry;
   const prev = hlLoad_(hlMonths_(now - 86400000, 1))[hlKey_(now - 86400000)] || {};
   let sent = {};
   try { sent = JSON.parse(props.getProperty('HL_ALERT_SENT') || '{}'); } catch (e) {}
@@ -3225,14 +3233,14 @@ function hlRecord_() {
     const x = entry[c], p = prev[c];
     if (p && p[0] > 0) {
       const ch = (x[0] / p[0] - 1) * 100, pxch = p[2] > 0 ? (x[2] / p[2] - 1) * 100 : 0;
-      if (Math.abs(ch) >= HL_OI_ALERT && !(sent[c + ':oi'] && now - sent[c + ':oi'] < HL_COOLDOWN)) {
+      if (Math.abs(ch) >= NT.oi && !(sent[c + ':oi'] && now - sent[c + ':oi'] < HL_COOLDOWN)) {
         hits.push(c + ' の建玉が24時間で ' + (ch > 0 ? '+' : '') + ch.toFixed(0) + '% (' + pmMoneyJa_(p[0]) + ' → ' + pmMoneyJa_(x[0]) + ')、価格 ' + (pxch > 0 ? '+' : '') + pxch.toFixed(1) + '%'
           + (ch > 0 ? ' — レバレッジが急に積み上がっています' : ' — 手じまい・清算が進みました'));
         sent[c + ':oi'] = now;
       }
     }
     const f8 = x[1] * 8;
-    if ((f8 >= HL_FUND_HI || f8 <= HL_FUND_LO) && !(sent[c + ':f'] && now - sent[c + ':f'] < HL_COOLDOWN)) {
+    if ((f8 >= NT.fhi / 100 || f8 <= NT.flo / 100) && !(sent[c + ':f'] && now - sent[c + ':f'] < HL_COOLDOWN)) {
       hits.push(c + ' のファンディングレート ' + (f8 * 100).toFixed(3) + '% / 8時間 — ' + (f8 > 0 ? '買いが過熱' : '売りが優勢'));
       sent[c + ':f'] = now;
     }
@@ -3469,7 +3477,7 @@ function pmHealthLine_() {
 function pmHealthMail_() {
   const p = PropertiesService.getScriptProperties();
   const to = pmMailTo_();
-  if (!to) return;
+  if (!to || !ntf_().health) return;
   const h = pmHealth_();
   const late = h.jobs.filter(function (j) { return j.late; }).length;   // トリガーが無い時はそもそもここが動かないので、アプリの画面で知らせる
   if (!late) { if (h.ok && p.getProperty('HEALTH_MAILED')) p.deleteProperty('HEALTH_MAILED'); return; }
@@ -3479,4 +3487,37 @@ function pmHealthMail_() {
     body: '自動の記録に問題があります。記録は貯め続けることに価値があるので、早めに確かめてください。\n\n' + pmHealthText_(h).join('\n')
       + '\n\n確かめ方: アプリの「設定」→「状況を確認」で、それぞれの記録の状態が見られます。\n1〜2時間たっても直らない時は、Apps Script の画面で setup を実行してみてください。' });
   p.setProperty('HEALTH_MAILED', String(Date.now()));
+}
+
+// =====================================================================
+//  通知の条件 (アプリの設定で変えられる)。Script Properties の PM_NOTIFY に、初期値と違うものだけ保存
+//    単位は画面と同じ: pt・%・倍・ドル・時間
+// =====================================================================
+
+/** [初期値, 最小, 最大] (true/false はオン・オフ) */
+const NTF_SPEC = {
+  pm: [true], h1: [10, 1, 50], d1: [15, 1, 80], wh1: [5, 1, 50], volx: [3, 1.5, 50], minvol: [10000, 0, 10000000], cool: [6, 1, 72],
+  kalshi: [true], gap: [5, 1, 50],
+  hl: [true], oi: [20, 5, 200], fhi: [0.05, 0.005, 1], flo: [-0.03, -1, -0.005],
+  health: [true],
+};
+function ntfDefaults_() { const o = {}; Object.keys(NTF_SPEC).forEach(function (k) { o[k] = NTF_SPEC[k][0]; }); return o; }
+function ntf_() {
+  const o = ntfDefaults_();
+  let saved = {};
+  try { saved = JSON.parse(PropertiesService.getScriptProperties().getProperty('PM_NOTIFY') || '{}') || {}; } catch (e) {}
+  Object.keys(NTF_SPEC).forEach(function (k) { if (saved[k] != null && typeof saved[k] === typeof o[k]) o[k] = saved[k]; });
+  return o;
+}
+/** 送られてきた値を範囲に収めて保存する (知らない項目・数でないものは無視) */
+function ntfSave_(input) {
+  const cur = ntf_(), def = ntfDefaults_(), out = {};
+  Object.keys(NTF_SPEC).forEach(function (k) {
+    const sp = NTF_SPEC[k];
+    let v = input[k] != null ? input[k] : cur[k];
+    if (typeof sp[0] === 'boolean') v = !!v;
+    else { v = Number(v); if (isNaN(v)) v = cur[k]; v = Math.max(sp[1], Math.min(sp[2], v)); }
+    if (v !== def[k]) out[k] = v;
+  });
+  PropertiesService.getScriptProperties().setProperty('PM_NOTIFY', JSON.stringify(out));
 }
