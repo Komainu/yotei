@@ -37,7 +37,7 @@ catch(e){ document.documentElement.dataset.theme = "light"; }
   --tint-danger:#fdecef; --tint-warn:#fdf2e1; --tint-ok:#e6f5ec; --tint-pin:#fbe9f1; --tint-accent:#e9effc;
 }
 :root[data-theme="light"] body{ background:var(--bg); }
-:root[data-theme="light"] .fng-cursor{ background:var(--text); }
+
 *{box-sizing:border-box; margin:0; padding:0}
 html{scrollbar-color:var(--sb) var(--bg)}
 :root{--sb:#2b3a5e}
@@ -77,13 +77,7 @@ header{
 }
 .brand h1{font-size:20px; letter-spacing:.04em}
 .brand h1 small{font-size:12px; color:var(--muted); font-weight:normal; margin-left:10px}
-.stats{margin-left:auto; display:flex; gap:8px; flex-wrap:wrap}
-.stat{
-  background:var(--panel); border:1px solid var(--border); border-radius:999px;
-  padding:4px 14px; font-size:12.5px; color:var(--muted);
-}
-.stat b{color:var(--text); margin-left:4px}
-.stat.alert b{color:var(--warn)}
+
 nav.tabs{display:flex; flex-wrap:wrap; gap:2px 4px; margin-top:12px}
 @media (max-width:560px){ nav.tabs button{padding-left:8px !important; padding-right:8px !important; font-size:13.5px} }
 nav.tabs::-webkit-scrollbar{display:none}
@@ -115,147 +109,17 @@ section.tab.active{display:block; animation:fadein .18s ease}
 }
 .btn:hover{filter:brightness(1.2)}
 .btn.primary{background:linear-gradient(135deg,var(--accent),#3f6fe0); border:none; font-weight:600; color:#fff}
-.btn.ghost{background:none}
+
 .btn.small{padding:5px 11px; font-size:12.5px; border-radius:8px}
-.btn.danger{color:var(--danger)}
+
 .btn:disabled{opacity:.5; cursor:default}
 
-/* ---------- project cards ---------- */
-.plist{display:flex; flex-direction:column; gap:12px}
-.pcard{
-  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-  padding:16px 18px; transition:border-color .15s;
-}
-.pcard:hover{border-color:var(--hover)}
-.pcard.done{opacity:.6}
-/* 急ぎ具合で左端を色分け */
-.pcard.g-red{border-left:5px solid var(--danger)}
-.pcard.g-amber{border-left:5px solid var(--warn)}
-.pcard.g-pin{border-left:5px solid var(--pin)}
-.pcard.g-gray{border-left:5px solid var(--border)}
-.grp-head{display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:var(--muted);
-  margin:18px 2px 8px; letter-spacing:.02em}
-.grp-head:first-child{margin-top:4px}
-.grp-head .cnt{font-weight:600; color:var(--dim)}
-.grp-head.red{color:var(--danger)} .grp-head.amber{color:var(--warn)} .grp-head.pin{color:var(--pin)}
-details.grp-done > summary{list-style:none; cursor:pointer}
-details.grp-done > summary::-webkit-details-marker{display:none}
-details.grp-done > summary::before{content:"▶"; font-size:10px; margin-right:2px; transition:transform .15s}
-details.grp-done[open] > summary::before{transform:rotate(90deg)}
-/* 1行表示 */
-.plist.compact .pcard{padding:9px 14px}
-.plist.compact .psources, .plist.compact .pmemo, .plist.compact .pfoot{display:none}
-.plist.compact .pname{font-size:15px}
-.act-done{display:none}
-.plist.compact .act-done{display:inline-block}
-.flash{animation:flash 1.4s ease}
-@keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
-
-/* ---------- 部屋の背景 (手帳の線画) ---------- */
-#roomBg{position:fixed; inset:0; z-index:0; pointer-events:none}
-/* 予定管理は MUSE に移したので画面に出さない (データとコードは残してある) */
-body.pm-mode .legacy, body.pm-mode #roomBg{display:none !important}
-body.pm-mode.room-on{background:radial-gradient(1200px 600px at 80% -10%, #16224a 0%, var(--bg) 55%)}
-:root[data-theme="light"] body.pm-mode.room-on{background:var(--bg)}
-#roomBg svg{display:block}
-#roomBg .rbox, #roomBg .revent{pointer-events:auto; cursor:pointer}
-#roomBg .rnew{animation:rdraw 1.4s ease both}
-@keyframes rdraw{0%{opacity:0; transform:translateY(-14px)}100%{opacity:1; transform:none}}
-body.room-on{background:transparent}
-body.room-on main{position:relative; z-index:1}
-:root[data-theme="light"] body.room-on{--card:rgba(255,255,255,.84); --card2:rgba(245,247,250,.86); --hdr:rgba(255,255,255,.88); --border:rgba(30,40,60,.10); --dlg-bg:#ffffff}
-:root:not([data-theme="light"]) body.room-on{--card:rgba(24,29,42,.78); --card2:rgba(34,40,56,.80); --hdr:rgba(30,36,51,.82); --border:rgba(232,225,208,.18); --dlg-bg:#1e2433}
-body.room-on .hcard, body.room-on .pcard, body.room-on .set-card, body.room-on .metric, body.room-on .chip, body.room-on .home-menu button{backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px)}
-
-/* ---------- ものがたり ---------- */
-.story-line a{color:var(--accent); font-weight:700}
-.story-line span{color:var(--muted)}
-.story-ep{padding:12px 0; border-top:1px dashed var(--border)}
-.story-ep:first-of-type{border-top:none}
-.story-t{font-weight:700; margin-bottom:4px}
-.story-b{line-height:1.9; color:var(--text)}
-.story-ep:not(.cur) .story-b{color:var(--muted)}
-
-/* ---------- HOME ---------- */
-.game{display:flex; align-items:center; gap:16px; margin-bottom:14px; flex-wrap:wrap}
-.game .lv{width:62px; height:62px; border-radius:16px; flex:none; display:grid; place-items:center; text-align:center;
-  background:linear-gradient(135deg,var(--accent),#38d9c0); color:#fff; font-weight:800; line-height:1.05}
-.game .lv small{display:block; font-size:10.5px; font-weight:700; opacity:.9}
-.game .lv b{font-size:24px}
-.game .gmain{flex:1; min-width:200px}
-.game .gtitle{font-weight:800; font-size:15.5px}
-.game .xpbar{height:10px; border-radius:99px; background:var(--card2); overflow:hidden; margin:7px 0 5px}
-.game .xpbar > div{height:100%; border-radius:99px; background:linear-gradient(90deg,var(--accent),#38d9c0); transition:width .5s}
-.game .gsub{font-size:12px; color:var(--muted)}
-.game .streak{text-align:center; flex:none; min-width:84px}
-.game .streak b{display:block; font-size:28px; line-height:1.1}
-.game .streak span{font-size:11.5px; color:var(--muted); font-weight:700}
-.game .week{display:flex; gap:4px; align-items:flex-end; height:34px; flex:none}
-.game .week i{display:block; width:9px; border-radius:3px; background:var(--accent); opacity:.85; min-height:3px}
-.game .week i.zero{background:var(--border); opacity:1}
-.home-grid{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:14px; margin-bottom:14px}
-.hcard{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px}
-.hlabel{font-size:12.5px; font-weight:700; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:6px}
-.hello{display:flex; align-items:center; gap:14px; margin-bottom:14px}
-.hello .face{width:46px; height:46px; border-radius:50%; flex:none; display:grid; place-items:center; font-size:22px;
-  background:var(--tint-accent)}
-.hello .say{font-size:16.5px; font-weight:700; line-height:1.5}
-.hello .sub{font-size:12px; color:var(--muted)}
-.notice{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px dashed var(--border); cursor:pointer}
-.notice:first-of-type{border-top:none; padding-top:2px}
-.notice:hover .ntext{text-decoration:underline}
-.ntag{font-size:12px; font-weight:700; padding:3px 9px; border-radius:7px; white-space:nowrap; flex:none}
 .t-danger{background:var(--tint-danger); color:var(--danger)}
 .t-warn{background:var(--tint-warn); color:var(--warn)}
 .t-ok{background:var(--tint-ok); color:var(--ok)}
 .t-pin{background:var(--tint-pin); color:var(--pin)}
 .t-accent{background:var(--tint-accent); color:var(--accent)}
-.metrics{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-.metric{border-radius:12px; padding:12px 14px; background:var(--card2); cursor:pointer}
-.metric .mlab{font-size:12px; font-weight:700; color:var(--muted)}
-.metric .mnum{font-size:30px; font-weight:800; line-height:1.2}
-.metric.t-danger .mlab, .metric.t-danger .mnum{color:var(--danger)}
-.metric.t-ok .mlab, .metric.t-ok .mnum{color:var(--ok)}
-.gauge{height:12px; border-radius:99px; background:var(--card2); overflow:hidden; margin-top:4px}
-.gauge > div{height:100%; border-radius:99px; transition:width .4s}
-.todo{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px dashed var(--border); cursor:pointer}
-.todo:first-of-type{border-top:none; padding-top:2px}
-.todo .tname{font-weight:700}
-.todo .tmemo{font-size:12.5px; color:var(--muted)}
-.home-menu{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px}
-.home-menu button{border:1px solid var(--border); background:var(--card); color:var(--text); border-radius:12px;
-  padding:12px 10px; text-align:left; font-size:14px; font-weight:700}
-.home-menu button small{display:block; font-size:11.5px; font-weight:500; color:var(--muted)}
-.home-menu button:hover{border-color:var(--accent)}
-@media (max-width:760px){ .home-grid{grid-template-columns:1fr} .home-menu{grid-template-columns:1fr 1fr} }
-.pcard-top{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap}
-.pname{font-size:16.5px; font-weight:700}
-.pname .strike{text-decoration:line-through}
-.badge{
-  font-size:11.5px; border-radius:6px; padding:2px 9px; white-space:nowrap;
-  background:var(--card2); border:1px solid var(--border); color:var(--muted);
-}
-.badge.chain{color:var(--accent2); border-color:rgba(56,217,192,.35)}
-.badge.due-ok{color:var(--ok)}
-.badge.due-soon{color:var(--warn); border-color:rgba(255,180,84,.4)}
-.badge.due-over{color:var(--danger); border-color:rgba(255,107,129,.4)}
-.badge.pin{color:var(--pin); border-color:rgba(255,122,184,.4)}
-.pactions{margin-left:auto; display:flex; gap:6px; flex:none}
-.icon-btn{
-  background:none; border:1px solid transparent; border-radius:8px;
-  font-size:15px; padding:4px 8px; color:var(--muted); line-height:1;
-}
-.icon-btn:hover{background:var(--card2); color:var(--text)}
-.icon-btn.on{color:var(--pin)}
-.pmeta{margin-top:8px; font-size:13px; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap}
-.psources{margin-top:8px; display:flex; gap:6px; flex-wrap:wrap}
-.src-chip{
-  font-size:12px; background:var(--card2); border:1px solid var(--border);
-  border-radius:999px; padding:3px 12px; color:var(--accent2); max-width:280px;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;
-}
-.pmemo{margin-top:8px; font-size:13.5px; color:var(--muted); white-space:pre-wrap}
-.pfoot{margin-top:12px; display:flex; gap:8px; flex-wrap:wrap}
+
 .empty{
   text-align:center; color:var(--dim); padding:60px 20px; border:1.5px dashed var(--border);
   border-radius:var(--radius);
@@ -518,16 +382,6 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 .row{display:flex; gap:8px; align-items:center}
 .hint{font-size:12px; color:var(--dim); margin-top:8px}
 
-/* ---------- dialog ---------- */
-dialog{
-  background:var(--dlg-bg, var(--card)); color:var(--text); border:1px solid var(--border);
-  border-radius:16px; padding:0; width:min(560px,92vw); box-shadow:0 24px 80px rgba(0,0,0,.5);
-}
-dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
-.dlg-head{padding:18px 22px 0; font-size:17px; font-weight:700}
-.dlg-body{padding:14px 22px 22px}
-.dlg-body label{display:block; font-size:13px; color:var(--muted); margin:12px 0 5px}
-.dlg-foot{display:flex; justify-content:flex-end; gap:8px; padding:0 22px 20px}
 .check{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--text)}
 .check input{width:auto}
 
@@ -552,28 +406,20 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 }
 .toast.show{opacity:1}
 @media (max-width:640px){
-  .stats{display:none}
+
   main{padding:16px 12px 90px}
 }
 </style>
 </head>
-<body class="pm-mode">
-<div id="roomBg" aria-hidden="true"></div>
+<body>
 
 <header>
   <div class="head-inner">
     <div class="brand">
       <div class="logo">🔮</div>
       <h1>ポリマーケット記録<small id="appVer"></small><span class="offline-tag" id="offlineTag" hidden title="電波がない間は、この端末に保存されている前回の内容を表示しています">📴 オフライン</span></h1>
-      <div class="stats legacy">
-        <span class="stat">未完了<b id="stOpen">-</b></span>
-        <span class="stat alert">7日以内・超過<b id="stSoon">-</b></span>
-        <span class="stat">ピン<b id="stPin">-</b></span>
-      </div>
     </div>
     <nav class="tabs">
-      <button data-tab="home" class="legacy">🏠 HOME</button>
-      <button data-tab="projects" class="legacy">📋 よてい</button>
       <button data-tab="top" class="active">🏠 ホーム</button>
       <button data-tab="poly">📊 Polymarket</button>
       <button data-tab="btc">🌐 マクロ</button>
@@ -588,59 +434,7 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 
 <main>
 
-<!-- ============ HOME ============ -->
-<section class="tab legacy" id="tab-home">
-  <div class="hcard hello">
-    <div class="face">🔮</div>
-    <div><div class="sub" id="hDate"></div><div class="say" id="hSay"></div><div class="sub" id="hEvent" style="margin-top:4px"></div><div class="sub story-line" id="hStory" style="margin-top:2px"></div></div>
-  </div>
-  <div class="hcard game" id="hGame" style="display:none"></div>
-  <div class="home-grid">
-    <div class="hcard">
-      <div class="hlabel">🔔 おしらせ</div>
-      <div id="hNotice"></div>
-    </div>
-    <div class="metrics" id="hMetrics"></div>
-  </div>
-  <div class="hcard" style="margin-bottom:14px">
-    <div class="hlabel" style="justify-content:space-between; margin-bottom:4px">
-      <span>📅 期限が入っている案件</span><span id="hGaugeTxt" style="color:var(--text)"></span>
-    </div>
-    <div class="gauge"><div id="hGauge"></div></div>
-    <div class="hint" id="hGaugeHint" style="margin-top:6px"></div>
-  </div>
-  <div class="hcard" style="margin-bottom:14px">
-    <div class="hlabel">✅ 今日やること</div>
-    <div id="hTodo"></div>
-  </div>
-  <div class="home-menu">
-    <button data-go="ai">🤖 AIに渡す<small>Web版AIへコピー</small></button>
-    <button data-go="review">📈 振り返り<small>傾向をAIで分析</small></button>
-    <button data-go="import">📥 結果を取り込む<small>AIの回答を貼る</small></button>
-    <button data-go="list">📋 一覧を見る<small>全案件</small></button>
-    <button data-go="settings">⚙️ 設定<small>通知・同期</small></button>
-  </div>
-</section>
-
-<!-- ============ projects ============ -->
-<section class="tab legacy" id="tab-projects">
-  <div class="toolbar">
-    <input class="search" id="pSearch" placeholder="🔍 プロジェクト検索…">
-    <div class="chips" id="pFilters">
-      <button class="chip active" data-f="all">すべて</button>
-      <button class="chip" data-f="open">未完了</button>
-      <button class="chip" data-f="pinned">📌 ピン</button>
-      <button class="chip" data-f="soon">⏰ 期限間近</button>
-      <button class="chip" data-f="done">完了</button>
-    </div>
-    <button class="chip" id="compactBtn" title="1件を1行で表示">☰ 1行表示</button>
-    <button class="btn" id="btnAiExport">🤖 AIに渡す</button>
-    <button class="btn primary" id="btnAdd">＋ 追加</button>
-  </div>
-  <div class="plist" id="projectList"></div>
-</section>
-
-<!-- ============ polymarket ============ -->
+<!-- ============ ホーム ============ -->
 <section class="tab active" id="tab-top">
   <div class="hm-date" id="homeDate"></div>
   <div id="homeBody"></div>
@@ -684,7 +478,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   <div id="mcWeather"></div>
   <div id="mcCal"></div>
   <div id="mcBody"></div>
-  <input id="fredKey" type="hidden">
   <p class="hint" style="margin-top:10px">ソース: FRED (セントルイス連銀) / Hyperliquid / DefiLlama / alternative.me。信号 (🟢🟡🔴) は一般的な目安で、売買の判断ではありません。</p>
 </section>
 
@@ -750,57 +543,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 
 <!-- ============ settings ============ -->
 <section class="tab" id="tab-settings">
-  <div class="set-card legacy">
-    <h3>🏠 部屋</h3>
-    <label class="check"><input type="checkbox" id="roomOn" style="width:auto">部屋を背景に表示する</label>
-    <p class="hint">予定をこなすと家具が届き、部屋が豪華になります。期限切れの予定は床の段ボール箱として現れ、片付けると消えます。窓の外の景色は連続記録で変わり、3日続くと猫が遊びに来ます。手帳に描いたような線画の部屋です。</p>
-  </div>
-
-  <div class="set-card legacy">
-    <h3>✈️ Telegram連携</h3>
-    <p class="hint" style="margin-top:0">⏰ <b>毎朝9時のまとめ通知</b>: 期限が7日以内・期限切れの案件と、📌ピン留め案件の一覧を送ります (Googleのサーバーが送信するのでPCを閉じていてもOK)。Botに <code>/alert</code> と送ればいつでも同じ内容を呼び出せます。<br>通知先はこのChat IDではなく、下の「📲 Telegram登録を有効化」でGoogle側に登録したものです。</p>
-    <label>Bot Token</label>
-    <div class="row">
-      <input id="tgToken" type="password" placeholder="123456789:AAE...">
-      <button class="btn small" id="tgEye">👁</button>
-    </div>
-    <label>Chat ID <span style="color:var(--dim)">(複数アカウントはカンマ区切り)</span></label>
-    <div class="row">
-      <input id="tgChat" placeholder="123456789, 987654321">
-      <button class="btn small" id="tgGetChat" style="white-space:nowrap">自動取得</button>
-    </div>
-    <div class="row" style="margin-top:14px">
-      <button class="btn primary" id="tgSave">保存</button>
-      <button class="btn" id="tgTest">テスト送信</button>
-      <span id="tgResult" style="font-size:13px"></span>
-    </div>
-    <p class="hint">① Telegramで <b>@BotFather</b> に <code>/newbot</code> と送りBot Tokenを取得 → ② 作成したBotに何かメッセージを送る → ③ Tokenを入れて「自動取得」でChat IDが入ります。</p>
-
-    <div style="border-top:1px solid var(--border); margin-top:18px; padding-top:16px">
-      <h3 style="font-size:14px; margin-bottom:8px">📲 Telegramから案件を登録する</h3>
-      <p class="hint" style="margin-top:0">有効にすると、Botに情報を送る/転送するだけでAIが解析して案件を自動登録します。スマホからそのまま投げ込めます。<br>
-      <code>/alert</code> 今日のまとめ ・ <code>/list</code> 未完了一覧 ・ <code>/today</code> 期限間近 ・ <code>/done 3</code> 完了 ・ <code>/pin 3</code> ピン留め</p>
-      <label>Gemini API Key <span style="color:var(--dim)">(任意: 送った文章をAIで整理する場合。無ければ1行目を案件名として簡易登録)</span></label>
-      <div class="row">
-        <input id="setKey" type="password" placeholder="AIza...">
-        <button class="btn small" id="keyEye">👁</button>
-      </div>
-      <label>モデル</label>
-      <select id="setModel">
-        <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (推奨・無料枠に余裕)</option>
-        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-      </select>
-      <p class="hint">キーを変えたら「📲 Telegram登録を有効化」をもう一度押すと反映されます。取得: <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a></p>
-      <div id="tgIngestStatus" style="font-size:12.5px; color:var(--muted); margin:10px 0"></div>
-      <div class="row" style="flex-wrap:wrap">
-        <button class="btn primary" id="tgIngestOn">📲 Telegram登録を有効化</button>
-        <button class="btn" id="tgIngestOff">無効化</button>
-      </div>
-      <div id="tgIngestResult" style="font-size:13px; margin-top:10px"></div>
-      <p class="hint">有効化するとBot TokenとGemini APIキーが<b>あなた自身のGoogleアカウント上のApps Script</b>に保存されます (Googleのサーバーが24時間Botを監視するために必要です)。先に「☁️ クラウド同期」のURL設定を済ませてください。</p>
-    </div>
-  </div>
-
   <div class="set-card">
     <h3>🈯 和訳とあなた向け</h3>
     <p class="hint" style="margin-top:0">Polymarket の英語を日本語に訳し、あなたの興味に合う市場に「✨ あなた向け」を付けます。決着ルールの要約にも使います。訳はサーバー (Googleドライブ) に保存して使い回すので、同じ文を何度も訳しません。</p>
@@ -845,6 +587,12 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="health" style="width:auto">⚠ 記録が止まった時</label>
       </div>
+      <div class="ntf-g">
+        <div class="ntf-t" style="font-weight:700">🗞 毎朝のまとめに入れるもの</div>
+        <div class="ntf-r" style="color:var(--muted)">相場の天気図・これからの予定・動いた市場・ウォッチ・新しい市場 は、いつも入ります。</div>
+        <label class="check"><input type="checkbox" data-ntf="dMacro" style="width:auto">📋 マクロ指標の一覧 (金利・お金の量・ドルと円・株・暗号資産などの数値と信号)</label>
+        <label class="check"><input type="checkbox" data-ntf="dFlow" style="width:auto">💧 お金の流れ (チェーンの預かり資産・ステーブルコインの増減・先物 DEX・エアドロップ候補)</label>
+      </div>
       <div class="row" style="margin-top:8px"><button class="btn small" id="ntfReset" type="button">初期値に戻す</button><span class="hint" style="margin:0">変えたあと、下の「保存」を押してください。数字を小さくすると通知が増え、大きくすると減ります。</span></div>
     </details>
     <div class="row" style="margin-top:12px; flex-wrap:wrap"><button class="btn primary" id="pmMailSave">保存</button><button class="btn" id="pmMailTest">テスト送信</button><span id="pmMailResult" style="font-size:13px"></span></div>
@@ -859,17 +607,10 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
       <input id="gasKey" type="password" autocomplete="off" placeholder="合言葉を設定していなければ空のまま">
       <button class="btn small" id="gasKeyToggle" type="button">表示</button>
     </div>
-    <div class="legacy">
-    <label>メール通知の送信先</label>
-    <input id="gasMail" type="email" placeholder="you@example.com">
-    <label class="check" style="margin-top:12px"><input type="checkbox" id="gasAuto" checked>変更を自動でクラウドに保存する (推奨)</label>
-    </div>
     <div id="gasStatus" style="margin-top:10px; font-size:12.5px; color:var(--muted)"></div>
     <div id="verInfo" style="margin-top:6px; font-size:12px; color:var(--dim)"></div>
     <div class="row" style="margin-top:14px; flex-wrap:wrap">
       <button class="btn primary" id="gasSave">設定を保存</button>
-      <button class="btn legacy" id="gasSync">⬆ クラウドへ保存</button>
-      <button class="btn legacy" id="gasLoad">⬇ クラウドから読込</button>
       <button class="btn" id="gasCheck">状況を確認</button>
     </div>
     <div id="gasResult" style="font-size:13px; margin-top:10px"></div>
@@ -884,14 +625,14 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
         <button class="btn primary" id="gasKeySet" type="button">合言葉を設定</button>
       </div>
       <div id="gasKeyResult" style="font-size:13px; margin-top:10px"></div>
-      <p class="hint">合言葉を設定すると、ウェブアプリのURLを知っているだけでは、案件を見たり書きかえたりできなくなります。<br>
+      <p class="hint">合言葉を設定すると、ウェブアプリのURLを知っているだけでは、記録を見たり設定を変えたりできなくなります。<br>
         <b>作り方:</b> 「🎲 作る」を押すと、ランダムな合言葉が入ります。自分で決める時は、12文字以上で、ほかでは使っていない文字にしてください。<br>
-        <b>ほかの端末:</b> 設定したら、ほかのPC・スマホの設定にも、上の「合言葉」の欄に同じ合言葉を入れてください。入れるまで、その端末は同期できません。<br>
+        <b>ほかの端末:</b> 設定したら、ほかのPC・スマホの設定にも、上の「合言葉」の欄に同じ合言葉を入れてください。入れるまで、その端末では記録を見られません。<br>
         <b>変更する時:</b> 上の「合言葉」の欄に今の合言葉が入った状態で、新しい合言葉を設定します。<br>
         <b>忘れた時:</b> Apps Script の画面 →「プロジェクトの設定」→「スクリプト プロパティ」の <code>API_SECRET</code> で確認できます。<br>
-        Telegram と毎朝のメールは、合言葉を設定しても今まで通り届きます。</p>
+        記録と通知メールは、合言葉を設定しても今まで通り動きます。</p>
     </details>
-    <p class="hint">同じURLを他のPCの設定に入れれば、案件データを共有できます (APIキー類は端末ごとに入力してください)。アプリを開いた時・画面に戻った時に、他の端末やTelegramでの変更を案件ごとに合体して反映します。セットアップ手順は同梱の <b>gas-daily-mail.gs</b> を参照。</p>
+    <p class="hint">同じURLと合言葉をほかのPC・スマホの設定に入れれば、同じ記録を見られます。サーバーの中身は GitHub から自動で更新されます。</p>
   </div>
 
   <div class="set-card">
@@ -910,13 +651,9 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
     <h3>💾 データ管理</h3>
     <div class="row" style="flex-wrap:wrap">
       <button class="btn" id="btnExport">⬇ 旧データ (予定) をエクスポート</button>
-      <button class="btn legacy" id="btnImport">⬆ インポート</button>
-      <button class="btn legacy" id="btnDedup">🧹 重複プロジェクト整理</button>
-      <button class="btn" id="btnRestore">↩ バックアップから復元</button>
-      <input type="file" id="importFile" accept=".json" style="display:none">
     </div>
-    <div id="restoreBox" style="margin-top:12px"></div>
-    <p class="hint">データはこの端末のブラウザ内に保存されます。削除・読込・整理の直前に自動で10世代分バックアップされます。</p>
+    <div id="exportResult" style="font-size:13px; margin-top:10px; color:var(--muted)"></div>
+    <p class="hint">以前の予定管理のデータ (案件の一覧) を JSON ファイルで書き出します。データは Google ドライブの「予定管理データ」フォルダにも残してあり、このアプリからは書き換えません。</p>
   </div>
 </section>
 
@@ -980,129 +717,6 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
   </div>
 </div>
 
-<!-- ============ project dialog ============ -->
-<dialog id="pDialog">
-  <div class="dlg-head" id="dlgTitle">プロジェクトを追加</div>
-  <div class="dlg-body">
-    <label>プロジェクト名 *</label>
-    <input id="fName" placeholder="例: Tempo Network">
-    <label>チェーン / カテゴリ</label>
-    <input id="fChain" placeholder="例: Solana, Tempo, 不明">
-    <label>期限</label>
-    <div class="row">
-      <input id="fDeadline" type="datetime-local">
-      <label class="check" style="margin:0; white-space:nowrap"><input type="checkbox" id="fNoDeadline">未定</label>
-    </div>
-    <label>繰り返し</label>
-    <select id="fRepeat">
-      <option value="">なし</option>
-      <option value="daily">毎日</option>
-      <option value="weekdays">平日 (月〜金)</option>
-      <option value="weekly">毎週 (曜日を選ぶ)</option>
-      <option value="monthly">毎月 (日付を選ぶ)</option>
-    </select>
-    <div id="fRepeatWeek" class="row" style="display:none; flex-wrap:wrap; gap:8px; margin-top:8px">
-      <label class="check" style="margin:0"><input type="checkbox" data-dow="0" style="width:auto">日</label>
-      <label class="check" style="margin:0"><input type="checkbox" data-dow="1" style="width:auto">月</label>
-      <label class="check" style="margin:0"><input type="checkbox" data-dow="2" style="width:auto">火</label>
-      <label class="check" style="margin:0"><input type="checkbox" data-dow="3" style="width:auto">水</label>
-      <label class="check" style="margin:0"><input type="checkbox" data-dow="4" style="width:auto">木</label>
-      <label class="check" style="margin:0"><input type="checkbox" data-dow="5" style="width:auto">金</label>
-      <label class="check" style="margin:0"><input type="checkbox" data-dow="6" style="width:auto">土</label>
-    </div>
-    <div id="fRepeatMonth" class="row" style="display:none; margin-top:8px; align-items:center">
-      <span>毎月</span><input id="fRepeatDom" type="number" min="1" max="31" style="width:5em"><span>日 (その月に無い日付は月末)</span>
-    </div>
-    <p class="hint" id="fRepeatHint" style="display:none">完了すると、同じ内容で次の回が自動で作られます。時刻は期限の時刻を使います。「見送り」にすると、繰り返しは止まります。</p>
-    <label>情報ソース (1行に1つ / 「URL タイトル」形式も可)</label>
-    <textarea id="fSources" rows="3" placeholder="https://x.com/... 公式アナウンス&#10;https://example.com/article"></textarea>
-    <label>メモ・タスク</label>
-    <textarea id="fMemo" rows="4" placeholder="やること、条件、気になる点など"></textarea>
-    <label class="check" style="margin-top:12px"><input type="checkbox" id="fPinned">📌 ピン留めする</label>
-  </div>
-  <div class="dlg-foot">
-    <button class="btn ghost" id="dlgCancel">キャンセル</button>
-    <button class="btn primary" id="dlgSave">保存</button>
-  </div>
-</dialog>
-
-
-<!-- ============ AI連携 dialog ============ -->
-<dialog id="aiDialog" style="width:min(720px,94vw)">
-  <div class="dlg-head">🤖 外部AIに渡す / 結果を取り込む</div>
-  <div class="dlg-body">
-    <div class="chips" style="margin-bottom:12px">
-      <button class="chip active" data-ai-tab="out">① AIに渡す</button>
-      <button class="chip" data-ai-tab="in">② 結果を取り込む</button>
-    </div>
-
-    <!-- 出力 -->
-    <div id="aiOut">
-      <label>やってほしいこと</label>
-      <select id="aiPurpose">
-        <option value="table">📊 タスク管理表にまとめる</option>
-        <option value="review">📈 振り返り分析（自分の進め方の傾向を見る）</option>
-        <option value="research">🔎 各案件を調べて参加条件・期限を埋める</option>
-        <option value="priority">🎯 優先順位をつけて今日やることを出す</option>
-        <option value="risk">⚠️ リスク(Sybil・詐欺・費用)を洗い出す</option>
-        <option value="handover">🔄 Web版AIに現状を引き継ぐ (台帳を預ける)</option>
-        <option value="free">✍️ 自由入力</option>
-      </select>
-      <div id="aiFreeWrap" style="display:none">
-        <label>指示内容</label>
-        <textarea id="aiFree" rows="3" placeholder="例: 期限が近い順に並べて、それぞれ30分以内で終わる作業に分解して"></textarea>
-      </div>
-      <div id="aiReviewWrap" style="display:none">
-        <label>期間</label>
-        <select id="rvDays"><option value="7">直近7日</option><option value="30" selected>直近30日</option><option value="90">直近90日</option></select>
-        <label class="check" style="margin-top:10px"><input type="checkbox" id="rvAnon" checked style="width:auto">案件名を伏せる（「案件A」などに置き換え、分野と数字だけを渡す）</label>
-        <p class="hint">完了・見送り・明日へ・期限変更などの記録を集計して渡します。メモやURLは含めません。記録は今回の更新から始まるので、数週間たつほど分析が深くなります。週に一度、Claudeなどに渡して振り返るのがおすすめです。</p>
-      </div>
-      <label class="check" id="aiJsonWrap" style="margin-top:12px"><input type="checkbox" id="aiWantJson" checked>取り込み用のJSONも一緒に出させる (結果をアプリに戻せます)</label>
-      <label>送る内容 <span id="aiCount" style="color:var(--dim)"></span></label>
-      <textarea id="aiPrompt" rows="10" style="font-family:ui-monospace,monospace; font-size:12px"></textarea>
-      <div class="row" style="margin-top:12px; flex-wrap:wrap">
-        <button class="btn primary" id="aiCopy">📋 コピー</button>
-        <button class="btn" id="aiCopySpec">📐 出力仕様だけコピー</button>
-      </div>
-      <div id="aiInboxBox"></div>
-      <div class="row" style="margin-top:8px; flex-wrap:wrap">
-        <a class="btn" href="https://gemini.google.com/app" target="_blank">Gemini を開く</a>
-        <a class="btn" href="https://chatgpt.com/" target="_blank">ChatGPT を開く</a>
-        <a class="btn" href="https://claude.ai/new" target="_blank">Claude を開く</a>
-      </div>
-      <p class="hint">コピーしてAIに貼り付けてください。Web版のAIは検索もでき、無料枠も緩く、結果も高品質です。<br>
-      <b>「📐 出力仕様だけコピー」</b>は、Web版AIに一度だけ覚えさせる用の仕様書です。Geminiの Gem / ChatGPTのカスタム指示 / Claudeのプロジェクトに貼っておくと、以後「アプリ用に出力して」の一言で正しい形式が返ってきます。</p>
-    </div>
-
-    <!-- 取り込み -->
-    <div id="aiIn" style="display:none">
-      <label>AIの回答をここに貼り付け (JSON部分だけでも、回答全文でも構いません)</label>
-      <textarea id="aiPaste" rows="10" style="font-family:ui-monospace,monospace; font-size:12px" placeholder='[{"name":"...","memo":"...","deadline":"2026-10-01T23:59"}]'></textarea>
-      <label>取り込み方法</label>
-      <select id="aiMode">
-        <option value="merge">更新・追加のみ (アプリ側の他の案件はそのまま)</option>
-        <option value="replace">全置き換え (AIの出力を正としてアプリを合わせる)</option>
-      </select>
-      <p class="hint" style="margin-top:6px">JSONでも表(Markdown)でも読み取れます。表の場合は案件名で既存と照合するため、名前を変えた案件は新規として追加されます。</p>
-      <div class="row" style="margin-top:12px">
-        <button class="btn primary" id="aiParse">✨ 読み取る</button>
-        <span id="aiParseStatus" style="font-size:13px; color:var(--muted)"></span>
-      </div>
-      <div id="aiPreview" style="margin-top:14px"></div>
-    </div>
-  </div>
-  <div class="dlg-foot">
-    <button class="btn ghost" id="aiClose">閉じる</button>
-    <button class="btn primary" id="aiApply" style="display:none" disabled>反映する</button>
-  </div>
-</dialog>
-
-<dialog id="storyDlg">
-  <div class="dlg-head">📖 ものがたり ― 手帳の部屋とモカ</div>
-  <div class="dlg-body" id="storyBody" style="max-height:60vh; overflow:auto"></div>
-  <div class="dlg-foot"><button class="btn" id="storyClose">閉じる</button></div>
-</dialog>
 <div class="toast" id="toast"></div>
 <div class="appbar" id="updateBar" role="status" hidden>
   <span>✨ 新しい版があります</span>
@@ -1115,210 +729,27 @@ dialog::backdrop{background:rgba(5,8,16,.65); backdrop-filter:blur(3px)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.02";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.03";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.01";
+const MIN_GAS_VERSION = "2026.12.02";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-let state = { projects: [], settings: { key: "", model: "gemini-2.5-flash" } };
+let state = { settings: {} };
 
+/* 設定 (サーバーのURL・合言葉・配色) は、以前と同じ場所 (sakiyomi_v1) に置く。
+   そこに以前の予定データ (projects / deleted) が残っていても、消さずにそのまま持ち続ける
+   (設定の「旧データ (予定) をエクスポート」で書き出せるようにするため) */
+const OLD_SETTINGS = ["key","model","tgToken","tgChat","fredKey","gasMail","gasAuto","gasSyncedAt","roomBg","compact"];
 function load(){
-  try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); if(d) state = Object.assign(state, d); }catch(e){}
-  if(!Array.isArray(state.projects)) state.projects = [];
-  delete state.chat;   /* 廃止したAIチャットの履歴を片付ける */
-  delete state.settings.tgEnabled;   /* 使われていない旧設定 */
-  if(!state.deleted || typeof state.deleted !== "object") state.deleted = {};
-  normalizeProjects();
-  takeSnap();
+  try{ const d = JSON.parse(localStorage.getItem(LS_KEY)); if(d && typeof d === "object") state = Object.assign(state, d); }catch(e){}
+  if(!state.settings || typeof state.settings !== "object") state.settings = {};
+  /* 使わなくなった設定 (Telegram のトークンや Gemini のキーなど) は、次に保存する時に端末から消える */
+  OLD_SETTINGS.forEach(k=>{ delete state.settings[k]; });
 }
-/* 旧形式(id・status欠落)のデータを修復する。これが無いと操作不能な案件になる */
-function normalizeProjects(){
-  let fixed = 0;
-  for(const p of state.projects){
-    if(!p || typeof p !== "object") continue;
-    if(!p.id){ p.id = uid(); fixed++; }
-    if(!p.status) p.status = "open";
-    p.pinned = !!p.pinned;
-    if(!Array.isArray(p.sources)) p.sources = [];
-    /* 危険なリンク (javascript: など) を除く。http/https 以外のURLは文字だけ残す */
-    p.sources = p.sources.filter(x=>x && (x.url || x.title)).map(x=>{
-      const url = String(x.url||"").trim();
-      return /^https?:\/\//i.test(url) ? { url, title:String(x.title||"") } : { url:"", title:String(x.title || url) };
-    });
-    if(p.ai){ delete p.ai; fixed++; }   /* 廃止したアプリ内AI解析の結果を片付ける */
-    if(p.repeat !== undefined){ const r = repeatNorm(p.repeat, (p.deadline||"").slice(0,10)); if(r) p.repeat = r; else delete p.repeat; }
-  }
-  state.projects = state.projects.filter(p=>p && typeof p==="object" && p.name);
-  if(fixed) localStorage.setItem(LS_KEY, JSON.stringify(state));
-  return fixed;
-}
-
-/* ---- 自動バックアップ (直近10世代) ---- */
-const LS_BACKUP = "sakiyomi_backups";
-function pushBackup(label){
-  try{
-    if(!state.projects.length) return;
-    const b = JSON.parse(localStorage.getItem(LS_BACKUP) || "[]");
-    b.unshift({ at: new Date().toISOString(), label: label||"", projects: state.projects });
-    localStorage.setItem(LS_BACKUP, JSON.stringify(b.slice(0,10)));
-  }catch(e){}
-}
-function getBackups(){
-  try{ return JSON.parse(localStorage.getItem(LS_BACKUP) || "[]"); }catch(e){ return []; }
-}
-/* ---- 案件ごとの更新時刻と削除記録 ----
-   複数端末・Telegramで同時に触っても、案件ごとに「新しい方」を採用して合体できるようにする */
-let snap = new Map();
-function sig(p){ const { updatedAt, ...rest } = p; return JSON.stringify(rest); }
-function takeSnap(){ snap = new Map(state.projects.map(p=>[p.id, sig(p)])); }
-const TOMB_DAYS = 90;
-function pruneTombs(t){
-  const lim = Date.now() - TOMB_DAYS*86400000, out = {};
-  for(const [id, at] of Object.entries(t||{})) if(Date.parse(at) > lim) out[id] = at;
-  return out;
-}
-function unionTombs(a, b){
-  const out = Object.assign({}, a||{});
-  for(const [id, at] of Object.entries(b||{})) if(!out[id] || at > out[id]) out[id] = at;
-  return pruneTombs(out);
-}
-/* a を優先側として a と b を案件ごとに合体する (同時刻なら a)。
-   base = a 側が前回同期した時刻 (旧データの削除判定に使う) */
-function mergeProjects(a, b, tombs, base){
-  const T = tombs || {}, baseT = base ? Date.parse(base) - 60000 : 0;
-  const ts = p => Date.parse(p.updatedAt || p.createdAt || 0) || 0;
-  const bm = new Map((b||[]).filter(p=>p && p.id).map(p=>[p.id, p]));
-  const out = [], seen = new Set();
-  for(const p of a||[]){
-    if(!p || !p.id || seen.has(p.id)) continue;
-    seen.add(p.id);
-    const q = bm.get(p.id);
-    const w = q && ts(q) > ts(p) ? q : p;
-    if(T[p.id] && Date.parse(T[p.id]) >= ts(w)) continue;
-    out.push(w);
-  }
-  for(const q of b||[]){
-    if(!q || !q.id || seen.has(q.id)) continue;
-    seen.add(q.id);
-    if(T[q.id] && Date.parse(T[q.id]) >= ts(q)) continue;
-    /* 更新時刻の無い旧データで、前回同期の時点で既にあったもの = a 側で削除済み */
-    if(!q.updatedAt && baseT && ts(q) <= baseT) continue;
-    out.push(q);
-  }
-  return out;
-}
-function save(opts){
-  save.spawned = [];
-  if(!opts || !opts.silent){
-    const now = new Date().toISOString();
-    /* 繰り返しの予定: 完了した回の次の回を作る (どこで完了しても同じ規則。サーバーにも同じものがある) */
-    save.spawned = spawnRepeats(state.projects, state.deleted, todayYmd(), now);
-    state.updatedAt = now;
-    if(!state.deleted) state.deleted = {};
-    const cur = new Set();
-    for(const p of state.projects){
-      cur.add(p.id);
-      if(snap.get(p.id) !== sig(p)) p.updatedAt = now;   /* 追加・変更した案件だけ時刻を付ける */
-      delete state.deleted[p.id];
-    }
-    for(const id of snap.keys()) if(!cur.has(id)) state.deleted[id] = now;   /* 削除の記録 */
-    state.deleted = pruneTombs(state.deleted);
-    takeSnap();
-  }
+function save(){
   try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
   catch(e){ toast("⚠️ 保存できませんでした (ブラウザの保存容量がいっぱいです)"); }
 }
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-
-/* ===== 繰り返しの予定 (この囲みの中は index.html と gas/Code.gs でまったく同じ内容にする) =====
-   repeat: { type: "daily" | "weekdays" | "weekly" | "monthly", dow: [0-6] (毎週: 曜日。0=日), dom: 1-31 (毎月: 日付) }
-   ・完了すると、同じ内容で次の期限の新しい回を作る。id は「元の案件のid~次の日付」(どこで作っても同じidになり、二重にならない)
-   ・元の案件の id を repeatOf に、作った次の回の id を完了した回の repeatNext に持たせる
-   ・見送り (dropped) の時は作らない (繰り返しを止める)
-   ・同じ繰り返しの未完了の回がすでにある時・次の回を削除した記録がある時も作らない */
-const REPEAT_TYPES = { daily: "毎日", weekdays: "平日", weekly: "毎週", monthly: "毎月" };
-const REPEAT_DOW = "日月火水木金土";
-function ymdParts(ymd) { const m = String(ymd || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? [+m[1], +m[2], +m[3]] : null; }
-function ymdFrom(t) { const d = new Date(t); return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0"); }
-function ymdAdd(ymd, n) { const p = ymdParts(ymd); return ymdFrom(Date.UTC(p[0], p[1] - 1, p[2] + n)); }
-function ymdDow(ymd) { const p = ymdParts(ymd); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); }
-function ymdMonthDay(y, m, dom) { const last = new Date(Date.UTC(y, m, 0)).getUTCDate(); return ymdFrom(Date.UTC(y, m - 1, Math.min(dom, last))); }
-/** 形を整えた repeat (正しくなければ null)。base = 曜日・日付を決めていない時に使う日付 */
-function repeatNorm(r, base) {
-  if (!r || typeof r !== "object" || !REPEAT_TYPES[r.type]) return null;
-  const out = { type: r.type };
-  if (r.type === "weekly") {
-    const dow = (Array.isArray(r.dow) ? r.dow : []).map(Number).filter(function (x) { return x >= 0 && x <= 6 && x === Math.floor(x); });
-    out.dow = dow.length ? dow.filter(function (x, i) { return dow.indexOf(x) === i; }).sort() : (base ? [ymdDow(base)] : [1]);
-  }
-  if (r.type === "monthly") {
-    const dom = Math.floor(Number(r.dom));
-    out.dom = dom >= 1 && dom <= 31 ? dom : (base ? ymdParts(base)[2] : 1);
-  }
-  return out;
-}
-function repeatLabel(r) {
-  const n = repeatNorm(r);
-  if (!n) return "";
-  if (n.type === "weekly") return "毎週 " + n.dow.map(function (d) { return REPEAT_DOW[d]; }).join("・");
-  if (n.type === "monthly") return "毎月 " + n.dom + "日";
-  return REPEAT_TYPES[n.type];
-}
-/** after より後で、繰り返しに当てはまる最初の日付 ("YYYY-MM-DD")。毎月で月末より大きい日付は、その月の月末 */
-function repeatNextDate(r, after) {
-  const n = repeatNorm(r, after);
-  if (!n || !ymdParts(after)) return "";
-  if (n.type === "daily") return ymdAdd(after, 1);
-  if (n.type === "monthly") {
-    const p = ymdParts(after);
-    const here = ymdMonthDay(p[0], p[1], n.dom);
-    if (here > after) return here;
-    return p[1] === 12 ? ymdMonthDay(p[0] + 1, 1, n.dom) : ymdMonthDay(p[0], p[1] + 1, n.dom);
-  }
-  for (let i = 1; i <= 7; i++) {
-    const d = ymdAdd(after, i), w = ymdDow(d);
-    if (n.type === "weekdays" ? (w >= 1 && w <= 5) : n.dow.indexOf(w) >= 0) return d;
-  }
-  return "";
-}
-/** 完了した回 p の次の回 (作れなければ null)。today = 今日 ("YYYY-MM-DD")。期限を過ぎてから完了した時は、今日より後の回にする */
-function repeatNextOf(p, today, nowIso) {
-  const base = String(p.deadline || "").slice(0, 10);
-  const r = repeatNorm(p.repeat, base || today);
-  if (!r) return null;
-  const from = base && base > today ? base : today;
-  const d = repeatNextDate(r, from);
-  if (!d) return null;
-  const time = String(p.deadline || "").slice(11, 16) || "23:59";
-  const root = p.repeatOf || p.id;
-  return {
-    id: root + "~" + d, name: p.name, chain: p.chain || "", memo: p.memo || "",
-    sources: (p.sources || []).map(function (s) { return { url: s.url || "", title: s.title || "" }; }),
-    pinned: !!p.pinned, repeat: r, repeatOf: root, status: "open",
-    deadline: d + "T" + time, createdAt: nowIso, updatedAt: nowIso,
-  };
-}
-/** list の中で、完了したのにまだ次の回を作っていない繰り返しの予定について、次の回を list に足す。足した回を返す */
-function spawnRepeats(list, tombs, today, nowIso) {
-  const made = [], T = tombs || {};
-  list.slice().forEach(function (p) {
-    if (!p || !p.repeat || p.status !== "done" || p.dropped || p.repeatNext) return;
-    const n = repeatNextOf(p, today, nowIso);
-    if (!n) return;
-    p.repeatNext = n.id;
-    p.updatedAt = nowIso;
-    const openExists = list.some(function (q) { return q && q !== p && q.status !== "done" && (q.repeatOf || q.id) === n.repeatOf; });
-    const exists = list.some(function (q) { return q && q.id === n.id; });
-    if (openExists || exists || T[n.id]) return;
-    list.push(n);
-    made.push(n);
-  });
-  return made;
-}
-/* ===== 繰り返しの予定 ここまで ===== */
-
-/** 今日 (端末の時刻) の "YYYY-MM-DD" */
-function todayYmd(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 
 function toast(msg){
   const t = $("#toast"); t.textContent = msg; t.classList.add("show");
@@ -1326,701 +757,45 @@ function toast(msg){
 }
 function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
-/* ================= dates ================= */
-/* 残り日数をカレンダーの日付で数える (0=今日, 1=明日, -1=昨日)。
-   時間で割ると「明日9時締切」が今日の10時に「本日まで」になってしまうため */
-function daysLeft(iso){
-  if(!iso) return null;
-  const d = new Date(iso); if(isNaN(d)) return null;
-  const n = new Date();
-  const a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const b = new Date(n.getFullYear(), n.getMonth(), n.getDate());
-  return Math.round((a - b) / 86400000);
-}
-function fmtDeadline(iso){
-  if(!iso) return "未定";
-  const d = new Date(iso);
-  const p = n => String(n).padStart(2,"0");
-  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-function dueBadge(p){
-  if(p.status === "done") return "";
-  if(!p.deadline) return `<span class="badge">期限未定</span>`;
-  const dl = daysLeft(p.deadline);
-  if(dl < 0)  return `<span class="badge due-over">⛔ ${-dl}日超過 (${fmtDeadline(p.deadline)})</span>`;
-  if(dl === 0) return `<span class="badge due-over">🚨 本日まで (${fmtDeadline(p.deadline)})</span>`;
-  if(dl === 1) return `<span class="badge due-over">⚠️ 明日まで (${fmtDeadline(p.deadline)})</span>`;
-  if(dl <= 7) return `<span class="badge due-soon">⏰ あと${dl}日 (${fmtDeadline(p.deadline)})</span>`;
-  return `<span class="badge due-ok">📅 あと${dl}日 (${fmtDeadline(p.deadline)})</span>`;
-}
-
-/* ================= projects ================= */
-let filter = "all";
-const selected = new Set();   /* AIに渡す対象として選択中の案件ID */
-let tgInbox = [];             /* Telegramで行った変更 (Web版AIへ未引き継ぎ) */
-
-function parseSources(text){
-  return String(text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{
-    const m = l.match(/^(\S+)\s+(.+)$/);
-    if(m && /^https?:\/\//.test(m[1])) return { url:m[1], title:m[2] };
-    if(/^https?:\/\//.test(l)) return { url:l, title:"" };
-    return { url:"", title:l };
-  });
-}
-function srcLabel(s){
-  if(s.title) return s.title;
-  try{ return new URL(s.url).hostname.replace(/^www\./,""); }catch(e){ return s.url || "?"; }
-}
-
-function sortProjects(list){
-  return list.slice().sort((a,b)=>{
-    if(a.status!==b.status) return a.status==="done" ? 1 : -1;
-    const ad = a.deadline ? +new Date(a.deadline) : Infinity;
-    const bd = b.deadline ? +new Date(b.deadline) : Infinity;
-    if(ad !== bd) return ad - bd;
-    if(a.pinned!==b.pinned) return a.pinned ? -1 : 1;
-    return 0;
-  });
-}
-
-function renderProjects(){
-  const q = $("#pSearch").value.trim().toLowerCase();
-  let list = state.projects.filter(p=>{
-    if(q && !(p.name+" "+(p.chain||"")+" "+(p.memo||"")).toLowerCase().includes(q)) return false;
-    if(filter==="open") return p.status!=="done";
-    if(filter==="done") return p.status==="done";
-    if(filter==="pinned") return p.pinned;
-    if(filter==="soon"){ const d=daysLeft(p.deadline); return p.status!=="done" && p.deadline && d!==null && d<=7; }
-    return true;
-  });
-  list = sortProjects(list);
-  const box = $("#projectList");
-  const hidden = state.projects.length - list.length;
-  if(!list.length){
-    box.innerHTML = state.projects.length
-      ? `<div class="empty">絞り込み条件に一致する案件がありません。<br>登録済みの ${state.projects.length}件 はフィルタ「すべて」で表示できます。<br><button class="btn small" id="showAllBtn" style="margin-top:12px">すべて表示</button></div>`
-      : `<div class="empty">プロジェクトがありません。<br>「＋ 追加」から登録するか、Polymarketタブの「予定に追加」も使えます。</div>`;
-    const b = $("#showAllBtn");
-    if(b) b.addEventListener("click", ()=>{
-      filter = "all"; $("#pSearch").value = "";
-      $$("#pFilters .chip").forEach(x=>x.classList.toggle("active", x.dataset.f==="all"));
-      renderProjects();
-    });
-  }else{
-    const card = (p, g) => {
-      const srcs = (p.sources||[]).map(s=> s.url
-        ? `<a class="src-chip" href="${esc(s.url)}" target="_blank" rel="noopener">🔗 ${esc(srcLabel(s))}</a>`
-        : `<span class="src-chip">📝 ${esc(s.title)}</span>`).join("");
-      return `
-      <div class="pcard g-${g} ${p.status==="done"?"done":""}" data-id="${p.id}">
-        <div class="pcard-top">
-          <input type="checkbox" class="psel" data-sel="${p.id}" title="AIに渡す対象として選択"
-            style="width:auto; margin-top:5px; flex:none" ${selected.has(p.id)?"checked":""}>
-          <div>
-            <span class="pname ${p.status==="done"?"strike":""}">${esc(p.name)}</span>
-            ${p.chain?`<span class="badge chain">${esc(p.chain)}</span>`:""}
-            ${p.pinned?`<span class="badge pin">📌 ピン</span>`:""}
-            ${p.repeat?`<span class="badge chain" title="繰り返しの予定">🔁 ${esc(repeatLabel(p.repeat))}</span>`:""}
-            ${p.status==="done"?`<span class="badge due-ok">✅ 完了</span>`:dueBadge(p)}
-          </div>
-          <div class="pactions">
-            <button class="icon-btn act-done" data-act="toggle" title="${p.status==="done"?"未完了に戻す":"完了にする"}">${p.status==="done"?"↩":"✅"}</button>
-            <button class="icon-btn ${p.pinned?"on":""}" data-act="pin" title="ピン留め">📌</button>
-            <button class="icon-btn" data-act="edit" title="編集">✏️</button>
-            <button class="icon-btn" data-act="del" title="削除">🗑</button>
-          </div>
-        </div>
-        ${srcs?`<div class="psources">${srcs}</div>`:""}
-        ${p.memo?`<div class="pmemo">${esc(p.memo)}</div>`:""}
-        <div class="pfoot">
-          <button class="btn small" data-act="toggle">${p.status==="done"?"↩ 未完了に戻す":"✅ 完了にする"}</button>
-        </div>
-      </div>`;
-    };
-    /* 急ぎ具合でグループに分ける */
-    const groups = { red:[], amber:[], pin:[], gray:[], done:[] };
-    for(const p of list) groups[urgency(p)].push(p);
-    const head = (cls, label, n) => `<div class="grp-head ${cls}">${label}<span class="cnt">(${n})</span></div>`;
-    let html = "";
-    if(groups.red.length)   html += head("red",   "⚠ 期限切れ・3日以内", groups.red.length)   + groups.red.map(p=>card(p,"red")).join("");
-    if(groups.amber.length) html += head("amber", "⏰ 7日以内",          groups.amber.length) + groups.amber.map(p=>card(p,"amber")).join("");
-    if(groups.pin.length)   html += head("pin",   "📌 重要",             groups.pin.length)   + groups.pin.map(p=>card(p,"pin")).join("");
-    if(groups.gray.length)  html += head("",      "● その他",            groups.gray.length)  + groups.gray.map(p=>card(p,"gray")).join("");
-    if(groups.done.length){
-      const openAttr = (doneOpen || filter==="done") ? "open" : "";
-      html += `<details class="grp-done" ${openAttr}><summary class="grp-head">✓ 完了<span class="cnt">(${groups.done.length})</span></summary>`
-           +  groups.done.map(p=>card(p,"gray")).join("") + `</details>`;
-    }
-    box.innerHTML = html;
-    const det = box.querySelector("details.grp-done");
-    if(det) det.addEventListener("toggle", ()=>{ doneOpen = det.open; });
-    if(hidden > 0) box.insertAdjacentHTML("beforeend",
-      `<div class="hint" style="text-align:center; padding:6px">絞り込みにより ${hidden}件 を非表示中 (登録は全${state.projects.length}件)</div>`);
-  }
-  const open = state.projects.filter(p=>p.status!=="done");
-  $("#stOpen").textContent = open.length;
-  $("#stSoon").textContent = open.filter(p=>{const d=daysLeft(p.deadline); return p.deadline&&d!==null&&d<=7;}).length;
-  $("#stPin").textContent = state.projects.filter(p=>p.pinned).length;
-  $("#projectList").classList.toggle("compact", !!state.settings.compact);
-  /* 削除・全置き換えで消えた案件を選択状態から外す (件数表示のずれ防止) */
-  const live = new Set(state.projects.map(p=>p.id));
-  [...selected].forEach(id=>{ if(!live.has(id)) selected.delete(id); });
-  updateAiBtn();
-  renderGasStatus();
-  renderHome();
-}
-
-/* 案件の急ぎ具合: red=期限切れ・3日以内 / amber=7日以内 / pin=重要 / gray=その他 / done=完了 */
-function urgency(p){
-  if(p.status==="done") return "done";
-  const d = p.deadline ? daysLeft(p.deadline) : null;
-  if(d !== null && d <= 3) return "red";
-  if(d !== null && d <= 7) return "amber";
-  if(p.pinned) return "pin";
-  return "gray";
-}
-let doneOpen = false;
-
-/* ================= HOME ================= */
-/* レベル・XP・連続記録 (サーバー側で計算した値を表示) */
-function setGame(gm){
-  if(!gm) return;
-  const prev = state.settings.game;
-  state.settings.game = gm; save({silent:true});
-  if(prev && gm.lv > prev.lv) toast(`🎉 レベルアップ！ Lv.${gm.lv} ${gm.title}`);
-  else if(prev && gm.xp > prev.xp) toast(`✨ +${gm.xp - prev.xp}XP`);
-  renderGame();
-  renderRoom();
-}
-function renderGame(){
-  const el = $("#hGame"); if(!el) return;
-  const gm = state.settings.game;
-  if(!gm || !state.settings.gasUrl){ el.style.display = "none"; return; }
-  el.style.display = "";
-  const pct = gm.need ? Math.round(gm.cur / gm.need * 100) : 0;
-  const max = Math.max(1, ...(gm.week||[]));
-  const days = "日月火水木金土";
-  const week = (gm.week||[]).map((v,i)=>{
-    const d = new Date(Date.now() - (6-i)*86400000);
-    return `<i class="${v?"":"zero"}" style="height:${v ? Math.max(6, Math.round(v/max*34)) : 3}px" title="${days[d.getDay()]} ${v}XP"></i>`;
-  }).join("");
-  const q = gm.quest;
-  const qtxt = q && q.total ? (q.bonus ? `今日のクエスト 🏆達成` : `今日のクエスト ${q.cleared}/${q.total}`) : "今日のクエストはTelegramに届きます";
-  el.innerHTML = `
-    <div class="lv"><div><small>Lv.</small><b>${gm.lv}</b></div></div>
-    <div class="gmain">
-      <div class="gtitle">${esc(gm.title)}</div>
-      <div class="xpbar"><div style="width:${pct}%"></div></div>
-      <div class="gsub">次のレベルまで ${gm.need - gm.cur}XP ・ 累計 ${gm.xp}XP ・ ${qtxt}</div>
-    </div>
-    <div class="streak"><b>🔥${gm.streak}</b><span>${gm.todayDone ? "日連続 ✔︎" : "日連続 (今日まだ)"}</span><span style="display:block; font-weight:500">最高 ${gm.best}日</span></div>
-    <div class="week" title="直近7日のXP">${week}</div>`;
-}
-
-function renderHome(){
-  if(!$("#hSay")) return;
-  renderGame();
-  if(typeof ROOM_ITEMS !== "undefined") renderRoom();
-  const now = new Date();
-  const open = state.projects.filter(p=>p.status!=="done");
-  const withD = open.filter(p=>p.deadline).map(p=>({ p, d: daysLeft(p.deadline) }));
-  const overdue  = withD.filter(x=>x.d < 0).sort((a,b)=>a.d-b.d);
-  const today    = withD.filter(x=>x.d === 0);
-  const tomorrow = withD.filter(x=>x.d === 1);
-  const soon3    = withD.filter(x=>x.d >= 2 && x.d <= 3);
-  const within7  = withD.filter(x=>x.d <= 7).length;
-  const pinned   = open.filter(p=>p.pinned);
-  const weekAgo  = Date.now() - 7*86400000;
-  const doneWeek = state.projects.filter(p=>p.status==="done" && p.doneAt && Date.parse(p.doneAt) >= weekAgo).length;
-
-  /* ひとこと */
-  $("#hDate").textContent = `${now.getMonth()+1}/${now.getDate()} (${"日月火水木金土"[now.getDay()]})`;
-  const h = now.getHours();
-  const greet = h < 5 ? "こんばんは" : h < 11 ? "おはようございます" : h < 18 ? "こんにちは" : "こんばんは";
-  let say;
-  if(today.length)         say = `今日が締切の案件が${today.length}件あります。まずは「${today[0].p.name}」から片付けましょう`;
-  else if(overdue.length)  say = `期限を過ぎた案件が${overdue.length}件あります。「${overdue[0].p.name}」を確認しましょう`;
-  else if(tomorrow.length) say = `明日が締切の案件が${tomorrow.length}件あります。「${tomorrow[0].p.name}」は今日のうちに`;
-  else if(tgInbox.length)  say = `Telegramでの変更が${tgInbox.length}件たまっています。Web版AIに渡しておきましょう`;
-  else if(pinned.length)   say = `急ぎの締切はありません。重要案件の「${pinned[0].name}」から進めましょう`;
-  else if(open.length)     say = `急ぎの案件はありません。期限を入れると通知が届くようになります`;
-  else                     say = `登録されている案件はありません。Web版AIから取り込んでみましょう`;
-  $("#hSay").textContent = `${greet}。${say}`;
-
-  /* おしらせ */
-  const N = [];
-  const nItem = (cls, tag, text, attr) => `<div class="notice" ${attr}><span class="ntag ${cls}">${tag}</span><span class="ntext">${esc(text)}</span></div>`;
-  today.forEach(x   => N.push(nItem("t-danger", "本日まで", x.p.name, `data-pid="${x.p.id}"`)));
-  tomorrow.forEach(x=> N.push(nItem("t-danger", "明日まで", x.p.name, `data-pid="${x.p.id}"`)));
-  overdue.forEach(x => N.push(nItem("t-danger", `${-x.d}日超過`, x.p.name, `data-pid="${x.p.id}"`)));
-  soon3.forEach(x   => N.push(nItem("t-warn", `あと${x.d}日`, x.p.name, `data-pid="${x.p.id}"`)));
-  if(tgInbox.length) N.push(nItem("t-warn", `受信箱 ${tgInbox.length}件`, "Telegramでの変更をWeb版AIへ", `data-go="ai"`));
-  if(state.settings.gasError) N.push(nItem("t-danger", "同期エラー", state.settings.gasError.slice(0,60), `data-go="settings"`));
-  const sv = state.settings.gasVersion || "";
-  if(state.settings.gasUrl && sv && sv < MIN_GAS_VERSION) N.push(nItem("t-warn", "要更新", "サーバー(Apps Script)が古い版です", `data-go="settings"`));
-  $("#hNotice").innerHTML = N.length
-    ? N.slice(0,7).join("") + (N.length > 7 ? `<div class="hint">ほか ${N.length-7}件</div>` : "")
-    : nItem("t-ok", "問題なし", "急ぎのおしらせはありません", "");
-
-  /* 数字 */
-  const m = (cls, lab, num, go) => `<div class="metric ${cls}" data-go="${go}"><div class="mlab">${lab}</div><div class="mnum">${num}</div></div>`;
-  $("#hMetrics").innerHTML =
-      m("", "未完了", open.length, "f:open")
-    + m(within7 ? "t-danger" : "", "7日以内・超過", within7, "f:soon")
-    + m("", "期限未設定", open.length - withD.length, "f:open")
-    + m("t-ok", "7日間で完了", doneWeek, "f:done");
-
-  /* 期限の充実度 */
-  const pct = open.length ? Math.round(withD.length / open.length * 100) : 0;
-  $("#hGaugeTxt").textContent = `${withD.length} / ${open.length} 件 (${pct}%)`;
-  const g = $("#hGauge");
-  g.style.width = pct + "%";
-  g.style.background = pct >= 70 ? "var(--ok)" : pct >= 40 ? "var(--warn)" : "var(--danger)";
-  $("#hGaugeHint").textContent = pct >= 70
-    ? "十分です。期限が近づくとTelegramとメールでお知らせします"
-    : "期限が入ると通知が届くようになります。Web版AIに「期限を調べて」と頼むのがおすすめです";
-
-  /* 今日やること */
-  const seen = new Set(), todo = [];
-  const pushT = (p, why, cls) => { if(seen.has(p.id)) return; seen.add(p.id); todo.push({ p, why, cls }); };
-  today.forEach(x   => pushT(x.p, "本日まで", "t-danger"));
-  overdue.forEach(x => pushT(x.p, `${-x.d}日超過`, "t-danger"));
-  tomorrow.forEach(x=> pushT(x.p, "明日まで", "t-danger"));
-  pinned.forEach(p  => pushT(p, "重要", "t-pin"));
-  $("#hTodo").innerHTML = todo.length
-    ? todo.slice(0,6).map(t=>`<div class="todo" data-pid="${t.p.id}"><span class="ntag ${t.cls}">${t.why}</span>
-        <div><div class="tname">${esc(t.p.name)}</div>${t.p.memo?`<div class="tmemo">${esc(t.p.memo.slice(0,90))}</div>`:""}</div></div>`).join("")
-      + (todo.length > 6 ? `<div class="hint">ほか ${todo.length-6}件</div>` : "")
-    : `<div class="hint">今日やることはありません。案件をピン留めすると、ここに表示されます。</div>`;
-}
-
-/* HOMEのクリック: 案件へ移動 / 画面切替 / 絞り込み */
-function jumpToProject(id){
-  const p = state.projects.find(x=>x.id===id); if(!p) return;
-  filter = "all"; $("#pSearch").value = "";
-  $$("#pFilters .chip").forEach(x=>x.classList.toggle("active", x.dataset.f==="all"));
-  if(p.status==="done") doneOpen = true;
-  switchTab("projects"); renderProjects();
-  const c = $(`.pcard[data-id="${id}"]`);
-  if(c){ c.scrollIntoView({ behavior:"smooth", block:"center" }); c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); }
-}
-$("#tab-home").addEventListener("click", e=>{
-  const pid = e.target.closest("[data-pid]");
-  if(pid){ jumpToProject(pid.dataset.pid); return; }
-  const go = e.target.closest("[data-go]"); if(!go) return;
-  const g = go.dataset.go;
-  if(g==="ai") $("#btnAiExport").click();
-  if(g==="review"){ $("#btnAiExport").click(); $("#aiPurpose").value = "review"; $("#aiPurpose").dispatchEvent(new Event("change")); }
-  else if(g==="import"){ $("#btnAiExport").click(); const c = $('#aiDialog [data-ai-tab="in"]'); if(c) c.click(); }
-  else if(g==="list") switchTab("projects");
-  else if(g==="settings") switchTab("settings");
-  else if(g.startsWith("f:")){
-    filter = g.slice(2); $("#pSearch").value = "";
-    $$("#pFilters .chip").forEach(x=>x.classList.toggle("active", x.dataset.f===filter));
-    if(filter==="done") doneOpen = true;
-    switchTab("projects"); renderProjects();
-  }
-});
-
-/* ================= 配色・1行表示 ================= */
+/* ================= 配色 ================= */
 function applyTheme(){
   const t = state.settings.theme || "light";
   document.documentElement.dataset.theme = t;
   const b = $("#themeBtn");
   if(b){ b.textContent = t==="light" ? "🌙" : "☀️"; b.title = t==="light" ? "濃紺の配色にする" : "明るい配色にする"; }
-  if(typeof ROOM_ITEMS !== "undefined") renderRoom();
 }
 $("#themeBtn").addEventListener("click", ()=>{
   state.settings.theme = (state.settings.theme || "light")==="light" ? "dark" : "light";
-  save({silent:true}); applyTheme();
-});
-function applyCompact(){
-  $("#compactBtn").classList.toggle("active", !!state.settings.compact);
-  $("#projectList").classList.toggle("compact", !!state.settings.compact);
-}
-$("#compactBtn").addEventListener("click", ()=>{
-  state.settings.compact = !state.settings.compact; save({silent:true}); applyCompact();
+  save(); applyTheme();
 });
 
-/* ---- card actions (delegate) ---- */
-$("#projectList").addEventListener("change", e=>{
-  const c = e.target.closest(".psel"); if(!c) return;
-  c.checked ? selected.add(c.dataset.sel) : selected.delete(c.dataset.sel);
-  updateAiBtn();
-});
-function updateAiBtn(){
-  const b = $("#btnAiExport"); if(!b) return;
-  const n = tgInbox.length;
-  b.textContent = (selected.size ? `🤖 AIに渡す (${selected.size}件)` : "🤖 AIに渡す")
-                + (n ? `  📥${n}` : "");
-  b.title = n ? `Telegramでの変更が${n}件あります。Web版AIに渡してください` : "";
-}
-$("#projectList").addEventListener("click", e=>{
-  const btn = e.target.closest("[data-act]"); if(!btn) return;
-  const id = e.target.closest(".pcard").dataset.id;
-  const p = state.projects.find(x=>x.id===id); if(!p) return;
-  const act = btn.dataset.act;
-  if(act==="pin"){ p.pinned=!p.pinned; save(); renderProjects(); scheduleGasSync(); }
-  else if(act==="toggle"){
-    p.status = p.status==="done"?"open":"done";
-    if(p.status==="done") p.doneAt = new Date().toISOString(); else delete p.doneAt;
-    save();
-    const nx = (save.spawned || [])[0];   /* 繰り返しの予定で作った次の回 */
-    renderProjects(); scheduleGasSync();
-    /* 絞り込み中は一覧から外れるため、消えたと誤解されないよう明示する */
-    const hiddenNow = (p.status==="done" && (filter==="open"||filter==="soon")) || (p.status==="open" && filter==="done");
-    toast(p.status==="done"
-      ? (hiddenNow ? "✅ 完了にしました (「すべて」タブで確認できます)" : "✅ 完了にしました") + (nx ? ` 🔁 次の回 (${fmtDeadline(nx.deadline)}) を作りました` : "")
-      : "↩ 未完了に戻しました");
+/* ================= 旧データ (予定) のエクスポート ================= */
+/* 以前の予定管理のデータを JSON で書き出す。サーバー (ドライブの「予定管理データ」) に残っている分と、
+   この端末に残っている分のうち、件数の多い方を使う。どちらも書き換えない */
+async function oldDataFetch(){
+  let projects = Array.isArray(state.projects) ? state.projects : [], deleted = state.deleted || {}, source = "この端末";
+  if(state.settings.gasUrl){
+    try{
+      const r = await fetch(gasGetUrl("action=load&t=" + Date.now()), { redirect:"follow" });
+      const d = await r.json();
+      if(d && d.ok && Array.isArray(d.projects) && d.projects.length >= projects.length){ projects = d.projects; deleted = d.deleted || {}; source = "サーバー"; }
+    }catch(e){ /* サーバーから読めない時は、この端末の分を使う */ }
   }
-  else if(act==="edit"){ openDialog(p); }
-  else if(act==="del"){ if(confirm(`「${p.name}」を削除しますか?`)){ pushBackup("削除する前"); state.projects = state.projects.filter(x=>x.id!==id); save(); renderProjects(); scheduleGasSync(); } }
-});
-
-/* ---- dialog ---- */
-let editId = null;
-function openDialog(p){
-  editId = p ? p.id : null;
-  $("#dlgTitle").textContent = p ? "プロジェクトを編集" : "プロジェクトを追加";
-  $("#fName").value = p?.name || "";
-  $("#fChain").value = p?.chain || "";
-  $("#fNoDeadline").checked = p ? !p.deadline : false;
-  $("#fDeadline").value = p?.deadline ? p.deadline.slice(0,16) : "";
-  $("#fDeadline").disabled = $("#fNoDeadline").checked;
-  $("#fSources").value = (p?.sources||[]).map(s=> s.url ? (s.title? s.url+" "+s.title : s.url) : s.title).join("\n");
-  $("#fMemo").value = p?.memo || "";
-  $("#fPinned").checked = !!p?.pinned;
-  const r = repeatNorm(p?.repeat, (p?.deadline||"").slice(0,10));
-  $("#fRepeat").value = r ? r.type : "";
-  $$("#fRepeatWeek input[data-dow]").forEach(c=>{ c.checked = !!(r && r.dow && r.dow.includes(+c.dataset.dow)); });
-  $("#fRepeatDom").value = r && r.dom ? r.dom : "";
-  showRepeatFields();
-  $("#pDialog").showModal();
+  return { projects, deleted, source };
 }
-$("#fNoDeadline").addEventListener("change", e=>{ $("#fDeadline").disabled = e.target.checked; });
-function showRepeatFields(){
-  const t = $("#fRepeat").value;
-  $("#fRepeatWeek").style.display = t==="weekly" ? "" : "none";
-  $("#fRepeatMonth").style.display = t==="monthly" ? "" : "none";
-  $("#fRepeatHint").style.display = t ? "" : "none";
-}
-$("#fRepeat").addEventListener("change", showRepeatFields);
-/** 編集画面の「繰り返し」から repeat を作る (なしなら null) */
-function readRepeatField(deadline){
-  const t = $("#fRepeat").value; if(!t) return null;
-  const base = (deadline || "").slice(0,10) || todayYmd();
-  return repeatNorm({ type:t, dow: $$("#fRepeatWeek input[data-dow]").filter(c=>c.checked).map(c=>+c.dataset.dow), dom: +$("#fRepeatDom").value || undefined }, base);
-}
-$("#btnAdd").addEventListener("click", ()=>openDialog(null));
-$("#dlgCancel").addEventListener("click", ()=>$("#pDialog").close());
-$("#dlgSave").addEventListener("click", ()=>{
-  const name = $("#fName").value.trim();
-  if(!name){ toast("プロジェクト名を入力してください"); return; }
-  const data = {
-    name, chain: $("#fChain").value.trim(),
-    deadline: $("#fNoDeadline").checked ? "" : $("#fDeadline").value,
-    sources: parseSources($("#fSources").value),
-    memo: $("#fMemo").value.trim(),
-    pinned: $("#fPinned").checked,
-  };
-  const rp = readRepeatField(data.deadline);
-  let added = null;
-  if(editId){
-    const tgt = state.projects.find(x=>x.id===editId);
-    Object.assign(tgt, data);
-    if(rp) tgt.repeat = rp; else delete tgt.repeat;
-  }else{
-    if(rp) data.repeat = rp;
-    added = Object.assign({ id: uid(), status:"open", createdAt: new Date().toISOString() }, data);
-    state.projects.push(added);
-  }
-  save(); renderProjects(); $("#pDialog").close();
-  toast(editId ? "更新しました" : "追加しました");
-  added ? afterProjectsAdded([added]) : scheduleGasSync();
-});
-
-/* ---- search & filter ---- */
-$("#pSearch").addEventListener("input", renderProjects);
-$("#pFilters").addEventListener("click", e=>{
-  const c = e.target.closest(".chip"); if(!c) return;
-  $$("#pFilters .chip").forEach(x=>x.classList.remove("active"));
-  c.classList.add("active"); filter = c.dataset.f;
-  state.settings.filter = filter; save({silent:true});
-  renderProjects();
-});
-/* 再読み込みで表示条件が勝手に変わらないよう、選択を復元する */
-function restoreFilter(){
-  const f = state.settings.filter;
-  if(!f) return;
-  const chip = $$("#pFilters .chip").find(x=>x.dataset.f===f);
-  if(!chip) return;
-  $$("#pFilters .chip").forEach(x=>x.classList.remove("active"));
-  chip.classList.add("active"); filter = f;
-}
-
-/* ---- dedup / export / import ---- */
-$("#btnDedup").addEventListener("click", ()=>{
-  const seen = new Map(); let removed = 0;
-  for(const p of state.projects){
-    const k = p.name.trim().toLowerCase();
-    if(seen.has(k)){ const kept = seen.get(k); kept.pinned = kept.pinned || p.pinned; removed++; }
-    else seen.set(k, p);
-  }
-  if(!removed){ toast("重複はありません"); return; }
-  if(confirm(`${removed}件の重複を削除します (先に登録した方を残します)`)){
-    pushBackup("重複整理する前");
-    state.projects = [...seen.values()]; save(); renderProjects(); scheduleGasSync(); toast(`${removed}件を整理しました`);
-  }
-});
-/* APIキー・Botトークン・クラウドURLはファイルに書き出さない (人に渡すと漏れるため) */
-const SECRET_KEYS = ["key","tgToken","tgChat","gasUrl","gasKey","fredKey"];
-$("#btnExport").addEventListener("click", ()=>{
-  const settings = Object.assign({}, state.settings);
-  SECRET_KEYS.forEach(k=>delete settings[k]);
-  const out = Object.assign({}, state, { settings });
+$("#btnExport").addEventListener("click", async ()=>{
+  const r = $("#exportResult"); r.innerHTML = `<span class="spin"></span>`;
+  const d = await oldDataFetch();
+  if(!d.projects.length){ r.textContent = "旧データ (予定) は見つかりませんでした"; return; }
+  const out = { app:"yotei", exportedAt:new Date().toISOString(), source:d.source, projects:d.projects, deleted:d.deleted };
   const blob = new Blob([JSON.stringify(out, null, 2)], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `yotei_backup_${new Date().toISOString().slice(0,10)}.json`;
   a.click(); URL.revokeObjectURL(a.href);
-});
-$("#btnRestore").addEventListener("click", ()=>{
-  const box = $("#restoreBox");
-  const list = getBackups();
-  if(!list.length){ box.innerHTML = `<span class="hint">バックアップはまだありません</span>`; return; }
-  box.innerHTML = list.map((b,i)=>
-    `<div class="row" style="margin-bottom:6px">
-      <span style="font-size:13px; color:var(--muted); flex:1">${new Date(b.at).toLocaleString("ja-JP")} — ${b.projects.length}件${b.label?` (${esc(b.label)})`:""}</span>
-      <button class="btn small" data-restore="${i}">この状態に戻す</button>
-    </div>`).join("");
-});
-$("#restoreBox").addEventListener("click", e=>{
-  const b = e.target.closest("[data-restore]"); if(!b) return;
-  const item = getBackups()[+b.dataset.restore]; if(!item) return;
-  if(!confirm(`${new Date(item.at).toLocaleString("ja-JP")} の状態 (${item.projects.length}件) に戻します。現在のデータもバックアップされます。よろしいですか?`)) return;
-  pushBackup("復元する前");
-  state.projects = item.projects;
-  normalizeProjects();
-  save(); renderProjects(); scheduleGasSync();
-  $("#restoreBox").innerHTML = "";
-  toast(`${item.projects.length}件を復元しました`);
-});
-$("#btnImport").addEventListener("click", ()=>$("#importFile").click());
-$("#importFile").addEventListener("change", async e=>{
-  const f = e.target.files[0]; if(!f) return;
-  try{
-    const d = JSON.parse(await f.text());
-    if(!Array.isArray(d.projects)) throw 0;
-    if(confirm(`${d.projects.length}件のプロジェクトを読み込み、現在のデータを置き換えます。よろしいですか?`)){
-      pushBackup("インポートする前");
-      const keepSecrets = {};
-      SECRET_KEYS.forEach(k=>{ if(state.settings[k]) keepSecrets[k] = state.settings[k]; });
-      const keepDeleted = state.deleted || {};
-      const keepSync = state.settings.gasSyncedAt;
-      state = Object.assign(state, d);
-      state.settings = Object.assign({}, d.settings || {}, keepSecrets);   /* 手元のキー類は残す */
-      if(keepSync) state.settings.gasSyncedAt = keepSync; else delete state.settings.gasSyncedAt;
-      state.deleted = unionTombs(keepDeleted, d.deleted);
-      normalizeProjects();
-      save(); loadSettingsUI(); renderProjects(); scheduleGasSync(); toast("インポートしました");
-    }
-  }catch(err){ toast("読み込めませんでした (JSON形式を確認してください)"); }
-  e.target.value = "";
+  r.textContent = `✅ ${d.projects.length}件を書き出しました (${d.source}の内容)`;
 });
 /* ================= 共通 ================= */
-const nowJa = () => new Date().toLocaleString("ja-JP");
-
-/* ================= 外部AI連携 ================= */
-const AI_PURPOSE = {
-  table: "以下の案件を、進捗管理しやすいタスク管理表(Markdownの表)にまとめてください。\n"
-       + "列は「案件名 / チェーン / 期限 / やること / 状態 / 優先度 / ソース」とし、期限が近い順に並べてください。\n"
-       + "※ソース列には元のURLを必ずそのまま記載してください (省略・短縮しないこと)。",
-  research: "以下の案件について、それぞれWebで調べて次を明らかにしてください。\n・何のプロジェクトか (一言で)\n・エアドロップ/キャンペーンの参加条件 (具体的な手順)\n・締切や開催期間\n・公式サイトのURL\n分からない項目は推測せず「不明」と書いてください。",
-  priority: "以下の案件に優先順位をつけ、「今日やるべきこと」を上位5件まで挙げてください。\n期限の近さ・作業量・得られるものの大きさを考慮し、それぞれ理由を一行で添えてください。",
-  risk: "以下の案件のリスクを洗い出してください。\n・Sybil判定を受ける恐れのある行動\n・費用が発生する箇所 (ガス代・有料パス等)\n・詐欺や偽サイトの可能性\n・期限切れが迫っているもの\n案件ごとに簡潔にまとめてください。",
-  handover: "これが現在の私の案件一覧です。今後はあなたがこの予定表を管理してください。\n受け取ったら内容を表で整理して見せてください。\n以降、私が新しい情報を送ったらこの一覧に追加・更新し、\n「アプリ用に出力して」と言ったら末尾のJSON形式で全案件を出力してください。",
-};
-const AI_SCHEMA = `[{
-  "id": "元のID。新規案件は空文字 \\"\\"",
-  "name": "案件名",
-  "chain": "チェーン/カテゴリ (不明なら\\"不明\\")",
-  "deadline": "YYYY-MM-DDTHH:MM 形式。未定なら空文字。時刻が不明なら23:59",
-  "memo": "やること・参加条件の要約",
-  "pinned": true,
-  "status": "open",
-  "sources": [{"url":"参考URL","title":"説明"}]
-}]`;
-const AI_SCHEMA_RULES = `・pinned: true にすると毎朝のメール通知の対象になります (重要案件)
-・status: 未完了は "open"、完了済みは "done"
-・idは元の値を必ずそのまま使うこと。新規追加は空文字にする
-・変更が無い項目も、元の値をそのまま含めること
-・deadline を勝手に創作しないこと。不明な場合はまず調べ、それでも不明なら空文字にして memo の先頭に【期限要確認】と書く
-・sources のURLは絶対に省略しないこと。元のURLをそのまま保持する (情報の出所を辿れなくなるため)
-・表形式で出す場合も「ソース」列を設け、URLをそのまま記載すること`;
-const AI_JSON_TAIL = `
-
----
-【最後に、以下の形式のJSONも出力してください】
-回答の一番最後に \`\`\`json で囲んだ配列を付けてください。アプリに取り込むために使います。
-${AI_SCHEMA}
-${AI_SCHEMA_RULES}`;
-
-/* Web版AIに一度だけ覚えさせておく用の仕様書 */
-const AI_SPEC_DOC = `# 予定管理アプリ 連携フォーマット仕様
-
-あなたは私の暗号資産の案件(エアドロップ/キャンペーン)の予定表を管理します。
-予定表の本体はこのチャット上で維持し、私が「アプリ用に出力して」と言ったら、
-下記フォーマットのJSONを \`\`\`json で囲んで出力してください。
-
-## 出力フォーマット
-${AI_SCHEMA}
-
-## ルール
-${AI_SCHEMA_RULES}
-・私が既存の一覧を貼った場合は、そのidを維持したまま更新すること
-・完了した案件も status:"done" として残し、勝手に削除しないこと
-・出力は常に「現時点の全案件」を含めること (アプリ側で全置き換えできるようにするため)
-
-## 補足
-このJSONは予定管理アプリに取り込まれ、
-pinned:true かつ status:"open" の案件が毎朝メールとTelegramで通知されます。`;
-
-function aiProjectsForExport(){
-  const sel = state.projects.filter(p=>selected.has(p.id));
-  if(sel.length) return sel;
-  /* 引き継ぎは完了済みも含めた全件を渡す */
-  return $("#aiPurpose").value==="handover"
-    ? state.projects
-    : state.projects.filter(p=>p.status!=="done");
-}
-function buildAiPrompt(){
-  const purpose = $("#aiPurpose").value;
-  if(purpose==="review"){
-    if(!reviewData) return "記録を読み込んでいます…";
-    $("#aiCount").textContent = `(直近${$("#rvDays").value}日の記録)`;
-    return buildReviewPrompt();
-  }
-  const list = aiProjectsForExport();
-  const head = purpose==="free" ? ($("#aiFree").value.trim() || "以下の案件を分かりやすく整理してください。") : AI_PURPOSE[purpose];
-  const body = list.map((p,i)=>{
-    const dl = p.deadline ? `${fmtDeadline(p.deadline)} (残り${daysLeft(p.deadline)}日)` : "未定";
-    const src = (p.sources||[]).filter(s=>s.url).map(s=>s.url).join(" , ");
-    return [
-      `### ${i+1}. ${p.name}`,
-      `- id: ${p.id}`,
-      `- チェーン: ${p.chain || "不明"}`,
-      `- 期限: ${dl}`,
-      `- status: ${p.status==="done"?"done":"open"}`,
-      `- pinned: ${p.pinned?"true (重要・通知対象)":"false"}`,
-      p.repeat ? `- 繰り返し: ${repeatLabel(p.repeat)} (完了すると次の回が自動で作られます)` : "",
-      `- メモ: ${p.memo || "(なし)"}`,
-      src ? `- ソース: ${src}` : "",
-    ].filter(Boolean).join("\n");
-  }).join("\n\n");
-  const tail = purpose==="handover"
-    ? "\n\n---\n" + AI_SPEC_DOC
-    : ($("#aiWantJson").checked ? AI_JSON_TAIL : "");
-  $("#aiCount").textContent = `(${list.length}件${selected.size?" / 選択中":" / 未完了すべて"})`;
-  return `${head}\n\n現在日時: ${nowJa()}\n\n## 案件一覧\n\n${body}${inboxSection()}${tail}`;
-}
-function refreshAiPrompt(){ $("#aiPrompt").value = buildAiPrompt(); }
-
-/* ================= 受信箱 (Telegramで行った変更) =================
-   Web版AIが台帳の本体なので、Telegram側の追加・完了・ピン変更は
-   次にAIへ渡す時に同梱して伝え、取り込み時には上書きされないよう保護する */
-async function refreshInbox(){
-  if(!state.settings.gasUrl){ tgInbox = []; updateAiBtn(); return tgInbox; }
-  try{
-    const st = await gasCheck();
-    if(st && st.ok){
-      tgInbox = Array.isArray(st.inbox) ? st.inbox : [];
-      if(st.version !== state.settings.gasVersion){ state.settings.gasVersion = st.version || ""; save({silent:true}); }
-    }
-  }catch(e){}
-  updateAiBtn(); renderVersion(); renderHome();
-  return tgInbox;
-}
-function inboxSection(){
-  if(!tgInbox.length) return "";
-  const lines = tgInbox.map(e=>{
-    if(e.type==="add"){
-      const p = e.project || {};
-      const url = (p.sources||[]).filter(s=>s&&s.url).map(s=>s.url).join(" , ");
-      return `・追加: ${e.name} (id: ${e.id})${p.memo?` — ${p.memo}`:""}${url?` [${url}]`:""}`;
-    }
-    if(e.type==="done") return `・完了にした: ${e.name} (id: ${e.id})`;
-    if(e.type==="pin")  return `・${e.pinned?"重要に設定":"重要を解除"}: ${e.name} (id: ${e.id})`;
-    return "";
-  }).filter(Boolean);
-  return `\n\n## 📥 Telegramで行った変更 (あなたの台帳にまだ反映されていません)\n`
-       + `以下を台帳に反映してください。追加分はidをそのまま使ってください。\n`
-       + lines.join("\n");
-}
-function renderInboxBox(){
-  const box = $("#aiInboxBox"); if(!box) return;
-  if(!tgInbox.length){ box.innerHTML = ""; return; }
-  box.innerHTML = `<div style="border:1px solid rgba(56,217,192,.4); border-radius:10px; padding:10px 12px; margin-top:12px; font-size:13px">
-    📥 <b>Telegramでの変更 ${tgInbox.length}件</b> をこの内容に含めました。Web版AIに渡し終えたら受信箱を空にしてください。
-    <div class="row" style="margin-top:8px"><button class="btn small" id="aiInboxClear">✅ 渡した (受信箱を空にする)</button>
-    <span id="aiInboxMsg" style="font-size:12px; color:var(--muted)"></span></div></div>`;
-  $("#aiInboxClear").addEventListener("click", async ()=>{
-    const before = tgInbox.reduce((m,e)=> e.at > m ? e.at : m, "");
-    $("#aiInboxMsg").innerHTML = `<span class="spin"></span>`;
-    try{
-      await gasConfig({ action:"inboxClear", before });
-      await refreshInbox();
-      renderInboxBox(); refreshAiPrompt();
-      toast("受信箱を空にしました");
-    }catch(err){ $("#aiInboxMsg").textContent = "❌ " + err.message; }
-  });
-}
-/* 取り込み時に守るべきTelegram側の変更を算出する */
-function inboxProtections(items){
-  const incomingIds = new Set(items.filter(i=>i.target).map(i=>i.target.id));
-  const incomingNames = new Set(items.map(i=>i.name.trim().toLowerCase()));
-  const keepAdds = [], fixes = [];
-  for(const e of tgInbox){
-    if(e.type==="add" && e.project){
-      const known = incomingIds.has(e.id) || incomingNames.has(String(e.name||"").trim().toLowerCase());
-      if(!known && !keepAdds.some(k=>k.id===e.id)) keepAdds.push(e.project);
-    }else if(e.type==="done"){ fixes.push({ id:e.id, name:e.name, status:"done" }); }
-    else if(e.type==="pin"){ fixes.push({ id:e.id, name:e.name, pinned:!!e.pinned }); }
-  }
-  return { keepAdds, fixes };
-}
-
-$("#btnAiExport").addEventListener("click", async ()=>{
-  $("#aiPaste").value = ""; $("#aiPreview").innerHTML = ""; $("#aiParseStatus").textContent = "";
-  aiItems = []; $("#aiApply").style.display = "none"; $("#aiApply").disabled = true;
-  $$("#aiDialog .chip").forEach(c=>c.classList.toggle("active", c.dataset.aiTab==="out"));
-  $("#aiOut").style.display = ""; $("#aiIn").style.display = "none";
-  refreshAiPrompt();
-  $("#aiDialog").showModal();
-  await refreshInbox();
-  renderInboxBox(); refreshAiPrompt();
-});
-$("#aiDialog").addEventListener("click", e=>{
-  const c = e.target.closest("[data-ai-tab]"); if(!c) return;
-  const t = c.dataset.aiTab;
-  $$("#aiDialog .chip").forEach(x=>x.classList.remove("active"));
-  c.classList.add("active");
-  $("#aiOut").style.display = t==="out" ? "" : "none";
-  $("#aiIn").style.display  = t==="in"  ? "" : "none";
-  $("#aiApply").style.display = t==="in" ? "" : "none";
-});
-$("#aiPurpose").addEventListener("change", async ()=>{
-  const v = $("#aiPurpose").value;
-  $("#aiFreeWrap").style.display = v==="free" ? "" : "none";
-  $("#aiReviewWrap").style.display = v==="review" ? "" : "none";
-  $("#aiJsonWrap").style.display = v==="review" ? "none" : "";
-  refreshAiPrompt();
-  if(v==="review"){ await loadReviewData(); refreshAiPrompt(); }
-});
-$("#rvDays").addEventListener("change", refreshAiPrompt);
-$("#rvAnon").addEventListener("change", refreshAiPrompt);
-$("#aiFree").addEventListener("input", refreshAiPrompt);
-$("#aiWantJson").addEventListener("change", refreshAiPrompt);
-$("#aiClose").addEventListener("click", ()=>$("#aiDialog").close());
 async function copyText(str, msg){
   try{ await navigator.clipboard.writeText(str); toast(msg); }
   catch(e){
@@ -2030,244 +805,6 @@ async function copyText(str, msg){
     toast(msg);
   }
 }
-$("#aiCopy").addEventListener("click", ()=>copyText($("#aiPrompt").value, "コピーしました。AIに貼り付けてください"));
-$("#aiCopySpec").addEventListener("click", ()=>copyText(AI_SPEC_DOC, "出力仕様をコピーしました"));
-
-/* ---- AIの回答を取り込む ---- */
-let aiItems = [];
-function extractJsonArray(text){
-  const fence = /```(?:json)?\s*([\s\S]*?)```/gi;
-  const cands = [];
-  let m; while((m = fence.exec(text))) cands.push(m[1]);
-  cands.push(text);
-  for(const c of cands){
-    const s = c.indexOf("["), e = c.lastIndexOf("]");
-    if(s < 0 || e <= s) continue;
-    try{ const arr = JSON.parse(c.slice(s, e+1)); if(Array.isArray(arr)) return arr; }catch(err){}
-  }
-  return null;
-}
-
-/* 「2026/10/5」「10/5 23:59」「未定」などを解釈する */
-function parseDateLoose(s){
-  s = String(s||"").trim().replace(/\*\*/g,"");
-  if(!s || /未定|不明|なし|TBD|^[-–—]+$/i.test(s)) return "";
-  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return s.slice(0,16);
-  let y, mo, d;
-  let m = s.match(/(\d{4})[-\/年.](\d{1,2})[-\/月.](\d{1,2})/);
-  if(m){ y=+m[1]; mo=+m[2]; d=+m[3]; }
-  else{
-    m = s.match(/(\d{1,2})[-\/月.](\d{1,2})/);
-    if(!m) return "";
-    mo=+m[1]; d=+m[2]; y=new Date().getFullYear();
-  }
-  const tm = s.match(/(\d{1,2}):(\d{2})/);
-  const hh = tm ? +tm[1] : 23, mi = tm ? +tm[2] : 59;
-  const p = n=>String(n).padStart(2,"0");
-  let iso = `${y}-${p(mo)}-${p(d)}T${p(hh)}:${p(mi)}`;
-  /* 年が省略され、半年以上前になる場合は翌年とみなす */
-  if(!/\d{4}/.test(s) && (Date.now() - Date.parse(iso)) > 180*86400000){
-    iso = `${y+1}-${p(mo)}-${p(d)}T${p(hh)}:${p(mi)}`;
-  }
-  return iso;
-}
-
-/* Markdownの表を案件配列に変換する */
-function parseMarkdownTable(text){
-  const lines = String(text||"").split(/\r?\n/).map(l=>l.trim());
-  const isRow = l => /^\|.*\|$/.test(l);
-  const isSep = l => /^[\s|:\-–—]+$/.test(l);
-  let best = null, i = 0;
-  while(i < lines.length){
-    if(!isRow(lines[i])){ i++; continue; }
-    const block = [];
-    while(i < lines.length && isRow(lines[i])){ block.push(lines[i]); i++; }
-    if(block.length >= 3 && (!best || block.length > best.length)) best = block;
-  }
-  if(!best) return null;
-  const cut = l => l.replace(/^\||\|$/g,"").split("|").map(c=>c.trim().replace(/\*\*/g,""));
-  const header = cut(best[0]);
-  const rows = best.slice(1).filter(l=>!isSep(l)).map(cut);
-  if(!rows.length) return null;
-
-  const idx = {};
-  header.forEach((h,ci)=>{
-    if(idx.id===undefined && /^id$/i.test(h)) idx.id=ci;
-    else if(idx.name===undefined && /案件|プロジェクト|名称|タスク名|name|title/i.test(h)) idx.name=ci;
-    else if(idx.chain===undefined && /チェーン|chain|カテゴリ|ネットワーク/i.test(h)) idx.chain=ci;
-    else if(idx.deadline===undefined && /期限|締切|deadline|日付|date/i.test(h)) idx.deadline=ci;
-    else if(idx.status===undefined && /状態|ステータス|status|進捗/i.test(h)) idx.status=ci;
-    else if(idx.pinned===undefined && /優先|重要|priority|pin/i.test(h)) idx.pinned=ci;
-    else if(idx.url===undefined && /ソース|リンク|参考|出典|url|link|source/i.test(h)) idx.url=ci;
-    else if(idx.memo===undefined && /やること|内容|メモ|詳細|条件|備考|アクション|memo|note|task/i.test(h)) idx.memo=ci;
-  });
-  if(idx.name===undefined) idx.name = 0;
-
-  const used = new Set(Object.values(idx));
-  const out = [];
-  for(const c of rows){
-    const name = (c[idx.name]||"").trim();
-    if(!name || /^[-–—]+$/.test(name)) continue;
-    const memo = idx.memo!==undefined
-      ? (c[idx.memo]||"")
-      : c.filter((_,ci)=>!used.has(ci)).filter(Boolean).join(" / ")
-         .replace(/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
-         .replace(/https?:\/\/\S+/g, "").trim();
-    const stRaw = idx.status!==undefined ? (c[idx.status]||"") : "";
-    const pnRaw = idx.pinned!==undefined ? (c[idx.pinned]||"") : "";
-    /* ソース列だけでなく、行のどこにURLがあっても拾う ([title](url) 形式にも対応) */
-    const rowText = c.join(" ");
-    const srcs = [];
-    const mdLink = /\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
-    let mm, consumed = "";
-    while((mm = mdLink.exec(rowText))){ srcs.push({url: mm[2], title: mm[1]||""}); consumed += mm[0]; }
-    (rowText.replace(mdLink, "").match(/https?:\/\/[^\s|)\]]+/g) || []).forEach(u=>{
-      if(!srcs.some(s=>s.url===u)) srcs.push({url:u, title:""});
-    });
-    out.push({
-      id: idx.id!==undefined ? (c[idx.id]||"").trim() : "",
-      name,
-      sources: srcs,
-      chain: idx.chain!==undefined ? (c[idx.chain]||"") : "",
-      deadline: idx.deadline!==undefined ? parseDateLoose(c[idx.deadline]) : "",
-      memo: memo.trim(),
-      /* 「未完了」に「完了」が含まれるため、否定表現を先に判定する */
-      status: /未完了|未着手|未対応|未実施|進行中|作業中|open|todo/i.test(stRaw) ? "open"
-            : (/完了|済|done|✅|✔/i.test(stRaw) ? "done" : "open"),
-      pinned: /高|high|重要|★|◎|最優先|true|✓|✅/i.test(pnRaw) || undefined,
-    });
-  }
-  return out.length ? out : null;
-}
-
-$("#aiParse").addEventListener("click", async ()=>{
-  const raw = $("#aiPaste").value.trim();
-  const st = $("#aiParseStatus");
-  if(!raw){ st.textContent = "回答を貼り付けてください"; return; }
-  await refreshInbox();   /* Telegram側の最新の変更を把握してから判定する */
-  let arr = extractJsonArray(raw), via = "JSON";
-  if(!arr){ arr = parseMarkdownTable(raw); via = "表"; }
-  if(!arr){
-    st.innerHTML = "❌ 読み取れませんでした。AIに「<b>アプリ用にJSONで出力して</b>」と頼むか、表そのものを貼り付けてください";
-    st.style.color="var(--danger)"; return;
-  }
-  const byId = new Map(state.projects.map(p=>[p.id, p]));
-  /* 名前でも照合する (AIがidを落とした場合の保険) */
-  const byName = new Map(state.projects.map(p=>[p.name.trim().toLowerCase(), p]));
-  aiItems = arr.filter(x=>x && (x.name||x.id)).map(x=>{
-    const cur = (x.id ? byId.get(String(x.id)) : null)
-             || (x.name ? byName.get(String(x.name).trim().toLowerCase()) : null) || null;
-    const memo = [x.memo, x.note].filter(Boolean).join("\n").trim();
-    /* AI側がソースを返さなかった場合、既存のリンクを消さずに残す */
-    const incoming = Array.isArray(x.sources)
-      ? x.sources.filter(s=>s && (s.url||s.title)).map(s=>({url:String(s.url||""), title:String(s.title||"")}))
-      : [];
-    const keepSrc = (cur?.sources || []).filter(s=>s && s.url);
-    const srcs = incoming.length
-      ? [...incoming, ...keepSrc.filter(k=>!incoming.some(i=>i.url===k.url))]
-      : keepSrc;
-    return { target: cur, raw: x,
-      name: String(x.name || cur?.name || ""),
-      chain: String(x.chain ?? cur?.chain ?? ""),
-      deadline: String(x.deadline ?? cur?.deadline ?? ""),
-      memo: memo || cur?.memo || "",
-      pinned: x.pinned !== undefined ? !!x.pinned : !!cur?.pinned,
-      status: (x.status === "done" || x.status === "open") ? x.status : (cur?.status || "open"),
-      sources: srcs };
-  }).filter(it=>it.name);
-
-  const mode = $("#aiMode").value;
-  const prot = inboxProtections(aiItems);
-  const keep = new Set([...aiItems.map(it=>it.target?.id).filter(Boolean), ...prot.keepAdds.map(p=>p.id)]);
-  const dropped = mode==="replace" ? state.projects.filter(p=>!keep.has(p.id)) : [];
-
-  st.textContent = `✅ ${aiItems.length}件を読み取りました (${via}形式)`; st.style.color = "var(--ok)";
-  const box = $("#aiPreview");
-  const rows = aiItems.map((it,i)=>{
-    const isNew = !it.target;
-    const changes = [];
-    if(it.target){
-      if(it.chain !== (it.target.chain||"")) changes.push(`チェーン: ${esc(it.target.chain||"なし")} → ${esc(it.chain||"なし")}`);
-      if(it.deadline !== (it.target.deadline||"")) changes.push(`期限: ${it.target.deadline?esc(fmtDeadline(it.target.deadline)):"未定"} → ${it.deadline?esc(fmtDeadline(it.deadline)):"未定"}`);
-      if(it.memo !== (it.target.memo||"")) changes.push("メモを更新");
-      if(it.pinned !== !!it.target.pinned) changes.push(it.pinned ? "📌 重要にする" : "📌 重要を解除");
-      if(it.status !== (it.target.status||"open")) changes.push(it.status==="done" ? "✅ 完了にする" : "↩ 未完了に戻す");
-    }
-    return `<label class="check" style="align-items:flex-start; padding:8px 10px; border:1px solid var(--border); border-radius:10px; margin-bottom:6px">
-      <input type="checkbox" data-ai="${i}" checked style="margin-top:4px">
-      <span><b>${esc(it.name)}</b> ${isNew?`<span class="badge due-soon">新規</span>`:(changes.length?`<span class="badge chain">更新</span>`:`<span class="badge">変更なし</span>`)}
-      ${it.pinned?`<span class="badge pin">📌</span>`:""}
-      ${changes.length?`<br><span style="font-size:12px; color:var(--muted)">${changes.join(" ／ ")}</span>`:""}
-      ${it.memo?`<br><span style="font-size:12px; color:var(--dim)">${esc(it.memo.slice(0,120))}</span>`:""}
-      </span></label>`;
-  }).join("");
-  const warn = dropped.length
-    ? `<div style="border:1px solid rgba(255,107,129,.4); border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:13px">
-        <b style="color:var(--danger)">⚠ 全置き換え: 次の${dropped.length}件はアプリから削除されます</b>
-        <div style="font-size:12px; color:var(--muted); margin-top:4px">${dropped.map(p=>esc(p.name)).join(" ／ ")}</div>
-        <div style="font-size:12px; color:var(--dim); margin-top:4px">反映前に自動バックアップされます</div>
-       </div>` : "";
-  const nFix = prot.fixes.length, nAdd = prot.keepAdds.length;
-  const shield = (nFix || nAdd)
-    ? `<div style="border:1px solid rgba(56,217,192,.4); border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:13px">
-        <b style="color:var(--accent2)">🛡 Telegramでの変更を保護します</b>
-        <div style="font-size:12px; color:var(--muted); margin-top:4px">Web版AIにまだ伝わっていない変更なので、上書きせず残します。</div>
-        ${nAdd?`<div style="font-size:12px; margin-top:4px">・追加 ${nAdd}件: ${prot.keepAdds.map(p=>esc(p.name)).join(" ／ ")}</div>`:""}
-        ${nFix?`<div style="font-size:12px; margin-top:4px">・完了/重要の変更 ${nFix}件: ${[...new Set(prot.fixes.map(f=>f.name))].map(esc).join(" ／ ")}</div>`:""}
-       </div>` : "";
-  box.innerHTML = shield + warn + rows;
-  $("#aiApply").disabled = !aiItems.length;
-});
-$("#aiMode").addEventListener("change", ()=>{ if(aiItems.length) $("#aiParse").click(); });
-$("#aiApply").addEventListener("click", ()=>{
-  const picks = $$("#aiPreview input:checked").map(c=>aiItems[+c.dataset.ai]);
-  if(!picks.length){ toast("反映する項目を選択してください"); return; }
-  const mode = $("#aiMode").value;
-  const prot = inboxProtections(aiItems);
-  /* チェックを外した既存案件は「更新しない」だけで、削除はしない */
-  const keep = new Set([...aiItems.map(it=>it.target?.id).filter(Boolean), ...prot.keepAdds.map(p=>p.id)]);
-  const dropped = mode==="replace" ? state.projects.filter(p=>!keep.has(p.id)) : [];
-  if(dropped.length && !confirm(`全置き換えにより${dropped.length}件がアプリから削除されます。よろしいですか?\n\n${dropped.map(p=>"・"+p.name).join("\n")}`)) return;
-
-  pushBackup("AIの結果を反映する前");
-  let upd = 0, add = 0;
-  const news = [];
-  for(const it of picks){
-    const data = { name: it.name, chain: it.chain, deadline: it.deadline,
-                   memo: it.memo, pinned: it.pinned, status: it.status };
-    if(it.target){
-      if(data.status==="done" && it.target.status!=="done") data.doneAt = new Date().toISOString();
-      Object.assign(it.target, data);
-      if(it.sources?.length) it.target.sources = it.sources;
-      upd++;
-    }else{
-      const p = Object.assign({ id: uid(), createdAt:new Date().toISOString(), sources: it.sources||[] }, data);
-      state.projects.push(p); news.push(p); add++;
-    }
-  }
-  if(dropped.length){
-    const del = new Set(dropped.map(p=>p.id));
-    state.projects = state.projects.filter(p=>!del.has(p.id));
-  }
-  /* 🛡 Telegramでの変更を上書きしないよう戻す */
-  let guarded = 0;
-  for(const p of prot.keepAdds){
-    if(!state.projects.some(x=>x.id===p.id)){ state.projects.push(JSON.parse(JSON.stringify(p))); guarded++; }
-  }
-  for(const f of prot.fixes){
-    const t = state.projects.find(x=>x.id===f.id)
-           || state.projects.find(x=>x.name.trim().toLowerCase()===String(f.name||"").trim().toLowerCase());
-    if(!t) continue;
-    if(f.status && t.status !== f.status){ t.status = f.status; if(f.status==="done" && !t.doneAt) t.doneAt = new Date().toISOString(); guarded++; }
-    if(f.pinned !== undefined && t.pinned !== f.pinned){ t.pinned = f.pinned; guarded++; }
-  }
-  normalizeProjects();
-  save(); renderProjects(); $("#aiDialog").close();
-  toast(`${upd}件を更新、${add}件を追加${dropped.length?`、${dropped.length}件を削除`:""}しました`
-        + (guarded ? ` (Telegramでの変更${guarded}件を保護)` : ""));
-  news.length ? afterProjectsAdded(news) : scheduleGasSync();
-});
-
 /* ================= Polymarket ================= */
 /* 市場の一覧 (Gamma API) を取り、イベントごとにまとめて、日本語で見せる。売買はしない。
    端末に保存するもの (予定のデータ sakiyomi_v1 とは別):
@@ -4061,181 +2598,7 @@ async function loadMacro(force){
 }
 $("#mcReload").addEventListener("click", ()=>loadMacro(true));
 
-/* ================= Telegram 通知 ================= */
-async function tgApi(method, params){
-  const token = state.settings.tgToken;
-  if(!token) throw new Error("Bot Tokenが未設定です");
-  /* URLSearchParams で送ると content-type が form-urlencoded になり
-     CORSプリフライト(OPTIONS)が発生しない = file:// からでも通る */
-  const body = new URLSearchParams();
-  for(const [k,v] of Object.entries(params||{})) body.append(k, typeof v==="object" ? JSON.stringify(v) : String(v));
-  let r;
-  try{
-    r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method:"POST", body });
-  }catch(e){
-    throw new Error("ネットワークに接続できません (VPN/拡張機能/回線をご確認ください)");
-  }
-  let d;
-  try{ d = await r.json(); }catch(e){ throw new Error("応答を解析できません (HTTP " + r.status + ")"); }
-  if(!d.ok){
-    let msg = d.description || ("HTTP " + r.status);
-    if(r.status === 404) msg = "Bot Tokenが正しくありません";
-    else if(/chat not found/i.test(msg)) msg = "Chat IDが正しくありません (Botに一度メッセージを送ってから自動取得してください)";
-    throw new Error(msg);
-  }
-  return d.result;
-}
-function tgChats(){
-  return String(state.settings.tgChat||"").split(",").map(s=>s.trim()).filter(Boolean);
-}
-async function tgSend(text){
-  const chats = tgChats();
-  if(!state.settings.tgToken || !chats.length) throw new Error("Telegramの設定が未完了です");
-  let lastErr = null, sent = 0;
-  for(const c of chats){
-    try{ await tgApi("sendMessage", { chat_id: c, text, parse_mode: "HTML", disable_web_page_preview: false }); sent++; }
-    catch(e){ lastErr = e; }
-  }
-  if(!sent && lastErr) throw lastErr;
-  return sent;
-}
-/* 新規追加の共通フック
-   以前は1件ごとにTelegram通知していたが、一括取り込みで大量に届くため廃止。
-   通知はGoogle側の「期限アラート」に一本化している。 */
-function afterProjectsAdded(added){
-  scheduleGasSync();
-}
-$("#tgEye").addEventListener("click", ()=>{
-  const k = $("#tgToken"); k.type = k.type==="password" ? "text" : "password";
-});
-function saveTgSettings(){
-  state.settings.tgToken = $("#tgToken").value.trim();
-  state.settings.tgChat = $("#tgChat").value.trim();
-  save({silent:true});   /* 設定変更は案件データの更新ではない */
-}
-$("#tgSave").addEventListener("click", ()=>{
-  saveTgSettings();
-  const s = state.settings;
-  if(!s.tgToken) toast("Bot Tokenを入力してください");
-  else if(!s.tgChat) toast("Chat IDが未設定です (「自動取得」を押してください)");
-  else toast("Telegram設定を保存しました");
-});
-/* 保存忘れ防止: 入力・チェック変更で即保存 */
-["tgToken","tgChat"].forEach(id=>{
-  const el = $("#"+id);
-  el.addEventListener("change", saveTgSettings);
-  el.addEventListener("input", saveTgSettings);
-});
-["gasUrl","gasKey","gasMail","gasAuto"].forEach(id=>{
-  const el = $("#"+id);
-  el.addEventListener("change", saveGasSettings);
-  el.addEventListener("input", saveGasSettings);
-});
-$("#tgGetChat").addEventListener("click", async ()=>{
-  saveTgSettings();
-  const r = $("#tgResult"); r.innerHTML = `<span class="spin"></span>`;
-  try{
-    const ups = await tgApi("getUpdates", {});
-    let ids = [...new Set(ups.map(u=>u.message?.chat?.id ?? u.channel_post?.chat?.id).filter(Boolean))].map(String);
-    /* Google側が受信済みのメッセージはここに出ないため、控えられたIDも取り込む */
-    try{
-      const st = await gasCheck();
-      if(st && Array.isArray(st.pendingChats)) ids = [...new Set([...ids, ...st.pendingChats.map(String)])];
-    }catch(e){}
-    if(!ids.length){ r.textContent = "❌ 未取得。Botに一度メッセージを送ってから再試行してください"; r.style.color="var(--danger)"; return; }
-    /* 既存のIDは消さずに追加する (複数アカウント対応) */
-    const cur = tgChats();
-    const merged = [...new Set([...cur, ...ids])];
-    const added = merged.length - cur.length;
-    $("#tgChat").value = merged.join(", ");
-    saveTgSettings();
-    r.textContent = added ? `✅ Chat IDを${added}件追加しました (登録 ${merged.length}件)` : `✅ 取得済み (登録 ${merged.length}件)`;
-    r.style.color = "var(--ok)";
-    /* Google側(毎朝の通知先)にも追加する。既存の通知先は消さない */
-    if(added && state.settings.gasUrl){
-      try{
-        const st = await gasCheck();
-        if(st && st.telegram){
-          await gasConfig({ action:"config", tgChat: merged.join(",") });
-          r.textContent += " ・毎朝の通知先にも追加しました";
-        }
-      }catch(e){}
-    }
-  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
-});
-$("#tgTest").addEventListener("click", async ()=>{
-  saveTgSettings();
-  const r = $("#tgResult"); r.innerHTML = `<span class="spin"></span>`;
-  try{
-    await tgSend("✅ <b>予定管理</b> からのテスト通知です。\n毎朝9時のまとめはこのBotから届きます (/alert で今すぐ確認できます)。");
-    r.textContent = "✅ 送信しました"; r.style.color = "var(--ok)";
-  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
-});
-
-/* ---- Telegram登録 (Apps Scriptへの有効化) ---- */
-async function gasConfig(payloadObj){
-  const url = state.settings.gasUrl;
-  if(!url) throw new Error("先に「☁️ クラウド同期」のウェブアプリURLを設定してください");
-  const body = JSON.stringify(withGasKey(payloadObj));
-  try{
-    const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body, redirect:"follow" });
-    const d = await r.json();
-    if(d.ok) return d;
-  }catch(e){ /* フォームでリトライ */ }
-  await gasFormPost(url, body);
-  const st = await gasCheck();
-  return { ok:true, configured: !!(st && st.telegram) };
-}
-async function renderTgIngestStatus(){
-  const el = $("#tgIngestStatus"); if(!el) return;
-  if(!state.settings.gasUrl){ el.innerHTML = `<span style="color:var(--warn)">クラウド同期のURLが未設定です</span>`; return; }
-  try{
-    const st = await gasCheck();
-    let h = st && st.telegram
-      ? `<span style="color:var(--ok)">✅ 有効 — Botに送った情報が自動で登録されます</span>`
-      : `<span style="color:var(--muted)">未設定 — 下のボタンで有効化できます</span>`;
-    /* 毎朝の通知が実際に届いているかを表示する */
-    if(st && st.telegram && st.tgChats != null){
-      h += `<br>毎朝の通知先: <b>${st.tgChats}件</b>`;
-      const ls = st.tgLastSend;
-      if(ls && ls.at){
-        const at = new Date(ls.at).toLocaleString("ja-JP");
-        h += ls.ok ? ` ／ 最後の送信: ${at} <span style="color:var(--ok)">成功</span>`
-                   : ` ／ 最後の送信: ${at} <span style="color:var(--danger)">失敗 (${esc(ls.error||"")})</span>`;
-      }
-      if(st.alertLastOk) h += `<br>最後のまとめ通知: ${new Date(st.alertLastOk).toLocaleString("ja-JP")}`;
-    }
-    el.innerHTML = h;
-  }catch(e){ el.innerHTML = `<span style="color:var(--muted)">状態を確認できませんでした</span>`; }
-}
-$("#tgIngestOn").addEventListener("click", async ()=>{
-  saveTgSettings(); saveGasSettings();
-  const r = $("#tgIngestResult");
-  const s = state.settings;
-  if(!s.tgToken || !s.tgChat){ r.textContent = "❌ Bot TokenとChat IDを先に設定してください"; r.style.color = "var(--danger)"; return; }
-  if(!s.key && !confirm("この端末にGemini APIキーが未設定です。Google側に保存済みのキーがあればそれを使い、無ければAI解析なしの簡易登録になります。続けますか?")) return;
-  r.innerHTML = `<span class="spin"></span> 有効化しています…`;
-  try{
-    await gasConfig({ action:"config", tgToken:s.tgToken, tgChat:s.tgChat, geminiKey:s.key||"", geminiModel:s.model||"gemini-2.5-flash" });
-    await renderTgIngestStatus();
-    r.innerHTML = `✅ 有効化しました。Telegramで <b>/help</b> と送ると使い方が表示されます`;
-    r.style.color = "var(--ok)";
-    try{ await tgSend("📲 <b>Telegram登録を有効化しました</b>\n情報をそのまま送る/転送すると案件を自動登録します。\n/help でコマンド一覧"); }catch(e){}
-  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
-});
-$("#tgIngestOff").addEventListener("click", async ()=>{
-  const r = $("#tgIngestResult");
-  if(!confirm("Telegramからの登録を無効化し、Googleに保存したキーを削除します。よろしいですか?")) return;
-  r.innerHTML = `<span class="spin"></span>`;
-  try{
-    await gasConfig({ action:"config", clear:true, tgToken:"", tgChat:"", geminiKey:"" });
-    await renderTgIngestStatus();
-    r.textContent = "無効化しました"; r.style.color = "var(--muted)";
-  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
-});
-
-/* ================= Google Apps Script 同期 ================= */
-/* CORSの影響を受けないフォーム送信 (hidden iframe 宛) */
+/* ================= サーバー (Google Apps Script) ================= */
 /* 合言葉 (サーバーの API_SECRET) をすべての通信に付ける。未設定なら付けない */
 function gasGetUrl(query){
   const url = state.settings.gasUrl, k = state.settings.gasKey || "";
@@ -4245,206 +2608,42 @@ function withGasKey(obj){
   const k = state.settings.gasKey || "";
   return k ? Object.assign({}, obj, { key: k }) : obj;
 }
-function gasFormPost(url, body){
-  return new Promise(resolve=>{
-    let frame = document.getElementById("gasFrame");
-    if(!frame){
-      frame = document.createElement("iframe");
-      frame.id = "gasFrame"; frame.name = "gasFrame"; frame.style.display = "none";
-      document.body.appendChild(frame);
-    }
-    const form = document.createElement("form");
-    form.method = "POST"; form.action = url; form.target = "gasFrame"; form.style.display = "none";
-    const input = document.createElement("input");
-    input.type = "hidden"; input.name = "payload"; input.value = body;
-    form.appendChild(input);
-    document.body.appendChild(form);
-    let done = false;
-    const finish = ()=>{ if(done) return; done = true; form.remove(); resolve(); };
-    frame.onload = ()=> setTimeout(finish, 300);
-    form.submit();
-    setTimeout(finish, 8000);
-  });
-}
 
-/* 同期は1本ずつ順番に実行する (自動保存と起動時同期が重なって上書きし合わないように) */
-let gasChain = Promise.resolve();
-function gasSync(force){
-  const run = gasChain.then(()=>gasSyncInner(force));
-  gasChain = run.catch(()=>{});
-  return run;
-}
-async function gasFetchAll(){
-  const url = state.settings.gasUrl;
-  const r = await fetch(gasGetUrl("action=load&t=" + Date.now()), { redirect:"follow" });
-  const d = await r.json();
-  if(!d.ok || !Array.isArray(d.projects)) throw new Error(d.error || "クラウドのデータを読めません");
-  return d;
-}
-/* クラウドの内容を手元に合体する (案件ごとに新しい方を採用)。変化があれば true */
-function applyRemote(d){
-  const before = JSON.stringify(state.projects);
-  const T = unionTombs(state.deleted, d.deleted);
-  state.projects = mergeProjects(state.projects, d.projects, T, state.settings.gasSyncedAt);
-  state.deleted = T;
-  normalizeProjects();
-  takeSnap();
-  const changed = JSON.stringify(state.projects) !== before;
-  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
-  if(changed) renderProjects();
-  return changed;
-}
-/* サーバーが合体した結果をそのまま採用する */
-function adoptServer(d){
-  if(!d || !Array.isArray(d.projects)) return;
-  state.projects = d.projects;
-  if(d.deleted) state.deleted = unionTombs(state.deleted, d.deleted);
-  normalizeProjects();
-  takeSnap();
-  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
-  renderProjects();
-}
-
-async function gasSyncInner(force){
-  const url = state.settings.gasUrl;
-  if(!url) throw new Error("ウェブアプリURLが未設定です");
-  /* 空の端末がクラウドのデータを消してしまう事故を防ぐ
-     — 確認できない場合も中止する (通信失敗時にすり抜けるのを防ぐ) */
-  if(!state.projects.length && !force){
-    const st = await gasCheck().catch(()=>null);
-    if(!st || !st.ok){
-      throw new Error("この端末は0件です。クラウドの状態を確認できなかったため、安全のため保存を中止しました");
-    }
-    if(st.count > 0){
-      throw new Error(`この端末は0件です。クラウドの${st.count}件を消さないため中止しました (「⬇ クラウドから読込」をお使いください)`);
-    }
-  }
-  /* ① 先に向こうの変更(他の端末・Telegram)を合体してから送る */
-  let pulled = false;
-  if(state.projects.length){
-    try{ pulled = applyRemote(await gasFetchAll()); }catch(e){ /* 読めなくても送信はする(サーバー側でも合体する) */ }
-  }
-  const stamp = new Date().toISOString();
-  /* 全案件 + 削除記録を送る。サーバー側でも案件ごとに新しい方を採用して合体する */
-  const payload = { email: state.settings.gasMail || "", syncedAt: stamp, base: state.settings.gasSyncedAt || "",
-                    all: state.projects, deleted: state.deleted || {} };
-  const body = JSON.stringify(withGasKey(payload));
-  /* ② CORS対応のfetchを試す (成功すれば応答をそのまま使える) */
-  try{
-    const r = await fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body, redirect:"follow" });
-    const d = await r.json();
-    if(d.ok){
-      state.settings.gasSyncedAt = stamp;
-      adoptServer(d);
-      if(d.game) setGame(d.game);
-      save({silent:true});
-      return { ok:true, count: state.projects.length, pulled };
-    }
-    if(d.error) throw new Error(d.error);
-  }catch(e){ if(/拒否|合言葉/.test(e.message)) throw e; /* ③ へ */ }
-  /* ③ フォーム送信でリトライ */
-  await gasFormPost(url, body);
-  /* ④ Google側を読み直して本当に反映されたか検証 */
-  let st;
-  try{ st = await gasCheck(); }
-  catch(e){ throw new Error("送信しましたが結果を確認できません: " + e.message); }
-  if(!st || st.syncedAt !== stamp){
-    throw new Error("送信しましたがGoogle側に反映されていません。gas-daily-mail.gs を最新版に貼り替えて再デプロイしてください");
-  }
-  state.settings.gasSyncedAt = stamp;
-  try{ adoptServer(await gasFetchAll()); }catch(e){}
-  save({silent:true});
-  return { ok:true, count: state.projects.length, pulled };
-}
-
-/* クラウドから案件データを取得して置き換える (設定の「⬇ クラウドから読込」) */
-async function gasLoad(force){
-  const url = state.settings.gasUrl;
-  if(!url) throw new Error("ウェブアプリURLが未設定です");
-  const r = await fetch(gasGetUrl("action=load&t=" + Date.now()), { redirect:"follow" });
-  const d = await r.json();
-  if(!d.ok) throw new Error(d.error || "読込に失敗しました");
-  if(!Array.isArray(d.projects)) throw new Error("クラウドにデータがありません (先に「⬆ クラウドへ保存」してください)");
-  /* 中身が空のクラウドで、手元のデータを消さない */
-  if(!d.projects.length && state.projects.length && !force){
-    throw new Error(`クラウドは0件です。この端末の${state.projects.length}件を消さないため中止しました`);
-  }
-  pushBackup("クラウドから読込む前");
-  state.projects = d.projects;
-  state.deleted = unionTombs(state.deleted, d.deleted);
-  normalizeProjects();
-  takeSnap();
-  state.settings.gasSyncedAt = d.syncedAt || new Date().toISOString();
-  state.updatedAt = state.settings.gasSyncedAt;   /* 取得直後は同一とみなす */
-  localStorage.setItem(LS_KEY, JSON.stringify(state));
-  renderProjects();
-  return d;
-}
-
-/* 起動時・画面に戻った時: クラウドと手元を合体する */
+/* 起動時・画面に戻った時: サーバーの版数と合言葉を確かめる */
 async function gasAutoResume(){
   if(!state.settings.gasUrl) return;
   try{
     const st = await gasCheck();
     if(!st || !st.ok) return;
-    if(/合言葉/.test(state.settings.gasError || "")){ state.settings.gasError = ""; save({silent:true}); }   /* 合言葉が合った */
-    const dirty = state.updatedAt && (!state.settings.gasSyncedAt || Date.parse(state.updatedAt) > Date.parse(state.settings.gasSyncedAt) + 1000);
-    const remoteChanged = st.syncedAt && st.syncedAt !== state.settings.gasSyncedAt;
-    if(!state.projects.length && st.count > 0){
-      await gasLoad();
-      toast(`☁️ クラウドのデータを読み込みました (${state.projects.length}件)`);
-    }else if(remoteChanged || dirty){
-      if(state.settings.gasAuto !== false){
-        const res = await gasSync();
-        if(res && res.pulled) toast("☁️ 他の端末・Telegramでの変更を反映しました");
-      }else if(remoteChanged){
-        if(applyRemote(await gasFetchAll())) toast("☁️ 他の端末・Telegramでの変更を反映しました");
-      }
-    }
-    renderTgIngestStatus();
-    renderGasStatus();
+    if(state.settings.gasError){ state.settings.gasError = ""; save(); }   /* 合言葉が合った */
+    renderGasStatus(); renderVersion();
   }catch(e){
     /* オフライン等は無視。合言葉が違う時だけは気づけるように知らせる */
-    if(/合言葉/.test(e.message || "")){ state.settings.gasError = e.message; save({silent:true}); renderGasStatus(); renderHome(); }
+    if(/合言葉/.test(e.message || "")){ state.settings.gasError = e.message; save(); renderGasStatus(); }
   }
 }
-/* 開きっぱなしの画面に戻った時も最新にする (30秒に1回まで) */
+/* 開きっぱなしの画面に戻った時も確かめる (30秒に1回まで) */
 let lastResume = Date.now();
 function resumeIfStale(){
   if(document.visibilityState !== "visible" || Date.now() - lastResume < 30000) return;
   lastResume = Date.now();
-  gasAutoResume().finally(()=>refreshInbox());
+  gasAutoResume();
 }
 document.addEventListener("visibilitychange", resumeIfStale);
 window.addEventListener("focus", resumeIfStale);
-let gasTimer = null;
-function scheduleGasSync(){
-  if(!state.settings.gasAuto || !state.settings.gasUrl) return;
-  clearTimeout(gasTimer);
-  gasTimer = setTimeout(()=>{
-    gasSync()
-      .then(()=>{ state.settings.gasError = ""; save({silent:true}); renderGasStatus(); })
-      .catch(e=>{ state.settings.gasError = e.message; save({silent:true}); renderGasStatus(); });
-  }, 3000);
-}
+
 function renderVersion(){
   const a = $("#appVer"); if(a) a.textContent = "v" + APP_VERSION;
   const el = $("#verInfo"); if(!el) return;
   const sv = state.settings.gasVersion || "";
   const old = state.settings.gasUrl && (!sv || sv < MIN_GAS_VERSION);
   el.innerHTML = `アプリ v${APP_VERSION} ／ サーバー ${sv ? "v"+esc(sv) : "不明"}`
-    + (old ? `<br><span style="color:var(--warn)">⚠ サーバー(Apps Script)が古い版です。gas-daily-mail.gs を貼り替えて再デプロイしてください</span>` : "");
+    + (old ? `<br><span style="color:var(--warn)">⚠ サーバー(Apps Script)が古い版です。GitHub からの自動公開が終わるまで数分待ってから、「状況を確認」を押してください</span>` : "");
 }
 function renderGasStatus(){
   const el = $("#gasStatus"); if(!el) return;
-  const n = state.projects.filter(p=>p.pinned && p.status!=="done").length;
-  const at = state.settings.gasSyncedAt;
-  const dirty = at && state.updatedAt && Date.parse(state.updatedAt) > Date.parse(at) + 1000;
-  el.innerHTML = `全 <b style="color:var(--text)">${state.projects.length}件</b> ／ メール通知対象 <b style="color:var(--text)">${n}件</b> (📌ピン留め かつ 未完了)`
-    + `<br>` + (at
-        ? `最終保存: ${new Date(at).toLocaleString("ja-JP")}` + (dirty ? ` <span style="color:var(--warn)">(未保存の変更あり)</span>` : ` <span style="color:var(--ok)">✓ 同期済み</span>`)
-        : `<span style="color:var(--warn)">未同期</span>`)
-    + (state.settings.gasError ? `<br><span style="color:var(--danger)">⚠ 前回の自動保存に失敗: ${esc(state.settings.gasError)}</span>` : "");
+  el.innerHTML = !state.settings.gasUrl ? `<span style="color:var(--warn)">サーバーのURLが未設定です</span>`
+    : state.settings.gasError ? `<span style="color:var(--danger)">⚠ ${esc(state.settings.gasError)}</span>` : "";
 }
 /* Polymarket の記録の状況 (サーバーの pmStatus_ の内容を文章にする) */
 function pmStatusHtml(pm){
@@ -4457,15 +2656,14 @@ function pmStatusHtml(pm){
     + (pm.watch ? ` ／ ウォッチ ${pm.watch}件` : "")
     + (pm.error ? `<br><span style="color:var(--danger)">⚠ 直近のエラー: ${esc(pm.error)}</span>` : "") + `<br>`;
 }
-/* Google側が保持している内容を確認 */
+/* サーバーの状況を確認 */
 async function gasCheck(){
   const url = state.settings.gasUrl;
   if(!url) throw new Error("ウェブアプリURLが未設定です");
   const r = await fetch(gasGetUrl("t=" + Date.now()), { redirect:"follow" });
   const d = await r.json();
-  if(d && d.version && d.version !== state.settings.gasVersion){ state.settings.gasVersion = d.version; save({silent:true}); }
+  if(d && d.version && d.version !== state.settings.gasVersion){ state.settings.gasVersion = d.version; save(); }
   if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
-  if(d && d.game) setGame(d.game);
   return d;
 }
 $("#gasCheck").addEventListener("click", async ()=>{
@@ -4473,49 +2671,29 @@ $("#gasCheck").addEventListener("click", async ()=>{
   const r = $("#gasResult"); r.innerHTML = `<span class="spin"></span>`;
   try{
     const d = await gasCheck();
-    const at = d.syncedAt ? new Date(d.syncedAt).toLocaleString("ja-JP") : "なし";
-    r.innerHTML = pmStatusHtml(d.pm) + healthHtml(d.pm && d.pm.health) + `<span class="legacy">☁️ クラウド側: <b>${d.count}件</b> (うちメール通知対象 ${d.pinned!=null?d.pinned:"?"}件)<br>最終保存 ${at} ／ メール宛先 ${esc(d.mailTo || "未設定")}`
-      + (d.locked ? `<br>🔑 合言葉: 設定済み` : d.locked === false ? `<br>🔓 合言葉: 未設定 (下の「🔑 合言葉を設定・変更する」から設定できます)` : "")
-      + (d.store === "drive" ? `<br>💾 保存先: Googleドライブ` + (d.backupLast ? ` ／ 最終バックアップ ${new Date(d.backupLast).toLocaleString("ja-JP")}` : "")
-         : d.store === "props" ? `<br>💾 保存先: スクリプト プロパティ (Apps Script で setup を実行すると、容量の大きいGoogleドライブへ移ります)` : "") + `</span>`;
+    if(d && d.ok === false) throw new Error(d.error || "サーバーがエラーを返しました");
+    r.innerHTML = pmStatusHtml(d.pm) + healthHtml(d.pm && d.pm.health)
+      + (d.locked ? `🔑 合言葉: 設定済み` : d.locked === false ? `🔓 合言葉: 未設定 (下の「🔑 合言葉を設定・変更する」から設定できます)` : "");
     r.style.color = "var(--muted)";
-    if(/合言葉/.test(state.settings.gasError || "")){ state.settings.gasError = ""; save({silent:true}); renderGasStatus(); }
+    if(state.settings.gasError){ state.settings.gasError = ""; save(); }
+    renderGasStatus(); renderVersion();
   }catch(err){
     r.textContent = "❌ 確認できません: " + err.message + " (デプロイの「アクセスできるユーザー」が全員か確認してください)";
     r.style.color = "var(--danger)";
   }
 });
-$("#gasLoad").addEventListener("click", async ()=>{
-  saveGasSettings();
-  const r = $("#gasResult");
-  if(state.projects.length && !confirm(`クラウドのデータでこの端末の${state.projects.length}件を置き換えます。よろしいですか?`)) return;
-  r.innerHTML = `<span class="spin"></span>`;
-  try{
-    const d = await gasLoad(true);
-    renderGasStatus();
-    r.textContent = `✅ ${d.projects.length}件を読み込みました`; r.style.color = "var(--ok)";
-  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
-});
 function saveGasSettings(){
   state.settings.gasUrl = $("#gasUrl").value.trim();
   state.settings.gasKey = $("#gasKey").value.trim();
-  state.settings.gasMail = $("#gasMail").value.trim();
-  state.settings.gasAuto = $("#gasAuto").checked;
-  save({silent:true});   /* 設定変更は案件データの更新ではない */
+  save();
+  renderGasStatus();
 }
-$("#gasSave").addEventListener("click", ()=>{ saveGasSettings(); toast("メール通知設定を保存しました"); });
-$("#gasSync").addEventListener("click", async ()=>{
-  saveGasSettings();
-  const r = $("#gasResult"); r.innerHTML = `<span class="spin"></span>`;
-  try{
-    const d = await gasSync();
-    const n = d.count!=null ? d.count : state.projects.filter(p=>p.pinned&&p.status!=="done").length;
-    state.settings.gasError = ""; save({silent:true}); renderGasStatus();
-    r.textContent = `✅ ${n}件をクラウドに保存しました (反映を確認済み)`; r.style.color = "var(--ok)";
-  }catch(err){
-    state.settings.gasError = err.message; save({silent:true}); renderGasStatus();
-    r.textContent = "❌ " + err.message; r.style.color = "var(--danger)";
-  }
+$("#gasSave").addEventListener("click", ()=>{ saveGasSettings(); toast("設定を保存しました"); });
+/* 保存忘れ防止: 入力した時点で保存する */
+["gasUrl","gasKey"].forEach(id=>{
+  const el = $("#"+id);
+  el.addEventListener("change", saveGasSettings);
+  el.addEventListener("input", saveGasSettings);
 });
 
 /* ---- 合言葉の設定・変更 (サーバーの API_SECRET) ---- */
@@ -4539,7 +2717,7 @@ async function gasSetSecret(newKey){
   if(!d.secretSet) throw new Error("サーバー(Apps Script)が古い版のため設定できません。サーバーを更新してください");
   state.settings.gasKey = newKey;
   state.settings.gasError = "";
-  save({silent:true});
+  save();
   return newKey;
 }
 $("#gasKeyToggle").addEventListener("click", ()=>{
@@ -4555,582 +2733,16 @@ $("#gasKeySet").addEventListener("click", async ()=>{
     r.innerHTML = `✅ 合言葉を設定しました。<b>ほかの端末にも同じ合言葉を入れてください。</b><br><code style="user-select:all">${esc(k)}</code> <button class="btn small" id="gasKeyCopy" type="button">📋 コピー</button>`;
     r.style.color = "var(--ok)";
     $("#gasKeyCopy").addEventListener("click", ()=>copyText(k, "合言葉をコピーしました"));
-    renderGasStatus(); renderHome();
+    renderGasStatus();
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
 
 /* ================= settings ================= */
 function loadSettingsUI(){
-  $("#setKey").value = state.settings.key || "";
-  const models = $$("#setModel option").map(o=>o.value);
-  $("#setModel").value = models.includes(state.settings.model) ? state.settings.model : "gemini-2.5-flash-lite";
-  $("#fredKey").value = state.settings.fredKey || "";
-  $("#tgToken").value = state.settings.tgToken || "";
-  $("#tgChat").value = state.settings.tgChat || "";
   $("#gasUrl").value = state.settings.gasUrl || "";
   $("#gasKey").value = state.settings.gasKey || "";
-  $("#gasMail").value = state.settings.gasMail || "";
-  $("#gasAuto").checked = state.settings.gasAuto !== false;
-  $("#roomOn").checked = state.settings.roomBg !== false;
   renderGasStatus();
 }
-$("#keyEye").addEventListener("click", ()=>{
-  const k = $("#setKey"); k.type = k.type==="password" ? "text" : "password";
-});
-/* Gemini APIキー (Telegram登録の解析用) は入力した時点で保存 */
-["setKey","setModel"].forEach(id=>{
-  const el = $("#"+id); if(!el) return;
-  const fn = ()=>{ state.settings.key = $("#setKey").value.trim(); state.settings.model = $("#setModel").value; save({silent:true}); };
-  el.addEventListener("input", fn); el.addEventListener("change", fn);
-});
-
-/* ================= 部屋 (背景・手帳の線画) ================= */
-/* 予定をこなすと家具が届き、期限切れは床の段ボールになる。絵はすべてここで描く (外部画像なし) */
-const ROOM_ITEMS = [
-  { id:"futon",     at:0,    name:"布団" },
-  { id:"lamp",      at:10,   name:"スタンドライト" },
-  { id:"rug",       at:30,   name:"ラグ" },
-  { id:"desk",      at:60,   name:"机とノートパソコン" },
-  { id:"plant",     at:100,  name:"観葉植物" },
-  { id:"picture",   at:150,  name:"壁の絵" },
-  { id:"shelf",     at:210,  name:"本棚" },
-  { id:"curtain",   at:280,  name:"カーテン" },
-  { id:"sofa",      at:360,  name:"ソファ" },
-  { id:"poster",    at:450,  name:"ポスター" },
-  { id:"bed",       at:560,  name:"ベッド" },
-  { id:"tv",        at:680,  name:"テレビ" },
-  { id:"clock",     at:820,  name:"壁時計" },
-  { id:"plant2",    at:980,  name:"大きな観葉植物" },
-];
-function roomPoints(){
-  const gm = state.settings.game;
-  if(gm && typeof gm.xp === "number") return gm.xp;
-  /* サーバー未接続の時は、完了した数から概算する */
-  return state.projects.filter(p=>p.status==="done").length * 10;
-}
-function roomStreak(){ const gm = state.settings.game; return gm ? (gm.streak||0) : 0; }
-
-/* 高さ640固定、幅Wは画面の縦横比に合わせる。線は毎回同じ揺れになるよう乱数の種を固定 */
-function drawRoom(opts){
-  const { night, points, streak, clutter } = opts;
-  const ev = opts.event || "", month = opts.month || 1;
-  const W = opts.W || 360, H = 640, C = W/2, FL = 440;
-  const wide = W >= 620;
-  const have = new Set(ROOM_ITEMS.filter(i=>points >= i.at).map(i=>i.id));
-  let seed = 20261025;
-  const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-  const U = (a,b) => a + (b-a)*rnd();
-  const ink = night ? "#E8E1D0" : "#3C3F45";
-  const out = [];
-  const jit = (pts, amp=1.6) => {
-    const o = [];
-    for(let i=0;i<pts.length-1;i++){
-      const [x1,y1]=pts[i], [x2,y2]=pts[i+1], n=Math.max(2, Math.floor(Math.hypot(x2-x1,y2-y1)/14));
-      for(let k=0;k<n;k++){ const t=k/n; o.push([x1+(x2-x1)*t+U(-amp,amp), y1+(y2-y1)*t+U(-amp,amp)]); }
-    }
-    o.push(pts[pts.length-1]);
-    return "M" + o.map(p=>p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" L");
-  };
-  const L = (pts, w=2.2, c=ink, close=false) => { if(close) pts = pts.concat([pts[0]]); out.push(`<path d="${jit(pts)}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`); };
-  const wash = (cx,cy,rx,ry,c,op) => {
-    const pts = []; for(let i=0;i<18;i++){ const a=i*Math.PI/9; pts.push((cx+rx*Math.cos(a)*U(.85,1.1)).toFixed(1)+","+(cy+ry*Math.sin(a)*U(.85,1.1)).toFixed(1)); }
-    out.push(`<polygon points="${pts.join(" ")}" fill="${c}" opacity="${op ?? (night ? .28 : .32)}"/>`);
-  };
-  const circ = (x,y,r,w=1.8) => out.push(`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${ink}" stroke-width="${w}"/>`);
-  const g = (id, fn) => { const s = out.length; fn(); const inner = out.splice(s).join(""); out.push(`<g class="ritem" data-item="${id}">${inner}</g>`); };
-
-  /* 紙 */
-  out.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="${night?"#1E2433":"#FFFFFF"}"/>`);
-  for(let y=20;y<H;y+=24) out.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="${night?"#2A3245":"#EEF1F5"}" stroke-width="1"/>`);
-  out.push(`<line x1="22" y1="0" x2="22" y2="${H}" stroke="${night?"#5A3A4A":"#F6D5D2"}" stroke-width="1.2"/>`);
-
-  /* 窓 (連続記録で景色が変わる) */
-  const ww = Math.min(240, Math.max(140, W*0.38)), wx = C - ww/2, wy = 70, wh = 180;
-  if(night){
-    wash(C, wy+wh/2, ww/2, wh/2, streak>=7 ? "#5B4F9C" : "#3B4F8C", .45);
-    const stars = streak>=3 ? 14 : streak>=1 ? 6 : 0;
-    for(let i=0;i<stars;i++) out.push(`<circle cx="${U(wx+8,wx+ww-8).toFixed(0)}" cy="${U(wy+8,wy+wh*0.55).toFixed(0)}" r="${U(1,2).toFixed(1)}" fill="#FFF3C4"/>`);
-    if(streak>=3 && ev!=="rain"){ circ(wx+ww-36, wy+36, 15); wash(wx+ww-36, wy+36, 14, 14, "#FFF3C4", .5); }
-    if(streak>=7){ let x=wx+4; while(x<wx+ww-12){ const w=U(16,30), h=U(30,70); L([[x,wy+wh],[x,wy+wh-h],[x+w,wy+wh-h],[x+w,wy+wh]],1.6);
-        for(let yy=wy+wh-h+8; yy<wy+wh-6; yy+=12) if(rnd()<.6) out.push(`<rect x="${(x+U(3,w-8)).toFixed(0)}" y="${yy.toFixed(0)}" width="4" height="5" fill="#FFD27A"/>`); x+=w+2; } }
-    if(streak>=14) L([[wx+20,wy+20],[wx+70,wy+50]],1.4,"#FFF3C4");
-  }else{
-    wash(C, wy+wh/2, ww/2, wh/2, streak>=7 && streak<14 ? "#F4B183" : "#9CC9E6");
-    if(streak===0){ [[wx+40,wy+50],[wx+ww-50,wy+80]].forEach(([x,y])=>{ out.push(`<path d="M${x-26} ${y} q8 -16 22 -8 q10 -16 26 -2 q16 -2 12 12 z" fill="none" stroke="${ink}" stroke-width="1.6"/>`); }); }
-    if(streak>=1) out.push(`<path d="${jit([[wx+6,wy+wh-30],[wx+ww*0.25,wy+wh-52],[wx+ww*0.45,wy+wh-36],[wx+ww*0.7,wy+wh-60],[wx+ww-6,wy+wh-40]],1)}" fill="none" stroke="${ink}" stroke-width="1.6"/>`);
-    if(streak>=1) wash(C, wy+wh-20, ww/2-6, 22, "#B8D8B0");
-    if(streak>=3 && ev!=="rain"){ circ(wx+ww-40, wy+40, 16); wash(wx+ww-40, wy+40, 15, 15, "#FFE9A0", .7); }
-    if(streak>=14) ["#E97B7B","#F2C14E","#81B29A","#7FA7D9"].forEach((c,i)=>out.push(`<path d="M${wx+20+i*6} ${wy+wh-20} A${ww/2-30-i*6} ${wh/2-10-i*6} 0 0 1 ${wx+ww-20-i*6} ${wy+wh-20}" fill="none" stroke="${c}" stroke-width="3" opacity=".7"/>`));
-  }
-  /* --- ゆるいイベント (窓の中) --- */
-  if(ev==="rain"){ wash(C, wy+wh/2, ww/2, wh/2, night?"#46506A":"#B8C2CC", .45);
-    for(let i=0;i<26;i++){ const x=U(wx+6,wx+ww-10), y=U(wy+6,wy+wh-16); out.push(`<line x1="${x.toFixed(0)}" y1="${y.toFixed(0)}" x2="${(x-4).toFixed(0)}" y2="${(y+12).toFixed(0)}" stroke="${night?"#9FB4D8":"#6F8FB0"}" stroke-width="1.4"/>`); } }
-  if(ev==="balloon"){ const bx=wx+ww*0.3, by=wy+50; wash(bx,by,14,17,"#F28B82",.8); out.push(`<ellipse cx="${bx}" cy="${by}" rx="13" ry="16" fill="none" stroke="${ink}" stroke-width="1.8"/>`); L([[bx,by+16],[bx-4,by+40],[bx+3,by+64]],1.2); }
-  /* 季節 (窓の外) */
-  if(month===12 || month<=2){ for(let i=0;i<22;i++) out.push(`<circle cx="${U(wx+6,wx+ww-6).toFixed(0)}" cy="${U(wy+6,wy+wh-6).toFixed(0)}" r="${U(1.5,3).toFixed(1)}" fill="${night?"#E8EEF8":"#FFFFFF"}" stroke="${night?"none":"#C9D3DE"}" stroke-width=".8"/>`); }
-  L([[wx,wy],[wx+ww,wy],[wx+ww,wy+wh],[wx,wy+wh]],2.4,ink,true);
-  L([[C,wy],[C,wy+wh]]); L([[wx,wy+wh/2],[wx+ww,wy+wh/2]]);
-  L([[wx-10,wy-8],[wx+ww+10,wy-8]],2.8); L([[wx-6,wy+wh+6],[wx+ww+6,wy+wh+6]],2.6);
-  if(have.has("curtain")) g("curtain", ()=>{
-    wash(wx-6, wy+90, 14, 100, "#F2A7A0"); wash(wx+ww+6, wy+90, 14, 100, "#F2A7A0");
-    [[wx-18,wx+4],[wx+ww-4,wx+ww+18]].forEach(([a,b])=>{ L([[a,wy-6],[a-3,wy+60],[a+2,wy+120],[a-2,wy+190]],1.8); L([[b,wy-6],[b-6,wy+90],[b-2,wy+190]],1.8); L([[a,wy+190],[b-2,wy+190]],1.6); });
-  });
-  /* 床 */
-  L([[0,FL],[W,FL]],2.6);
-  /* 季節の小物 */
-  if(month>=9 && month<=11){ for(let i=0;i<7;i++){ const x=U(40,W-40), y=U(FL+14,H-20), c=["#E8925A","#D9A441","#C8553D"][i%3]; wash(x,y,7,4,c,.75); L([[x-7,y],[x+7,y]],1.1); } }
-  if(month>=3 && month<=4){ for(let i=0;i<10;i++){ const x=U(30,W-30), y=U(FL+10,H-20); wash(x,y,4,3,"#F4B6C2",.9); } }
-  if(month>=6 && month<=8){ const x=wx+ww-16; L([[x,wy-8],[x,wy+18]],1.2); out.push(`<path d="M${x-9} ${wy+30} q9 -16 18 0 z" fill="none" stroke="${ink}" stroke-width="1.6"/>`); wash(x,wy+26,8,5,"#9CC9E6",.6); L([[x,wy+30],[x,wy+44]],1); L([[x-3,wy+44],[x+3,wy+50]],1.4); }
-  /* --- ゆるいイベント (部屋の中) --- */
-  const evg = (fn) => { const s0 = out.length; fn(); const inner = out.splice(s0).join(""); out.push(`<g class="revent">${inner}</g>`); };
-  if(ev==="bird") evg(()=>{ const x=wx+ww*0.72, y=wy+wh+4;
-    if(night){ out.push(`<ellipse cx="${x}" cy="${y-14}" rx="11" ry="14" fill="${night?"#3A4256":"#fff"}" stroke="${ink}" stroke-width="1.8"/>`); circ(x-4,y-18,3,1.4); circ(x+4,y-18,3,1.4); L([[x-8,y-28],[x-5,y-24]],1.4); L([[x+8,y-28],[x+5,y-24]],1.4); }
-    else { wash(x,y-9,12,8,"#F2C14E",.8); out.push(`<path d="${jit([[x-12,y-6],[x-6,y-16],[x+6,y-16],[x+12,y-8],[x+4,y-2],[x-12,y-6]],0.6)}" fill="none" stroke="${ink}" stroke-width="1.8"/>`); L([[x+12,y-12],[x+18,y-11],[x+12,y-9]],1.4); circ(x+6,y-12,1.2,1.4); L([[x-12,y-6],[x-20,y-10]],1.4); L([[x-2,y-2],[x-2,y+2]],1.2); L([[x+3,y-2],[x+3,y+2]],1.2); } });
-  if(ev==="letter") evg(()=>{ const x = wide ? C+150 : 120, y = wide ? FL+40 : FL+10; wash(x+20,y+13,22,14,"#FFFFFF",.9);
-    L([[x,y],[x+40,y],[x+40,y+26],[x,y+26]],2,ink,true); L([[x,y],[x+20,y+15],[x+40,y]],1.6); out.push(`<path d="M${x+20} ${y+21} l-4 -4 a2.6 2.6 0 0 1 4 -3 a2.6 2.6 0 0 1 4 3 z" fill="#E24B4A"/>`); });
-  if(ev==="gift") evg(()=>{ const x = wide ? C-200 : C-16, y = wide ? FL+30 : FL+6; wash(x+16,y+14,18,16,"#A7C7E7",.8);
-    L([[x,y+6],[x+32,y+6],[x+32,y+30],[x,y+30]],2,ink,true); L([[x+16,y+6],[x+16,y+30]],1.6); L([[x-2,y],[x+34,y],[x+34,y+6],[x-2,y+6]],1.8,ink,true);
-    out.push(`<path d="M${x+16} ${y} q-10 -10 -12 -2 q4 4 12 2 q10 -10 12 -2 q-4 4 -12 2" fill="none" stroke="#E24B4A" stroke-width="1.6"/>`); });
-  if(ev==="plane") evg(()=>{ const x = W*0.22, y = 300; out.push(`<path d="M${x-80} ${y+30} q30 -40 60 -10 t50 -14" fill="none" stroke="${ink}" stroke-width="1.2" stroke-dasharray="4 5"/>`);
-    L([[x+30,y+6],[x+60,y-6],[x+38,y+14],[x+30,y+6]],1.8); L([[x+38,y+14],[x+40,y+4],[x+60,y-6]],1.4); });
-  if(ev==="teru") evg(()=>{ const x=wx+16; L([[x,wy-8],[x,wy+12]],1.2); circ(x,wy+22,10,1.8); out.push(`<path d="M${x-10} ${wy+28} q-6 18 -10 24 l40 0 q-4 -6 -10 -24" fill="${night?"#3A4256":"#FFFFFF"}" stroke="${ink}" stroke-width="1.8"/>`); circ(x-3,wy+20,1,1.4); circ(x+3,wy+20,1,1.4); out.push(`<path d="M${x-3} ${wy+25} q3 3 6 0" fill="none" stroke="${ink}" stroke-width="1.2"/>`); });
-  if(ev==="clover") evg(()=>{ const x = wide ? C-60 : 260, y = wide ? 600 : 560; [[0,-5],[5,0],[0,5],[-5,0]].forEach(([dx,dy])=>{ wash(x+dx,y+dy,5,5,"#6AB07A",.9); circ(x+dx,y+dy,4.5,1.2); }); L([[x,y+5],[x+3,y+16]],1.4); });
-  /* --- イベント (追加分) --- */
-  const sillY = wy+wh+6;
-  const nightSky = () => wash(C, wy+wh/2, ww/2-4, wh/2-4, "#2E3A70", .85);
-  if(ev==="moon") evg(()=>{ nightSky(); const x=wx+ww*0.62, y=wy+wh*0.38; wash(x,y,30,30,"#FFF3C4",.95); circ(x,y,30,2); circ(x-8,y-6,4,1.2); circ(x+9,y+8,6,1.2); });
-  if(ev==="shootingstar") evg(()=>{ nightSky(); for(let i=0;i<10;i++) out.push(`<circle cx="${U(wx+8,wx+ww-8).toFixed(0)}" cy="${U(wy+8,wy+wh-8).toFixed(0)}" r="1.6" fill="#FFF3C4"/>`); L([[wx+ww*0.8,wy+24],[wx+ww*0.35,wy+wh*0.55]],1.6,"#FFF3C4"); out.push(`<circle cx="${wx+ww*0.35}" cy="${wy+wh*0.55}" r="3" fill="#FFF3C4"/>`); });
-  if(ev==="fireworks") evg(()=>{ nightSky(); [[0.3,0.35,"#F28B82"],[0.68,0.3,"#F2C14E"],[0.5,0.55,"#9CC9E6"]].forEach(([fx,fy,c])=>{ const x=wx+ww*fx, y=wy+wh*fy; for(let a=0;a<12;a++){ const t=a*Math.PI/6; out.push(`<line x1="${(x+Math.cos(t)*6).toFixed(1)}" y1="${(y+Math.sin(t)*6).toFixed(1)}" x2="${(x+Math.cos(t)*22).toFixed(1)}" y2="${(y+Math.sin(t)*22).toFixed(1)}" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`); } }); });
-  if(ev==="fireflies") evg(()=>{ nightSky(); for(let i=0;i<9;i++){ const x=U(wx+10,wx+ww-10), y=U(wy+wh*0.4,wy+wh-10); wash(x,y,6,6,"#F6F2A0",.7); out.push(`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="2" fill="#F6F2A0"/>`); } });
-  if(ev==="butterfly") evg(()=>{ const x=wx+ww*0.3, y=wy+wh*0.4; wash(x-6,y,8,10,"#F2C14E",.9); wash(x+6,y,8,10,"#F2C14E",.9); out.push(`<path d="M${x} ${y} q-14 -16 -14 0 q0 12 14 0 q14 -16 14 0 q0 12 -14 0" fill="none" stroke="${ink}" stroke-width="1.6"/>`); L([[x,y-8],[x,y+8]],1.6); });
-  if(ev==="contrail") evg(()=>{ L([[wx+10,wy+wh*0.6],[wx+ww-14,wy+20]],2.4,night?"#C9D3DE":"#7F93AD"); L([[wx+12,wy+wh*0.6+5],[wx+ww-14,wy+25]],1.2,night?"#8FA0C8":"#C9D3DE"); out.push(`<path d="M${wx+ww-14} ${wy+20} l8 -3 l-3 7 z" fill="${ink}"/>`); });
-  if(ev==="snowman") evg(()=>{ const x=wx+ww*0.3, y=wy+wh-22; wash(x,y,16,14,"#FFFFFF",1); wash(x,y-22,11,10,"#FFFFFF",1); circ(x,y,15,1.8); circ(x,y-23,10,1.8); out.push(`<circle cx="${x-3}" cy="${y-25}" r="1.4" fill="${ink}"/><circle cx="${x+3}" cy="${y-25}" r="1.4" fill="${ink}"/><path d="M${x} ${y-22} l7 2 l-7 1z" fill="#E8925A"/>`); });
-  if(ev==="koinobori") evg(()=>{ const x=wx+ww*0.2; L([[x,wy+wh],[x,wy+12]],2); [["#4A7BD0",30],["#E24B4A",56],["#F2C14E",80]].forEach(([c,y])=>{ out.push(`<path d="M${x} ${wy+y} q30 -6 56 4 l-8 6 l8 6 q-26 10 -56 4 z" fill="${c}" opacity=".75" stroke="${ink}" stroke-width="1.4"/>`); circ(x+8,wy+y+7,2.5,1.2); }); });
-  if(ev==="tsukimi") evg(()=>{ const x=wx+ww-40; out.push(`<path d="M${x-22} ${sillY-2} l44 0 l-6 -10 l-32 0 z" fill="none" stroke="${ink}" stroke-width="1.6"/>`); [[-10,-16],[0,-16],[10,-16],[-5,-25],[5,-25],[0,-34]].forEach(([dx,dy])=>{ wash(x+dx,sillY+dy,5,5,"#FFFFFF",1); circ(x+dx,sillY+dy,5,1.4); }); L([[wx+20,sillY-2],[wx+26,sillY-60]],1.4); L([[wx+26,sillY-2],[wx+34,sillY-56]],1.4); });
-  if(ev==="kagami") evg(()=>{ const x = wide ? W-210 : W-70, y = 356; out.push(`<ellipse cx="${x}" cy="${y}" rx="22" ry="9" fill="#FFFFFF" stroke="${ink}" stroke-width="1.8"/><ellipse cx="${x}" cy="${y-12}" rx="16" ry="7" fill="#FFFFFF" stroke="${ink}" stroke-width="1.8"/>`); wash(x,y-21,7,6,"#F2A541",.95); circ(x,y-21,6,1.4); });
-  if(ev==="tanabata") evg(()=>{ const x = wx-30; L([[x,FL],[x+4,120]],2.2,"#5A9E6F"); [[150,-20],[190,22],[230,-24],[270,20],[310,-18]].forEach(([y,dx],i)=>{ L([[x+3,y],[x+3+dx,y-10]],1.4,"#5A9E6F"); const c=["#F28B82","#9CC9E6","#F2C14E","#B8D8B0","#C5B8E8"][i]; out.push(`<rect x="${x+dx-3}" y="${y-8}" width="7" height="18" fill="${c}" stroke="${ink}" stroke-width="1"/>`); }); });
-  if(ev==="xmas") evg(()=>{ const x = wide ? C-170 : W-60, y = FL; wash(x,y-50,30,46,"#81B29A",.85); out.push(`<path d="${jit([[x,y-96],[x-26,y-50],[x-14,y-50],[x-34,y-14],[x+34,y-14],[x+14,y-50],[x+26,y-50],[x,y-96]],0.8)}" fill="none" stroke="${ink}" stroke-width="1.8"/>`); L([[x-6,y-14],[x-6,y],[x+6,y],[x+6,y-14]],1.6); out.push(`<path d="M${x} ${y-104} l3 6 l7 1 l-5 5 l1 7 l-6 -3 l-6 3 l1 -7 l-5 -5 l7 -1z" fill="#F2C14E"/>`); [[-12,-40,"#E24B4A"],[10,-30,"#4A7BD0"],[-4,-62,"#F2C14E"],[16,-56,"#E24B4A"]].forEach(([dx,dy,c])=>out.push(`<circle cx="${x+dx}" cy="${y+dy}" r="3.5" fill="${c}"/>`)); });
-  if(ev==="bubbles") evg(()=>{ for(let i=0;i<11;i++){ const x=U(W*0.2,W*0.8), y=U(260,420), r=U(5,14); out.push(`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" fill="${night?"#9CC9E6":"#DCEFFB"}" opacity=".45" stroke="${ink}" stroke-width="1.1"/>`); } });
-  if(ev==="cocoa") evg(()=>{ const x = wide ? W-70 : W-60, y = wide ? 358 : 356; L([[x-9,y-18],[x+9,y-18],[x+7,y],[x-7,y]],1.8,ink,true); wash(x,y-10,7,7,"#B07A5A",.8); out.push(`<path d="M${x+8} ${y-14} q8 0 6 8 q-2 4 -7 3" fill="none" stroke="${ink}" stroke-width="1.6"/>`); [-4,2].forEach(dx=>out.push(`<path d="M${x+dx} ${y-24} q-4 -6 0 -12 q4 -6 0 -12" fill="none" stroke="${ink}" stroke-width="1.2" opacity=".7"/>`)); });
-  if(ev==="yarn") evg(()=>{ const x = C-50, y = wide ? 560 : 600; wash(x,y,12,12,"#F28BB0",.85); circ(x,y,12,1.8); L([[x-10,y-4],[x+10,y+4]],1.1); L([[x-6,y-10],[x+8,y+8]],1.1); out.push(`<path d="M${x+12} ${y+4} q24 14 46 -2" fill="none" stroke="#E07A9A" stroke-width="1.4"/>`); });
-  if(ev==="doodle") evg(()=>{ const x = wide ? C+180 : W*0.5+40, y = 300; circ(x,y,20,1.8); out.push(`<circle cx="${x-7}" cy="${y-5}" r="2" fill="${ink}"/><circle cx="${x+7}" cy="${y-5}" r="2" fill="${ink}"/><path d="M${x-9} ${y+5} q9 9 18 0" fill="none" stroke="${ink}" stroke-width="1.6"/>`); [[-30,-22],[30,-24],[34,14]].forEach(([dx,dy])=>out.push(`<path d="M${x+dx} ${y+dy} l2 -6 l2 6 l6 2 l-6 2 l-2 6 l-2 -6 l-6 -2z" fill="#F2C14E"/>`)); });
-  if(ev==="umbrella") evg(()=>{ const x = wide ? C+260 : W-40, y = FL; out.push(`<path d="M${x-30} ${y-60} q30 -36 60 0 q-10 -6 -20 0 q-10 -6 -20 0 q-10 -6 -20 0z" fill="${night?"#5A6FA8":"#9CC9E6"}" fill-opacity=".7" stroke="${ink}" stroke-width="1.8"/>`); L([[x,y-80],[x,y-4]],1.8); out.push(`<path d="M${x} ${y-4} q0 6 -6 6" fill="none" stroke="${ink}" stroke-width="1.8"/>`); [[-14,y+6],[8,y+10]].forEach(([dx,yy])=>out.push(`<ellipse cx="${x+dx}" cy="${yy}" rx="9" ry="2.5" fill="#9CC9E6" opacity=".7"/>`)); });
-  if(ev==="cookies") evg(()=>{ const x = wide ? 280 : C+60, y = wide ? 360 : FL+14; out.push(`<ellipse cx="${x}" cy="${y}" rx="26" ry="7" fill="#FFFFFF" stroke="${ink}" stroke-width="1.8"/>`); [[-10,-6],[8,-6],[0,-12]].forEach(([dx,dy])=>{ wash(x+dx,y+dy,8,5,"#D9A441",.95); out.push(`<ellipse cx="${x+dx}" cy="${y+dy}" rx="8" ry="5" fill="none" stroke="${ink}" stroke-width="1.3"/>`); }); });
-  if(ev==="photo") evg(()=>{ const x = wide ? C+90 : 60, y = wide ? 600 : 470; out.push(`<g transform="rotate(-10 ${x} ${y})"><rect x="${x-18}" y="${y-20}" width="36" height="42" fill="#FFFFFF" stroke="${ink}" stroke-width="1.6"/><rect x="${x-14}" y="${y-16}" width="28" height="26" fill="#F4B183" opacity=".7"/></g>`); });
-  if(ev==="wind") evg(()=>{ [[W*0.2,300],[W*0.45,260],[W*0.7,320]].forEach(([x,y])=>out.push(`<path d="M${x-30} ${y} q20 -10 40 0 t40 0" fill="none" stroke="${night?"#8FA0C8":"#B7C3CF"}" stroke-width="1.6" stroke-linecap="round"/>`)); const x=W*0.55, y=280; wash(x,y,7,4,"#81B29A",.9); L([[x-7,y],[x+7,y]],1.1); });
-  if(ev==="music") evg(()=>{ [[22,300],[60,270],[96,310],[130,280]].forEach(([dx,y],i)=>{ const x=dx+(wide?20:0); out.push(`<ellipse cx="${x}" cy="${y}" rx="6" ry="4.5" fill="${ink}" transform="rotate(-20 ${x} ${y})"/>`); L([[x+5,y-2],[x+5,y-26]],1.6); if(i%2) L([[x+5,y-26],[x+14,y-20]],1.6); }); });
-  if(ev==="twocats") evg(()=>{ const x = wide ? C-110 : 70, y = wide ? 600 : 620;
-    out.push(`<path d="${jit([[x-20,y+8],[x-22,y-4],[x-12,y-13],[x+8,y-13],[x+18,y-3],[x+16,y+8],[x-20,y+8]],0.8)}" fill="${night?"#4A4F5E":"#9A9A9A"}" fill-opacity=".55" stroke="${ink}" stroke-width="1.8"/>`);
-    L([[x-22,y-4],[x-25,y-16],[x-17,y-11]],1.5); L([[x-15,y-12],[x-13,y-22],[x-8,y-13]],1.5); L([[x+16,y+4],[x+28,y],[x+29,y-8]],1.5); });
-  if(ev==="acorn") evg(()=>{ [[W*0.3,FL+20],[W*0.62,FL+46],[W*0.48,FL+30]].forEach(([x,y])=>{ wash(x,y+3,6,7,"#B07A4A",.9); out.push(`<ellipse cx="${x}" cy="${y+3}" rx="6" ry="7" fill="none" stroke="${ink}" stroke-width="1.4"/><path d="M${x-7} ${y-1} q7 -8 14 0 z" fill="#7A5230"/>`); L([[x,y-5],[x+2,y-9]],1.2); }); });
-  /* --- ものがたりの小物 (話が進むと増える) --- */
-  const ep = opts.story || 0;
-  if(ep >= 3){ const x = wx+30, y = sillY; /* 植木鉢: 種→芽→つぼみ→花 */
-    L([[x-12,y-2],[x+12,y-2],[x+9,y-20],[x-9,y-20]],1.8,ink,true); wash(x,y-11,10,8,"#D9A07A",.7);
-    if(ep >= 5){ L([[x,y-20],[x,y-38]],1.6,"#5A9E6F"); out.push(`<path d="M${x} ${y-32} q-10 -6 -12 2 q8 2 12 -2 M${x} ${y-36} q10 -6 12 2 q-8 2 -12 -2" fill="#B8D8B0" stroke="#5A9E6F" stroke-width="1.2"/>`); }
-    if(ep >= 10){ L([[x,y-38],[x,y-50]],1.6,"#5A9E6F"); wash(x,y-54,4,6,"#F2C14E",.8); }
-    if(ep >= 13){ [[0,-6],[6,0],[0,6],[-6,0]].forEach(([dx,dy])=>{ wash(x+dx,y-56+dy,5,5,"#F2C14E",.95); }); out.push(`<circle cx="${x}" cy="${y-56}" r="3" fill="#E8925A"/>`); } }
-  if(ep >= 7){ const x = C-60, y = wide ? 560 : 606; /* モカのクッション */
-    out.push(`<ellipse cx="${x}" cy="${y}" rx="26" ry="9" fill="#F4B6A8" fill-opacity=".6" stroke="${ink}" stroke-width="1.8"/><ellipse cx="${x}" cy="${y-3}" rx="17" ry="5" fill="none" stroke="${ink}" stroke-width="1.2"/>`); }
-  if(ep >= 9){ const x = wx+ww+16, y = wy+70; /* 絵はがき */
-    out.push(`<g transform="rotate(6 ${x+20} ${y+14})"><rect x="${x}" y="${y}" width="40" height="28" fill="#FFFFFF" stroke="${ink}" stroke-width="1.6"/><rect x="${x+3}" y="${y+3}" width="34" height="14" fill="#9CC9E6" opacity=".7"/><path d="M${x+3} ${y+17} q10 -6 17 0 t17 0" fill="none" stroke="${ink}" stroke-width="1"/></g>`); }
-  if(ep >= 12){ const x = 132, y = 250; /* 古い鍵 */
-    circ(x,y,2,1.6); L([[x,y+2],[x,y+12]],1.2); circ(x,y+18,5,1.6); L([[x,y+23],[x,y+40]],1.8,"#C9A227"); L([[x,y+34],[x+6,y+34]],1.6,"#C9A227"); L([[x,y+39],[x+5,y+39]],1.6,"#C9A227"); }
-  if(ep >= 17){ const x = wide ? W-236 : W-56, y = wide ? 336 : 300; /* 写真立て */
-    out.push(`<rect x="${x-14}" y="${y-18}" width="28" height="22" fill="#FFFFFF" stroke="${ink}" stroke-width="1.6"/>`); wash(x,y-7,10,7,"#F4B183",.8); L([[x-6,y+4],[x-10,y+10]],1.4); }
-  if(ep >= 18){ /* ガーランド */
-    out.push(`<path d="M${wx-14} ${wy-4} Q${C} ${wy+34} ${wx+ww+14} ${wy-4}" fill="none" stroke="${ink}" stroke-width="1.2"/>`);
-    for(let i=1;i<10;i++){ const t=i/10, x=(1-t)*(1-t)*(wx-14)+2*t*(1-t)*C+t*t*(wx+ww+14), y=(1-t)*(1-t)*(wy-4)+2*t*(1-t)*(wy+34)+t*t*(wy-4); out.push(`<circle cx="${x.toFixed(1)}" cy="${(y+5).toFixed(1)}" r="4" fill="${["#F2C14E","#F28B82","#9CC9E6"][i%3]}" opacity="${night?1:.85}"/>`); } }
-  /* 左の壁 */
-  if(have.has("shelf")) g("shelf", ()=>{
-    wash(80,170,46,60,"#B8D8B0");
-    L([[40,140],[120,140]],2.4); L([[40,230],[120,230]],2.4);
-    for(let i=0;i<5;i++){ const t=100+(i%2)*10; L([[46+i*13,140],[46+i*13,t],[56+i*13,t],[56+i*13,140]],1.8); }
-    L([[60,230],[56,205],[84,205],[80,230]],1.8);
-    out.push(`<path d="${jit([[70,205],[62,180],[70,170],[76,182],[70,205]],1)}" fill="none" stroke="${ink}" stroke-width="1.6"/>`);
-  });
-  if(have.has("picture")) g("picture", ()=>{ wash(78,292,30,22,"#F4D58D"); L([[48,268],[108,268],[108,316],[48,316]],2,ink,true); L([[56,308],[72,288],[84,300],[92,290],[100,308]],1.6); circ(94,280,5,1.4); });
-  if(have.has("clock")) g("clock", ()=>{ const x = wide ? wx+ww+50 : Math.min(W-40, wx+ww+28), y = 40; circ(x,y,16,2); L([[x,y],[x,y-10]],1.6); L([[x,y],[x+7,y+3]],1.6); });
-  if(have.has("poster")) g("poster", ()=>{ const x=W-92; wash(x+26,140,26,36,"#9CC9E6"); L([[x,100],[x+52,100],[x+52,178],[x,178]],2,ink,true); L([[x+10,160],[x+26,124],[x+42,160]],1.6); circ(x+36,118,6,1.4); });
-  /* 寝床 (左) */
-  if(have.has("bed")) g("bed", ()=>{
-    wash(110,410,90,30,"#C5B8E8");
-    L([[30,360],[30,440]],2.4); L([[30,372],[56,372]],2);
-    L([[30,400],[190,400],[190,428],[30,428]],2.4,ink,true); L([[80,400],[78,428]],1.4);
-    L([[38,388],[76,388],[76,400],[38,400]],1.8,ink,true);
-    L([[36,428],[34,446]],2); L([[186,428],[188,446]],2);
-  });
-  else if(have.has("futon")) g("futon", ()=>{
-    wash(105,425,80,16,"#C5B8E8");
-    L([[30,418],[180,418],[180,438],[30,438]],2.2,ink,true); L([[36,410],[72,410],[72,418],[36,418]],1.8,ink,true); L([[80,418],[100,438]],1.2); L([[110,418],[130,438]],1.2);
-  });
-  if(have.has("lamp")) g("lamp", ()=>{ const x = wide ? 212 : 200; L([[x,300],[x,438]],2); L([[x-20,300],[x+20,300],[x+10,268],[x-10,268]],2.2,ink,true); L([[x-14,440],[x+14,440]],2.4); wash(x,290,26,22,"#FFE9A0", night ? .35 : .55); });
-  /* 机 (右) */
-  if(have.has("desk")) g("desk", ()=>{
-    const x = W-150; wash(x+60,340,64,26,"#E8D39A");
-    L([[x,360],[x+124,360]],2.6); L([[x+6,360],[x+6,440]],2.2); L([[x+118,360],[x+118,440]],2.2);
-    L([[x+30,356],[x+80,356],[x+86,322],[x+36,322]],2,ink,true); L([[x+24,358],[x+88,358]],1.8);
-    L([[x+96,358],[x+96,342],[x+108,342],[x+108,358]],1.6);
-  });
-  if(have.has("plant")) g("plant", ()=>{ const x=W-30; wash(x,380,22,40,"#B8D8B0");
-    L([[x-12,400],[x+12,400],[x+9,440],[x-9,440]],2,ink,true);
-    [[-20,-40],[0,-60],[16,-44],[-8,-70]].forEach(([dx,dy])=>out.push(`<path d="M${x} 400 Q${x+dx*.3} ${400+dy*.6} ${x+dx} ${400+dy}" fill="none" stroke="${ink}" stroke-width="1.8"/>`));
-    if(ev==="flower"){ [[-8,-70],[16,-44]].forEach(([dx,dy])=>{ wash(x+dx,400+dy,7,7,"#F28BB0",.9); circ(x+dx,400+dy,6,1.4); out.push(`<circle cx="${x+dx}" cy="${400+dy}" r="2" fill="#F2C14E"/>`); }); } });
-  /* ソファ・テレビ・ラグ (広い画面は窓の下、狭い画面は手前) */
-  const sofaX = wide ? C-110 : 34, sofaY = wide ? 320 : 476, sofaW = wide ? 220 : 170;
-  if(have.has("rug")) g("rug", ()=>{ const ry = wide ? 545 : 590; wash(C, ry, Math.min(150, W*0.4), 30, "#F4B6A8"); out.push(`<ellipse cx="${C}" cy="${ry}" rx="${Math.min(150, W*0.4)}" ry="30" fill="none" stroke="${ink}" stroke-width="2" stroke-dasharray="8 6"/>`); });
-  if(have.has("sofa")) g("sofa", ()=>{
-    wash(sofaX+sofaW/2, sofaY+70, sofaW/2, 50, "#7FA7D9");
-    L([[sofaX+12,sofaY+50],[sofaX+12,sofaY+10],[sofaX+30,sofaY],[sofaX+sofaW-30,sofaY],[sofaX+sofaW-12,sofaY+10],[sofaX+sofaW-12,sofaY+50]],2.6);
-    L([[sofaX,sofaY+60],[sofaX,sofaY+124],[sofaX+sofaW,sofaY+124],[sofaX+sofaW,sofaY+60],[sofaX+sofaW-12,sofaY+50],[sofaX+12,sofaY+50],[sofaX,sofaY+60]],2.6);
-    L([[sofaX+sofaW/2,sofaY+52],[sofaX+sofaW/2,sofaY+124]],1.6);
-    L([[sofaX+40,sofaY+12],[sofaX+76,sofaY+9],[sofaX+78,sofaY+40],[sofaX+42,sofaY+43]],1.8,ink,true);
-    L([[sofaX+10,sofaY+124],[sofaX+8,sofaY+140]],2.2); L([[sofaX+sofaW-10,sofaY+124],[sofaX+sofaW-8,sofaY+140]],2.2);
-  });
-  if(have.has("tv")) g("tv", ()=>{ const x = wide ? W-300 : W-118, y = wide ? 470 : 520;
-    wash(x+50,y+10,48,30,"#9CC9E6");
-    L([[x,y+36],[x+100,y+36],[x+100,y+64],[x,y+64]],2.2,ink,true);
-    L([[x+12,y-30],[x+88,y-30],[x+88,y+28],[x+12,y+28]],2.2,ink,true); L([[x+44,y+28],[x+44,y+36]],1.6); L([[x+56,y+28],[x+56,y+36]],1.6); });
-  if(have.has("plant2")) g("plant2", ()=>{ const x = wide ? 40 : 30, y = 600; wash(x+6,y-40,30,50,"#81B29A");
-    L([[x-14,y-30],[x+18,y-30],[x+14,y+20],[x-10,y+20]],2,ink,true);
-    [[-26,-60],[-6,-86],[16,-70],[30,-50],[4,-100]].forEach(([dx,dy])=>out.push(`<path d="M${x+2} ${y-30} Q${x+dx*.2} ${y-30+dy*.6} ${x+dx} ${y-30+dy}" fill="none" stroke="${ink}" stroke-width="1.8"/>`)); });
-  /* 猫 (3日以上続けると遊びに来る) */
-  if(streak >= 3 || (opts.story||0) >= 6){ const x = C+20, y = wide ? 540 : 586;
-    out.push(`<path d="${jit([[x-24,y+10],[x-26,y-6],[x-14,y-16],[x+10,y-16],[x+22,y-4],[x+20,y+10],[x-24,y+10]],0.8)}" fill="${night?"#3A4256":"#F2E3C6"}" stroke="${ink}" stroke-width="1.8"/>`);
-    L([[x-26,y-6],[x-30,y-20],[x-20,y-14]],1.6); L([[x-18,y-15],[x-16,y-26],[x-10,y-16]],1.6);
-    L([[x-24,y-4],[x-20,y-4]],1.4); L([[x+20,y+6],[x+34,y+2],[x+36,y-8]],1.6); }
-  /* 段ボール (期限切れ) */
-  const slots = wide
-    ? [[W*0.30,600],[W*0.62,610],[W*0.45,592],[W*0.78,588],[W*0.15,604],[W*0.88,612],[W*0.55,618],[W*0.36,566],[W*0.70,566],[W*0.22,572]]
-    : [[230,456],[260,600],[150,606],[300,452],[200,620],[60,616],[100,452],[300,618],[250,640-90],[30,452]];
-  clutter.slice(0,10).forEach((c,i)=>{
-    const [x,y] = slots[i];
-    const s = out.length;
-    wash(x+24,y+18,26,20,"#D4A373", night ? .3 : .4);
-    L([[x,y],[x+48,y],[x+48,y+38],[x,y+38]],2,ink,true); L([[x,y+10],[x+48,y+10]],1.4); L([[x+24,y],[x+24,y+10]],1.4);
-    out.push(`<circle cx="${x+38}" cy="${y+24}" r="5" fill="#E24B4A"/>`);
-    const inner = out.splice(s).join("");
-    out.push(`<g class="rbox" data-pid="${esc(c.id)}"><title>${esc(c.name)} (期限切れ)</title>${inner}</g>`);
-  });
-  return { svg: out.join(""), w: W, h: H };
-}
-let roomTimer = null;
-function renderRoom(){
-  const el = $("#roomBg"); if(!el) return;
-  const on = state.settings.roomBg !== false;
-  document.body.classList.toggle("room-on", on);
-  if(!on){ el.innerHTML = ""; return; }
-  const pts = roomPoints();
-  const clutter = state.projects.filter(p=>p.status!=="done" && p.deadline && daysLeft(p.deadline) < 0)
-                    .sort((a,b)=>daysLeft(a.deadline)-daysLeft(b.deadline));
-  const night = document.documentElement.dataset.theme !== "light";
-  const vw = el.clientWidth || window.innerWidth, vh = el.clientHeight || window.innerHeight;
-  const W = Math.max(360, Math.min(1400, Math.round(640 * vw / Math.max(1, vh))));
-  const ev = todayEvent();
-  const r = drawRoom({ night, points: pts, streak: roomStreak(), clutter, W, event: ev.id, month: new Date().getMonth()+1, story: storyUnlocked() });
-  renderStoryLine();
-  const he = $("#hEvent"); if(he) he.textContent = ev.id ? ev.say(night) : "";
-  el.innerHTML = `<svg viewBox="0 0 ${r.w} ${r.h}" preserveAspectRatio="xMidYMax slice" width="100%" height="100%">${r.svg}</svg>`;
-  /* 新しく届いた家具を知らせる */
-  const got = ROOM_ITEMS.filter(i=>pts >= i.at);
-  const seen = state.settings.roomSeen;
-  if(seen == null){ state.settings.roomSeen = got.length; save({silent:true}); }
-  else if(got.length > seen){
-    got.slice(seen).forEach(i=>{ const n = el.querySelector(`[data-item="${i.id}"]`); if(n) n.classList.add("rnew"); });
-    toast(`📦 ${got[got.length-1].name}が届きました！`);
-    state.settings.roomSeen = got.length; save({silent:true});
-  }
-}
-$("#roomBg").addEventListener("click", e=>{
-  if(e.target.closest(".revent")){ const ev = todayEvent(); if(ev.tap) toast(ev.tap()); return; }
-  const b = e.target.closest(".rbox"); if(!b) return;
-  jumpToProject(b.dataset.pid);
-});
-/* ---- ゆるいイベント: 日付と時間帯(昼/夜)で決まるので、同じ時間帯ならどの端末でも同じ ---- */
-const ROOM_LETTERS = [
-  "いつもおつかれさま。今日はひとつ片付ければ十分です",
-  "水を一杯飲んで、深呼吸しよう",
-  "がんばりすぎないでね。休むのも予定のうち",
-  "昨日の自分より、ほんの少し前へ",
-  "窓を開けて、空気を入れかえよう",
-  "小さく始めれば、意外と進むもの",
-  "終わったことを数えてみよう。ちゃんと進んでいるよ",
-  "今日の夕ごはんは、好きなものにしよう",
-  "肩をぐるっと回して、ひと休み",
-  "うまくいかない日も、手帳をひらいただけで十分",
-];
-const pick = a => a[Math.floor(Math.random()*a.length)];
-const ROOM_EVENTS = [
-  /* いつでも */
-  { id:"bird",     say:n=> n ? "🦉 ふくろうが窓辺に来ています" : "🐦 小鳥が窓辺で休んでいます", tap:()=>"ちいさなお客さん。そっとしておこう" },
-  { id:"rain",     say:()=> "☔ 今日は雨。部屋でゆっくり片付けよう" },
-  { id:"letter",   say:()=> "💌 手紙が届いています（床の封筒をタップ）", tap:()=>"「" + pick(ROOM_LETTERS) + "」" },
-  { id:"gift",     say:()=> "🎁 小さな贈り物が置いてあります", tap:()=>pick(["中身はお菓子でした。ひと休みにどうぞ","中身はいい香りの紅茶でした","中身は手のひらサイズの折り紙の鶴でした"]) },
-  { id:"plane",    say:()=> "✈️ どこからか紙飛行機が飛んできました", tap:()=>"「今日もいい日になりますように」と書いてある" },
-  { id:"teru",     say:()=> "☁️ てるてる坊主を吊るしました", tap:()=>"明日は晴れるといいね" },
-  { id:"balloon",  say:()=> "🎈 窓の外を風船が飛んでいきます" },
-  { id:"flower",   say:()=> "🌸 観葉植物に花が咲きました", need:"plant" },
-  { id:"butterfly",say:()=> "🦋 窓の外でちょうちょが舞っています", slot:"day" },
-  { id:"contrail", say:()=> "✈️ 空に飛行機雲が一本", slot:"day" },
-  { id:"bubbles",  say:()=> "🫧 どこからかシャボン玉が入ってきました", tap:()=>"ぱちん。" },
-  { id:"cocoa",    say:()=> "☕ あたたかいココアをいれました", tap:()=>"ふう、とひと息" },
-  { id:"yarn",     say:()=> "🧶 毛糸玉が転がっています", tap:()=>"ねこが遊んだあとみたい" },
-  { id:"doodle",   say:()=> "✏️ 壁に小さな落書きを見つけました", tap:()=>"にっこり。誰が描いたんだろう" },
-  { id:"umbrella", say:()=> "🌂 傘を干しています" },
-  { id:"cookies",  say:()=> "🍪 クッキーが焼けました", tap:()=>"ひとつどうぞ" },
-  { id:"photo",    say:()=> "📷 古い写真が出てきました", tap:()=>"なつかしい夕焼けの写真" },
-  { id:"wind",     say:()=> "🍃 気持ちのいい風が入ってきます" },
-  { id:"music",    say:()=> "🎵 となりの部屋からピアノの音", tap:()=>"今日の曲は、少しだけ楽しそう" },
-  { id:"twocats",  say:()=> "🐈 今日はねこの友だちも来ています", tap:()=>"二匹でのんびり" },
-  /* 夜だけ */
-  { id:"moon",         say:()=> "🌕 今夜は月がきれいです", slot:"night" },
-  { id:"shootingstar", say:()=> "🌠 流れ星が見えました", slot:"night", tap:()=>"願いごとは間に合ったかな" },
-  /* 季節 */
-  { id:"fireworks", say:()=> "🎆 遠くで花火が上がっています", slot:"night", months:[7,8] },
-  { id:"fireflies", say:()=> "✨ 窓の外にホタル", slot:"night", months:[6,7] },
-  { id:"snowman",   say:()=> "⛄ 窓の外に雪だるま", months:[12,1,2] },
-  { id:"acorn",     say:()=> "🌰 どんぐりを拾いました", months:[10,11] },
-];
-/* 日付で必ず出る行事 */
-const ROOM_SPECIAL = [
-  { id:"kagami",    from:[1,1],  to:[1,7],   say:()=> "🎍 あけましておめでとう。鏡餅を飾りました" },
-  { id:"koinobori", from:[5,1],  to:[5,5],   say:()=> "🎏 こいのぼりが泳いでいます" },
-  { id:"tanabata",  from:[7,1],  to:[7,7],   say:()=> "🎋 七夕。短冊に願いごとを", tap:()=>"「" + pick(["のんびり過ごせますように","いい知らせが届きますように","みんな元気でいられますように"]) + "」" },
-  { id:"tsukimi",   from:[9,15], to:[9,30],  say:()=> "🎑 お月見。窓辺にお団子を" },
-  { id:"xmas",      from:[12,20],to:[12,25], say:()=> "🎄 小さなツリーを飾りました" },
-];
-function todayEvent(){
-  const d = new Date(), m = d.getMonth()+1, day = d.getDate(), hr = d.getHours();
-  const slot = (hr >= 18 || hr < 5) ? "night" : "day";
-  const md = m*100 + day;
-  const sp = ROOM_SPECIAL.find(e=> md >= e.from[0]*100+e.from[1] && md <= e.to[0]*100+e.to[1]);
-  const key = d.getFullYear()*10000 + md;
-  let h = key*2 + (slot==="night"?1:0); h = Math.imul(h ^ (h>>>16), 0x45d9f3b); h = Math.imul(h ^ (h>>>16), 0x45d9f3b); h = (h ^ (h>>>16)) >>> 0;
-  let ev;
-  if(sp && slot==="day") ev = sp;
-  else if(h % 100 < 4) ev = { id:"clover", say:()=> "🍀 床に四つ葉のクローバーが落ちています", tap:()=>"めずらしい！今日はいいことがあるかも" };
-  else if(h % 100 >= 75) ev = { id:"" };          /* 何もない時もある */
-  else {
-    const pts = roomPoints();
-    const list = ROOM_EVENTS.filter(e=>(!e.need || ROOM_ITEMS.some(i=>i.id===e.need && pts >= i.at))
-                                    && (!e.slot || e.slot===slot) && (!e.months || e.months.includes(m)));
-    ev = list[(h >>> 8) % list.length];
-  }
-  if(ev.id){ try{
-    const log = state.settings.roomEvents || {}, k = key + slot;
-    if(!log[k]){ log[k] = ev.id; const ks = Object.keys(log).sort(); while(ks.length > 90) delete log[ks.shift()]; state.settings.roomEvents = log; save({silent:true}); }
-  }catch(e){} }
-  return ev;
-}
-
-/* ================= ものがたり (タスクを完了すると進む) ================= */
-const STORY = [
-  { at:1,   t:"はじまりの部屋",   b:"引っ越してきたばかりの、小さな部屋。手帳を一冊、机の上に置いた。ここから少しずつ、自分の場所にしていこう。" },
-  { at:3,   t:"窓辺の訪問者",     b:"窓の外から、白いねこがこちらを見ていた。目が合うと、ゆっくりまばたきをして、どこかへ行ってしまった。" },
-  { at:5,   t:"ちいさな種",       b:"窓辺に、見知らぬ植木鉢がひとつ。『水をあげてください』と、丸い字のメモが添えてあった。" },
-  { at:8,   t:"おとなりさん",     b:"メモの主は、となりの部屋の人らしい。壁ごしに、ときどきピアノの音が聞こえてくる。" },
-  { at:11,  t:"芽が出た",         b:"植木鉢から、小さな双葉が顔を出した。うれしくて、手帳のすみに日付を書きこんだ。" },
-  { at:15,  t:"ねこの名前",       b:"あの白いねこが、今日は部屋の中まで入ってきた。首輪の札には『モカ』と書いてある。" },
-  { at:19,  t:"モカのお気に入り", b:"モカはラグの上が好きらしい。小さなクッションを置いてみたら、すぐにその上で丸くなった。" },
-  { at:24,  t:"返事の手紙",       b:"おとなりさんに、植木鉢のお礼の手紙を書いた。ドアの下に、そっとすべりこませる。" },
-  { at:29,  t:"絵はがき",         b:"翌朝、ドアの下に絵はがきが一枚。海の見える町の絵に『いつか行ってみたい場所』と書いてあった。" },
-  { at:35,  t:"つぼみ",           b:"双葉はすっかり大きくなり、てっぺんに小さなつぼみ。モカが不思議そうに見上げている。" },
-  { at:41,  t:"雨の日の音楽",     b:"雨の日、壁ごしにピアノが聞こえる。今日の曲は、いつもより少しだけ楽しそうだ。" },
-  { at:48,  t:"古い鍵",           b:"本棚の奥から、古い真鍮の鍵が出てきた。どこの鍵だろう。ひとまず壁のフックに掛けておく。" },
-  { at:55,  t:"花が咲いた",       b:"つぼみがひらいて、黄色い花が咲いた。おとなりさんにも見せたくて、短いメモを書いた。" },
-  { at:63,  t:"ねこの散歩道",     b:"モカのあとをついていくと、廊下の突き当たりに小さな扉があった。古い鍵穴がひとつ。" },
-  { at:71,  t:"屋上へ",           b:"あの鍵で、扉がひらいた。階段をのぼった先には、誰もいない屋上と、広い空が待っていた。" },
-  { at:80,  t:"屋上の付箋",       b:"屋上の手すりに、『ここで星を見るのが好き』と書かれた付箋。見覚えのある、丸い字だ。" },
-  { at:90,  t:"夕焼けの写真",     b:"屋上から見た夕焼けを撮って、写真立てに入れた。部屋が少しだけ、にぎやかになった。" },
-  { at:100, t:"小さな灯り",       b:"星を見る会を開こう。そう決めて、小さな電球のガーランドを窓に飾った。" },
-  { at:112, t:"招待状",           b:"おとなりさんへ、星を見る会の招待状を書いた。返事は『ぜひ』のひとことだけ。それで十分だった。" },
-  { at:125, t:"星を見る夜",       b:"屋上で、はじめておとなりさんと会った。思っていたより、ずっと気さくな人だった。モカも一緒に空を見ていた。" },
-  { at:140, t:"いつもの部屋",     b:"部屋に戻って、手帳の最初のページを見返した。何もなかった部屋は、もうすっかり自分の場所になっていた。（第1部 おわり）" },
-];
-function storyCount(){
-  const gm = state.settings.game;
-  const local = state.projects.filter(p=>p.status==="done" && !p.dropped).length;
-  return Math.max(gm && typeof gm.doneTotal === "number" ? gm.doneTotal : 0, local);
-}
-function storyUnlocked(){ const n = storyCount(); return STORY.filter(s=>n >= s.at).length; }
-function renderStoryLine(){
-  const el = $("#hStory"); if(!el) return;
-  const n = storyCount(), u = storyUnlocked(), next = STORY[u];
-  const seen = state.settings.storySeen || 0;
-  const cur = u ? `📖 第${u}話「${STORY[u-1].t}」` : "📖 ものがたりは、最初の完了から始まります";
-  const rest = next ? ` ・ 次のお話まで あと${next.at - n}件` : " ・ 第1部 完";
-  el.innerHTML = `<a href="#" id="storyOpen">${esc(cur)}</a>${u > seen ? ' <span class="ntag t-pin" style="font-size:10.5px">NEW</span>' : ""}<span>${esc(rest)}</span>`;
-  if(u > seen && state.settings.storySeen != null && !renderStoryLine._told){ renderStoryLine._told = true; toast(`📖 第${u}話「${STORY[u-1].t}」が届きました`); }
-  if(state.settings.storySeen == null){ state.settings.storySeen = u; save({silent:true}); }
-}
-function openStory(){
-  const u = storyUnlocked(), n = storyCount();
-  const list = STORY.slice(0, u).map((s,i)=>`<div class="story-ep${i===u-1?" cur":""}"><div class="story-t">第${i+1}話　${esc(s.t)}</div><div class="story-b">${esc(s.b)}</div></div>`).reverse().join("");
-  const next = STORY[u];
-  $("#storyBody").innerHTML = (next ? `<div class="hint" style="margin-bottom:10px">次のお話（第${u+1}話）まで、あと${next.at - n}件の完了</div>` : "")
-    + (list || `<div class="hint">予定をひとつ完了すると、第1話が始まります。</div>`);
-  $("#storyDlg").showModal();
-  state.settings.storySeen = u; save({silent:true}); renderStoryLine();
-}
-document.addEventListener("click", e=>{ if(e.target.closest("#storyOpen")){ e.preventDefault(); openStory(); } });
-$("#storyClose").addEventListener("click", ()=>$("#storyDlg").close());
-window.addEventListener("resize", ()=>{ clearTimeout(roomTimer); roomTimer = setTimeout(renderRoom, 150); });
-
-$("#roomOn").addEventListener("change", e=>{ state.settings.roomBg = e.target.checked; save({silent:true}); renderRoom(); });
-
-/* ================= 📈 振り返り分析 (AIに渡す) ================= */
-let reviewData = null;      /* サーバーから取った操作の記録 */
-async function loadReviewData(){
-  if(!state.settings.gasUrl){ reviewData = { hist:[], qhist:[], histSince:null, local:true }; return reviewData; }
-  const url = state.settings.gasUrl;
-  try{
-    const r = await fetch(gasGetUrl("action=history&t=" + Date.now()), { redirect:"follow" });
-    const d = await r.json();
-    reviewData = { hist: d.hist || [], qhist: d.qhist || [], histSince: d.histSince || null, game: d.game || null };
-    if(d.game) setGame(d.game);
-  }catch(e){ reviewData = { hist:[], qhist:[], histSince:null, error:true }; }
-  return reviewData;
-}
-const jstDate = iso => { const d = new Date(iso); return isNaN(d) ? "" : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
-const dayDiff = (a,b) => Math.round((Date.parse(jstDate(b)) - Date.parse(jstDate(a))) / 86400000);
-
-function buildReviewPrompt(){
-  const days = +($("#rvDays")?.value || 30), anon = $("#rvAnon")?.checked !== false;
-  const since = Date.now() - days*86400000;
-  const rd = reviewData || { hist:[], qhist:[] };
-  /* 匿名化: 案件名を「案件A」などに置き換える (分野は残す) */
-  const names = new Map();
-  const nm = (id, name) => {
-    if(!anon) return name || "(名称なし)";
-    if(!names.has(id)){ const i = names.size; names.set(id, "案件" + (i < 26 ? String.fromCharCode(65+i) : (i+1))); }
-    return names.get(id);
-  };
-  const cat = c => (c && c.trim()) || "未分類";
-  const byId = new Map(state.projects.map(p=>[p.id,p]));
-  let hist = (rd.hist||[]).filter(e=>Date.parse(e.t) >= since);
-  /* 記録が無い期間は、アプリの完了日時から補う */
-  const histDone = new Set(hist.filter(e=>e.k==="done"||e.k==="drop").map(e=>e.id));
-  state.projects.filter(p=>p.status==="done" && p.doneAt && Date.parse(p.doneAt) >= since && !histDone.has(p.id))
-    .forEach(p=>hist.push({ t:p.doneAt, k:p.dropped?"drop":"done", id:p.id, n:p.name, c:p.chain, d:p.deadline, ca:p.createdAt, s:"app" }));
-  hist.sort((a,b)=>a.t<b.t?-1:1);
-  const K = { add:"追加", done:"完了", drop:"見送り", reopen:"未完了に戻す", due:"期限変更", del:"削除", skip:"明日へ", check:"確認のみ", pin:"ピン" };
-  const count = k => hist.filter(e=>e.k===k).length;
-
-  /* 完了の質 */
-  const dones = hist.filter(e=>e.k==="done");
-  const withDl = dones.filter(e=>e.d);
-  const onTime = withDl.filter(e=>jstDate(e.t) <= String(e.d).slice(0,10)).length;
-  const lead = dones.map(e=>{ const ca = e.ca || byId.get(e.id)?.createdAt; return ca ? dayDiff(ca, e.t) : null; }).filter(v=>v!=null && v>=0);
-  const avg = a => a.length ? (a.reduce((x,y)=>x+y,0)/a.length).toFixed(1) : "-";
-  const med = a => { if(!a.length) return "-"; const s=[...a].sort((x,y)=>x-y); return s[Math.floor(s.length/2)]; };
-
-  /* 曜日・時間帯 */
-  const wd = "日月火水木金土", slots = ["朝(5-11時)","昼(11-17時)","夜(17-23時)","深夜(23-5時)"];
-  const wdc = Array(7).fill(0), slc = Array(4).fill(0);
-  dones.forEach(e=>{ const d = new Date(e.t), h = d.getHours(); wdc[d.getDay()]++; slc[h>=5&&h<11?0:h>=11&&h<17?1:h>=17&&h<23?2:3]++; });
-
-  /* 分野別 */
-  const cats = new Map();
-  const C = c => { if(!cats.has(c)) cats.set(c,{ open:0, overdue:0, done:0, drop:0, skip:0, due:0, lead:[] }); return cats.get(c); };
-  state.projects.filter(p=>p.status!=="done").forEach(p=>{ const o=C(cat(p.chain)); o.open++; if(p.deadline && daysLeft(p.deadline) < 0) o.overdue++; });
-  hist.forEach(e=>{ if(!e.id) return; const o=C(cat(e.c)); if(e.k==="done"){ o.done++; const ca=e.ca||byId.get(e.id)?.createdAt; if(ca) o.lead.push(dayDiff(ca,e.t)); } if(e.k==="drop") o.drop++; if(e.k==="skip") o.skip++; if(e.k==="due") o.due++; });
-
-  /* 先送りが多い案件 */
-  const post = new Map();
-  hist.filter(e=>e.k==="skip" || (e.k==="due" && e.od && e.d && e.d > e.od)).forEach(e=>{ const x = post.get(e.id) || { n:e.n, c:e.c, skip:0, ext:0 }; e.k==="skip" ? x.skip++ : x.ext++; post.set(e.id, x); });
-  const postTop = [...post.entries()].sort((a,b)=>(b[1].skip+b[1].ext)-(a[1].skip+a[1].ext)).slice(0,8);
-
-  /* 放置中 */
-  const overdue = state.projects.filter(p=>p.status!=="done" && p.deadline && daysLeft(p.deadline) < 0).sort((a,b)=>daysLeft(a.deadline)-daysLeft(b.deadline)).slice(0,12);
-  const stale = state.projects.filter(p=>p.status!=="done" && !p.deadline && p.createdAt && dayDiff(p.createdAt, new Date().toISOString()) >= 30);
-  const openAll = state.projects.filter(p=>p.status!=="done");
-
-  /* 繰り返しの予定の達成率: 期限が期間内に来た回ごとに、期限内に完了できたか */
-  const todayK = jstDate(new Date().toISOString()), sinceK = jstDate(new Date(since).toISOString());
-  const series = new Map();
-  state.projects.filter(p=>(p.repeat || p.repeatOf) && p.deadline).forEach(p=>{
-    const dk = String(p.deadline).slice(0,10);
-    if(dk < sinceK || dk > todayK) return;
-    const done = p.status==="done";
-    if(!done && dk === todayK) return;          /* 今日が期限でまだ未完了の回は、まだ数えない */
-    const root = p.repeatOf || p.id;
-    if(!series.has(root)) series.set(root, { n:p.name, c:p.chain, r:p.repeat, due:0, ok:0, late:0, drop:0, miss:0 });
-    const x = series.get(root); if(p.repeat) x.r = p.repeat;
-    x.due++;
-    if(done && p.dropped) x.drop++;
-    else if(done) (p.doneAt && jstDate(p.doneAt) <= dk) ? x.ok++ : x.late++;
-    else x.miss++;
-  });
-  const repRows = [...series.entries()].sort((a,b)=>b[1].due-a[1].due);
-  const repDue = repRows.reduce((n,[,x])=>n+x.due,0), repOk = repRows.reduce((n,[,x])=>n+x.ok,0);
-  const pct = (a,b) => b ? Math.round(a/b*100) + "%" : "-";
-
-  /* クエスト・連続記録 */
-  const qh = (rd.qhist||[]).filter(q=>Date.parse(q.d) >= since);
-  const gm = rd.game || state.settings.game || {};
-
-  /* 日別の完了数 */
-  const perDay = new Map(); dones.forEach(e=>{ const k=jstDate(e.t); perDay.set(k,(perDay.get(k)||0)+1); });
-  const dayLine = []; for(let i=Math.min(days,30)-1;i>=0;i--){ const k = jstDate(new Date(Date.now()-i*86400000).toISOString()); dayLine.push(`${k.slice(5)}:${perDay.get(k)||0}`); }
-
-  const T = (head, rows) => rows.length ? `| ${head.join(" | ")} |\n|${head.map(()=>"---").join("|")}|\n` + rows.map(r=>`| ${r.join(" | ")} |`).join("\n") : "(該当なし)";
-  const recStart = rd.histSince ? fmtDeadline(rd.histSince) : "まだ記録がありません";
-  const logRows = hist.slice(-150).map(e=>[fmtDeadline(e.t), K[e.k]||e.k, e.id ? cat(e.c) : "-", e.id ? nm(e.id, e.n) : "-", e.s==="tg"?"Telegram":"アプリ"]);
-
-  return `以下は、私の予定管理アプリの記録です。私の「予定の進め方」の傾向を分析し、改善の手助けをしてください。
-
-## お願いしたいこと
-1. 先送りしやすいパターン（分野・曜日・時間帯・案件の種類）
-2. 期限切れになりやすい案件の共通点
-3. うまくいっている点（続けたほうがいい習慣）
-4. 来週から試せる、小さく始められる改善を3つ（具体的に）
-5. 予定の整理の提案（見送ってよさそうなもの、まとめられるもの、期限を入れるべきもの）
-※ データ量が少ない部分は推測で断定せず、「データ不足」と書いてください。
-※ 箇条書きで簡潔に。最後に一言、前向きなまとめをください。
-
-## データの前提
-- 期間: 直近${days}日（現在日時 ${nowJa()}）
-- 操作の記録の開始: ${recStart}（それ以前の完了は、完了日時のみ分かります）
-- 「明日へ」はTelegramのクエストで先送りした操作、「期限変更」は期限を書き換えた操作です
-- 「繰り返しの予定」は、完了すると次の回が自動で作られる予定です (毎日・平日・毎週・毎月)
-${anon ? "- 案件名は伏せています（案件A、案件B…）。分野名はそのままです\n" : ""}
-## 全体の数字
-${T(["項目","件数"],[["追加",count("add")],["完了",dones.length],["見送り",count("drop")],["明日へ(先送り)",count("skip")],["期限変更",count("due")],["未完了に戻した",count("reopen")],["削除",count("del")],["いま未完了",openAll.length],["いま期限切れ",overdue.length],["期限なしで30日以上たつ未完了",stale.length]])}
-
-## 完了の質
-- 期限つきの完了 ${withDl.length}件のうち、期限内 ${onTime}件（${withDl.length ? Math.round(onTime/withDl.length*100) : "-"}%）
-- 登録から完了までの日数: 平均 ${avg(lead)}日 / 中央値 ${med(lead)}日（${lead.length}件）
-
-## 曜日・時間帯ごとの完了数
-${T([...wd].map(x=>x), [wdc.map(String)])}
-
-${T(slots, [slc.map(String)])}
-
-## 日ごとの完了数（直近${Math.min(days,30)}日）
-${dayLine.join("  ")}
-
-## 分野ごと
-${T(["分野","未完了","うち期限切れ","完了","見送り","明日へ","期限変更","完了までの平均日数"], [...cats.entries()].sort((a,b)=>(b[1].open+b[1].done)-(a[1].open+a[1].done)).map(([c,o])=>[c,o.open,o.overdue,o.done,o.drop,o.skip,o.due,avg(o.lead)]))}
-
-## 先送りが多い案件
-${T(["案件","分野","明日へ","期限延長"], postTop.map(([id,x])=>[nm(id,x.n), cat(x.c), x.skip, x.ext]))}
-
-## 繰り返しの予定の達成率
-- 期限が来た回 ${repDue}回のうち、期限内に完了 ${repOk}回（${pct(repOk, repDue)}）
-${T(["予定","分野","繰り返し","期限が来た回","期限内に完了","遅れて完了","見送り","やらずに過ぎた","達成率"], repRows.map(([id,x])=>[nm(id,x.n), cat(x.c), repeatLabel(x.r) || "(停止)", x.due, x.ok, x.late, x.drop, x.miss, pct(x.ok, x.due)]))}
-
-## 期限切れのまま残っている案件
-${T(["案件","分野","超過日数","ピン"], overdue.map(p=>[nm(p.id,p.name), cat(p.chain), -daysLeft(p.deadline), p.pinned?"○":""]))}
-
-## 毎朝のクエストと連続記録
-- いまの連続記録 ${gm.streak ?? "-"}日 / 最高 ${gm.best ?? "-"}日 / レベル ${gm.lv ?? "-"}
-- クエストの記録 ${qh.length}日分: 全部片付けた日 ${qh.filter(q=>q.b).length}日 / 1件以上完了した日 ${qh.filter(q=>q.done>0).length}日 / 先送りがあった日 ${qh.filter(q=>q.skip>0).length}日
-
-## 操作の記録（古い順、最大150件）
-${T(["日時","操作","分野","案件","どこから"], logRows)}
-`;
-}
-
 /* ================= ホーム画面アプリ (PWA) ================= */
 /* file:// で開いた時や、service worker が使えないブラウザでは何もしない (エラーにしない) */
 function pwaReload(){ location.reload(); }
@@ -5186,8 +2798,7 @@ function switchTab(t){
   const sec = $("#tab-"+t); if(!sec) return;
   sec.classList.add("active");
   window.scrollTo({ top:0 });
-  if(t==="home") renderHome();
-  if(t==="settings" && !loaded.settings){ loaded.settings=1; renderTgIngestStatus(); pmAiSettingsLoad(); }
+  if(t==="settings" && !loaded.settings){ loaded.settings=1; pmAiSettingsLoad(); }
   if(t==="poly" && !loaded.poly){ loaded.poly=1; pmLoad(); }
   if(t==="btc" && !loaded.btc){ loaded.btc=1; loadMacro(); }
   if(t==="gloss"){ renderGloss(); }
@@ -5416,8 +3027,12 @@ function renderTop(){
   if(hd){
     const bad = hd.jobs.filter(j=>j.st === "stale" || j.st === "error");
     const run = hd.jobs.filter(j=>j.st === "ok").length;
-    healthTop = bad.length || (hd.missing && hd.missing.length)
-      ? `<button class="hm-health hm-health-bad" data-jump="settings">⚠ 記録が止まっています: ${bad.map(j=>esc(j.n)).join("、") || "自動で動かす設定がありません"} <span>設定で確かめる →</span></button>`
+    const miss = hd.missing && hd.missing.length;
+    const names = bad.slice(0, 3).map(j=>esc(j.n)).join("、") + (bad.length > 3 ? ` ほか${bad.length - 3}種類` : "");
+    healthTop = miss
+      ? `<button class="hm-health hm-health-bad" data-jump="settings">⚠ 記録を自動で動かす設定がありません。Apps Script で setup を実行してください <span>手順を確かめる →</span></button>`
+      : bad.length
+      ? `<button class="hm-health hm-health-bad" data-jump="settings">⚠ 記録が止まっています: ${names} <span>設定で確かめる →</span></button>`
       : `<button class="hm-health" data-jump="settings">✅ 記録は正常に動いています (${run}種類) <span>くわしく →</span></button>`;
   }
   box.innerHTML = (hd && !hd.ok ? healthTop : "") + hero + `<div class="hm-grid">`
@@ -5450,14 +3065,11 @@ $("#tab-top").addEventListener("click", ev=>{
 load();
 applyTheme();
 loadSettingsUI();
-restoreFilter();
-applyCompact();
-renderProjects();
 renderVersion();
 renderOnline();
 setupPwa();
 switchTab("top");   /* 最初にホーム (今日のまとめ) を開く */
-gasAutoResume().finally(()=>refreshInbox());
+gasAutoResume();
 </script>
 </body>
 </html>

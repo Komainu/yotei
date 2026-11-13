@@ -3,16 +3,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadGas, project } = require('./helpers/gas');
-const { createClock, jstLocal } = require('./helpers/clock');
+const { createClock } = require('./helpers/clock');
 
 const SECRET = 'test-secret-ABCDEFG-123';
-const CONTENT_KEYS = ['count', 'pinned', 'syncedAt', 'mailTo', 'telegram', 'pendingChats', 'tgChats', 'inbox', 'game', 'projects', 'deleted', 'hist', 'qhist', 'histSince', 'tgLastSend', 'alertLastOk'];
+const CONTENT_KEYS = ['count', 'projects', 'deleted', 'pm', 'locked', 'macro', 'health', 'llama', 'snap', 'series', 'md'];
+const GET_ACTIONS = [undefined, 'load', 'report', 'macro', 'hl', 'llama', 'llamaFees', 'health', 'compare'];
 
 function withData(opts) {
   const clock = createClock('2026-11-02T10:00:00+09:00');
   const gas = loadGas({ clock });
-  gas.enableTelegram(['111']);
-  gas.post({ all: [project(clock, { id: 's1', name: '秘密の案件', pinned: true, deadline: jstLocal(clock, 1) })], deleted: { gone: clock.iso() }, syncedAt: clock.iso(), email: 'me@example.com' });
+  gas.setLegacy([project(clock, { id: 's1', name: '秘密の案件', pinned: true })], { gone: clock.iso() });
+  gas.props.setProperty('MAIL_TO', 'me@example.com');
+  gas.props.setProperty('GEMINI_KEY', 'AIza-secret-gemini');
   if (!opts || opts.secret !== false) gas.props.setProperty('API_SECRET', SECRET);
   return { clock, gas };
 }
@@ -27,10 +29,10 @@ function assertLocked(r, label) {
   assert.ok(!raw.includes('秘密の案件') && !raw.includes('me@example.com') && !raw.includes(SECRET), label);
 }
 
-test('合言葉: GET は「なし/違う」だと中身を返さず、版数だけ返す。「正しい」なら今まで通り', () => {
+test('合言葉: GET は「なし/違う」だと中身を返さず、版数だけ返す。「正しい」なら中身を返す', () => {
   const { gas } = withData();
   for (const [label, p] of [['なし', {}], ['違う', { key: 'wrong-key-0000000' }], ['空', { key: '' }], ['前方一致', { key: SECRET.slice(0, -1) }], ['後ろに余分', { key: SECRET + 'x' }]]) {
-    for (const action of [undefined, 'load', 'history']) {
+    for (const action of GET_ACTIONS) {
       const r = gas.get(Object.assign({}, p, action ? { action } : {}));
       assertLocked(r, `${label} action=${action}`);
       assert.equal(r.version, gas.C.GAS_VERSION, '自動公開の確認用に版数は返す');
@@ -38,29 +40,24 @@ test('合言葉: GET は「なし/違う」だと中身を返さず、版数だ�
   }
   const st = gas.get({ key: SECRET });
   assert.equal(st.ok, true);
-  assert.equal(st.count, 1);
   assert.equal(st.locked, true, '合言葉を設定済みであることは分かる');
-  assert.ok(!JSON.stringify(st).includes(SECRET), '合言葉そのものは返さない');
+  assert.ok(st.pm, '記録の状況を返す');
+  const raw = JSON.stringify(st);
+  assert.ok(!raw.includes(SECRET), '合言葉そのものは返さない');
+  assert.ok(!raw.includes('AIza-secret-gemini'), 'Gemini のキーは返さない');
   const ld = gas.get({ key: SECRET, action: 'load' });
   assert.deepEqual(ld.projects.map(p => p.id), ['s1']);
-  const hs = gas.get({ key: SECRET, action: 'history' });
-  assert.ok(Array.isArray(hs.hist) && hs.hist.length >= 1);
 });
 
-test('合言葉: POST は「なし/違う」だと保存・設定・受信箱の操作ができない。「正しい」なら今まで通り', () => {
-  const { clock, gas } = withData();
-  const before = JSON.stringify(gas.projects());
-  const tokenBefore = gas.props.getProperty('TG_TOKEN');
-  gas.ctx.logInbox_({ type: 'add', id: 's1', name: '秘密の案件' });
-  const inboxBefore = gas.ctx.getInbox_().length;
-  clock.tick(60000);
+test('合言葉: POST は「なし/違う」だと設定を変えられない。「正しい」なら変えられる', () => {
+  const { gas } = withData();
   const attempts = [
-    { all: [project(clock, { id: 'evil', name: '書きかえ' })], deleted: { s1: clock.iso() }, syncedAt: clock.iso() },
-    { all: [], force: true },
-    { action: 'config', tgToken: 'evil-token', tgChat: '999', geminiKey: 'evil' },
-    { action: 'config', clear: true, tgToken: '', tgChat: '' },
-    { action: 'inboxClear', before: clock.iso() },
+    { action: 'pmConfig', mailTo: 'evil@example.com', geminiKey: 'evil' },
+    { action: 'pmWatch', ids: ['1'] },
+    { action: 'pmHlWatch', coins: ['DOGE'] },
+    { action: 'pmMailTest' },
     { action: 'setSecret', newKey: 'attacker-key-123456' },
+    { all: [], force: true },
   ];
   for (const body of attempts) {
     for (const [label, key] of [['なし', undefined], ['違う', 'wrong-key-0000000']]) {
@@ -69,40 +66,27 @@ test('合言葉: POST は「なし/違う」だと保存・設定・受信箱の
       assertLocked(gas.postForm(b), `${label} ${body.action || '保存'} (フォーム送信)`);
     }
   }
-  assert.equal(JSON.stringify(gas.projects()), before, '案件はそのまま');
-  assert.equal(gas.props.getProperty('TG_TOKEN'), tokenBefore);
-  assert.equal(gas.props.getProperty('TG_CHAT'), '111');
+  assert.equal(gas.props.getProperty('MAIL_TO'), 'me@example.com');
+  assert.equal(gas.props.getProperty('GEMINI_KEY'), 'AIza-secret-gemini');
   assert.equal(gas.props.getProperty('API_SECRET'), SECRET, '合言葉は乗っ取られない');
-  assert.equal(gas.ctx.getInbox_().length, inboxBefore, '受信箱も消されない');
-  assert.ok(inboxBefore > 0);
+  assert.equal(gas.mails.length, 0, 'テスト送信もされない');
 
-  // 正しい合言葉 (JSON の key / フォーム送信) なら保存できる
-  clock.tick(60000);
-  const p2 = project(clock, { id: 's2', name: '追加' });
-  let r = gas.post({ key: SECRET, all: gas.projects().concat([p2]), deleted: {}, syncedAt: clock.iso() });
-  assert.equal(r.ok, true);
-  assert.deepEqual(r.projects.map(p => p.id).sort(), ['s1', 's2']);
-  clock.tick(60000);
-  r = gas.postForm({ key: SECRET, all: r.projects, deleted: { s2: clock.iso() }, syncedAt: clock.iso() });
-  assert.equal(r.ok, true);
-  assert.deepEqual(gas.projects().map(p => p.id), ['s1']);
-  // 合言葉は保存データに残らない
-  assert.ok(!JSON.stringify(gas.projects()).includes(SECRET));
-  assert.ok(!JSON.stringify(gas.hist()).includes(SECRET));
+  // 正しい合言葉 (JSON の key / フォーム送信) なら変えられる
+  assert.equal(gas.post({ key: SECRET, action: 'pmConfig', mailTo: 'new@example.com' }).ok, true);
+  assert.equal(gas.props.getProperty('MAIL_TO'), 'new@example.com');
+  assert.equal(gas.postForm({ key: SECRET, action: 'pmConfig', mailTo: 'form@example.com' }).ok, true);
+  assert.equal(gas.props.getProperty('MAIL_TO'), 'form@example.com');
 });
 
-test('合言葉が未設定の間は今まで通り (合言葉なしで読み書きでき、key を付けても動く)', () => {
-  const { clock, gas } = withData({ secret: false });
+test('合言葉が未設定の間は、合言葉なしで使える (key を付けても動く)', () => {
+  const { gas } = withData({ secret: false });
   const st = gas.get();
   assert.equal(st.ok, true);
-  assert.equal(st.count, 1);
   assert.equal(st.locked, false);
-  assert.equal(gas.get({ key: 'anything-0000000' }).ok, true, '新しいアプリが合言葉を付けて送っても動く');
-  clock.tick(60000);
-  assert.equal(gas.post({ all: gas.projects(), deleted: {}, syncedAt: clock.iso() }).ok, true);
-  assert.equal(gas.post({ key: 'x', all: gas.projects(), deleted: {}, syncedAt: clock.iso() }).ok, true);
-  assert.equal(gas.post({ action: 'config', tgChat: '222' }).ok, true);
-  assert.equal(gas.props.getProperty('TG_CHAT'), '111,222');
+  assert.equal(gas.get({ key: 'anything-0000000' }).ok, true, 'アプリが合言葉を付けて送っても動く');
+  assert.equal(gas.post({ action: 'pmConfig', mailTo: 'a@example.com' }).ok, true);
+  assert.equal(gas.post({ key: 'x', action: 'pmConfig', mailTo: 'b@example.com' }).ok, true);
+  assert.equal(gas.props.getProperty('MAIL_TO'), 'b@example.com');
 });
 
 test('合言葉の設定・変更の流れ: 未設定なら合言葉なしで設定、設定済みなら今の合言葉が必要', () => {
@@ -132,32 +116,12 @@ test('合言葉の設定・変更の流れ: 未設定なら合言葉なしで設
   assert.equal(gas.props.getProperty('API_SECRET'), 'second-secret-0002');
 });
 
-test('合言葉を設定した後も、Telegram・毎朝のクエスト・夜のお知らせ・毎朝のメールは動く', () => {
-  const { clock, gas } = withData();
-  // Telegram: 受信・コマンド・登録
-  gas.tg.pushMessage('111', '/list');
-  gas.tg.pushMessage('111', '新しい案件をTelegramから');
-  gas.ctx.pollTelegram();
-  assert.ok(gas.tg.texts('111').some(t => /未完了の案件/.test(t) && /秘密の案件/.test(t)));
-  assert.ok(gas.tg.texts('111').some(t => /1件を登録しました/.test(t)));
-  // 朝9時のクエストとボタン
-  clock.set('2026-11-03T09:01');
-  gas.ctx.pollTelegram();
-  assert.ok(gas.tg.texts('111').some(t => /今日のクエスト/.test(t)));
-  gas.tg.pushButton('111', 'q:d:s1');
-  gas.ctx.pollTelegram();
-  assert.equal(gas.projects().find(p => p.id === 's1').status, 'done');
-  assert.ok(gas.game().xp > 0);
-  // 夜20時のお知らせ
-  clock.set('2026-11-04T20:00');
-  gas.ctx.pollTelegram();
-  assert.ok(gas.tg.texts('111').some(t => /途切れそう/.test(t)));
-  // 毎朝のメール
-  gas.setProjects([project(clock, { id: 'm1', name: 'メールの案件', pinned: true })]);
-  gas.ctx.sendDailyMail();
-  assert.equal(gas.mails.length, 1);
-  assert.equal(gas.mails[0].to, 'me@example.com');
-  assert.match(gas.mails[0].htmlBody, /メールの案件/);
+test('合言葉を設定した後も、トリガーで動く記録 (pmRecord など) は合言葉なしで動く', () => {
+  const clock = createClock('2026-11-02T10:00:00+09:00');
+  const gas = loadGas({ clock, fetch: () => ({ getContentText: () => '[]', getResponseCode: () => 200 }) });
+  gas.props.setProperty('API_SECRET', SECRET);
+  gas.ctx.pmRecord();
+  assert.ok(gas.props.getProperty('HB_record') || gas.props.getProperty('HBE_record'), '記録の処理が動いた跡が残る');
 });
 
 test('自動公開の確認: 合言葉なしの問い合わせでも、公開中の版数が分かる (deploy-gas.yml と同じ読み方)', () => {

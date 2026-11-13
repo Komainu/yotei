@@ -292,6 +292,19 @@ test('毎朝のまとめ: 先頭に相場の天気図・昨日から変わった
   assert.ok(m.htmlBody.includes('相場の天気図'));
   // 次の日は、今日の信号と比べる
   assert.match(gas.props.getProperty('PM_MC_SIG'), /"vix":"r"/);
+  // マクロ指標の一覧: テーマごとに、信号・名前・値・補足を全部
+  assert.match(m.body, /■■ マクロ指標の一覧[^\n]*\n\n■ 🏦 金利\n・政策金利 \(FF金利\): \d\.\d\d% \(/);
+  for (const th of ['💧 お金の量', '💱 ドルと円', '😨 不安の度合い', '📊 物価と景気', '📈 株と商品', '🪙 暗号資産']) assert.ok(m.body.includes('\n■ ' + th + '\n'), th);
+  assert.match(m.body, /\n🔴 VIX \(恐怖指数\): [\d.]+ \([^\n]*強い不安/);
+  const listed = m.body.slice(m.body.indexOf('■■ マクロ指標の一覧')).split('\n').filter(l => /^(🟢 |🟡 |🔴 |・)\S/.test(l) && /: /.test(l)).length;
+  assert.ok(listed >= 15, '指標が15個以上並ぶ: ' + listed);
+  assert.ok(m.htmlBody.includes('📋 マクロ指標の一覧'));
+  assert.ok(m.body.indexOf('■■ ポリマーケット') < m.body.indexOf('■■ マクロ指標の一覧'), '一覧は Polymarket の後ろ');
+  // 設定で外せる
+  assert.equal(gas.post({ action: 'pmConfig', notify: { dMacro: false } }).ok, true);
+  gas.ctx.pmDigest();
+  assert.doesNotMatch(gas.mails[1].body, /マクロ指標の一覧/);
+  assert.match(gas.mails[1].body, /■ 相場の天気図/);
 });
 
 test('マクロの日誌: 毎日1行 (空・点数・信号・主な値) を残し、AI に渡すレポートの表になる', () => {

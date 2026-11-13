@@ -1,8 +1,8 @@
 # ポリマーケット記録 (旧: 予定管理 yotei) — 開発メモ
 
 > 2026-11 方針転換: 予定管理は MUSE に移した。アプリは Polymarket の情報収集・記録・分析に作り変え中。
-> - 予定管理の画面は `body.pm-mode .legacy` で隠しているだけで、コード・データ (localStorage `sakiyomi_v1`、ドライブ「予定管理データ」) は残してある。整理して削除するのは後回し
-> - サーバーのトリガーは `setup()` で `pmRecord` (1時間ごと)・`pmResolve` (毎日5時)・`pmAlert` (10分おき)・`pmDigest` (毎朝8時) を登録する。メール・Telegram・週ごとのバックアップは止めた
+> - 2026-11-14: 予定管理のコード (案件・同期・Telegram・毎朝のメール・クエスト・ものがたり・部屋・繰り返し・週ごとのバックアップ) は **取り除いた**。残してあるのは旧データだけ (下の「旧データ」)
+> - サーバーのトリガーは `setup()` で `pmRecord` (1時間ごと)・`pmResolve` (毎日5時)・`pmAlert` (10分おき)・`pmDigest` (毎朝8時) を登録する。以前のトリガー (`sendDailyMail` `pollTelegram` `checkDeadlines` `weeklyBackup`) が残っていたら止める
 > - 計画: ①記録の土台 (済) → ②和訳＋興味プロフィール (済) → ③検索・急変・ウォッチ画面 (済) → ④メール (済) → ⑤分析 (答え合わせ・急変のその後)
 >
 > ### Polymarket の記録 (gas/Code.gs 末尾)
@@ -37,54 +37,39 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 
 | 部分 | 場所 | 役割 |
 |---|---|---|
-| アプリ本体 | `index.html` (1ファイル、HTML+CSS+JS) | GitHub Pages で公開 (https://komainu.github.io/yotei/)。データは端末の localStorage |
-| サーバー | `gas/Code.gs` (Google Apps Script) | クラウド同期・Telegram Bot・毎朝の通知・ゲーム・記録。ウェブアプリとして公開 |
-| 外部 | Telegram Bot API / Gmail(MailApp) / Gemini API(任意) / FRED・CoinGecko・Polymarket(表示のみ) | |
+| アプリ本体 | `index.html` (1ファイル、HTML+CSS+JS) | GitHub Pages で公開 (https://komainu.github.io/yotei/)。表示用のキャッシュと設定は端末の localStorage |
+| サーバー | `gas/Code.gs` (Google Apps Script) | 記録 (Polymarket・マクロ・Hyperliquid・DefiLlama)・和訳・通知メール。ウェブアプリとして公開 |
+| 外部 | Gmail(MailApp) / Gemini API / Polymarket・Kalshi・FRED・Hyperliquid・DefiLlama・alternative.me | |
 
 外部のビルド工程はない。ブラウザで `index.html` を開けば動く(`file://` でも動作する前提を壊さない)。
 
-## 絶対に壊してはいけないもの (既存利用者のデータ)
+## 絶対に壊してはいけないもの
 
-- localStorage キー: `sakiyomi_v1` (state本体), `sakiyomi_backups` (自動バックアップ10世代)
-- Script Properties のキー名 (下記)。名前を変える時は移行処理を必ず書く
-- ウェブアプリの公開URL (デプロイID) は変えない。更新は main の `gas/` 変更で自動 (下記「サーバーの公開」)。手でやる時は「デプロイを管理 → 新バージョン」
-- 空データでクラウドを上書きしない保護 (アプリ側とサーバー側の両方にある)
+- localStorage キー `sakiyomi_v1`: 設定 (`settings.gasUrl, gasKey, theme, gasVersion, gasError`) の置き場所。**以前の予定データ (`projects`, `deleted`) が同じキーに残っている端末があるので、読み込んだ中身はそのまま持ち続けて保存し直す** (`load()` は `Object.assign` で全部受け取る。消してはいけない)
+- 旧データ: ドライブ「予定管理データ」フォルダの `ALL.json` (案件) / `DELETED.json` (削除記録) と、Script Properties の `STORE` `FILE_ALL` `FILE_DELETED`。サーバーは **読むだけ** (`legacyData_()` → `?action=load`)。書き換え・削除はしない
+- Script Properties のキー名。名前を変える時は移行処理を必ず書く
+- ウェブアプリの公開URL (デプロイID) は変えない。更新は main の `gas/` 変更で自動 (下記「サーバーの公開」)
 
 ## アプリ (index.html) の要点
 
-- `state = { projects:[], settings:{...}, deleted:{id:削除時刻}, updatedAt }`
-- 案件: `{ id, name, chain(分野), deadline("YYYY-MM-DDTHH:MM" ローカル時刻), memo, sources:[{url,title}], pinned, status:"open"|"done", dropped?, doneAt?, createdAt, updatedAt, repeat?, repeatOf?, repeatNext? }`
-- 繰り返し `repeat: {type:"daily"|"weekdays"|"weekly"|"monthly", dow:[0-6], dom:1-31}`: 完了すると次の回を作る (`spawnRepeats`)。次の回の id は `元のid~YYYY-MM-DD` (アプリとサーバーで同じidになり二重にならない)。完了した回に `repeatNext`、次の回に `repeatOf` (最初の回のid)。見送り・同じ繰り返しの未完了の回がある・削除記録がある時は作らない。毎月で無い日付は月末
-  - 規則は `index.html` と `gas/Code.gs` の「繰り返しの予定」の囲みに **まったく同じコード** で入っている (テストで一致を確認)。変える時は両方を同じに直す
-  - アプリは `save()` の中で、サーバーは Telegram の完了 (`/done`・ボタン) と同期 (`doPost`) で作る
-- `save()` は前回保存時との差分を見て、変わった案件だけ `updatedAt` を付け、消えた案件を `state.deleted` に記録する (`save({silent:true})` は設定変更用で印を付けない)
-- 同期 (`gasSync`): クラウドを取得 → `mergeProjects()` で案件ごとに新しい方を採用 → 全件+削除記録を送信。サーバーでも同じ規則で合体する。同期は直列化 (`gasChain`)
-- 版数: `APP_VERSION`, `MIN_GAS_VERSION` (サーバーが古いと警告)。変更したら日付で上げる。**`sw.js` の `VERSION` も必ず同じにする** (ホーム画面アプリは index.html をキャッシュから開くので、上げ忘れると古い版のままになる。テストで確認)
+- `state = { settings:{...} }` (+ 旧データが残っていれば `projects`, `deleted` など。触らない)。`save()` は state をそのまま localStorage へ書く
+- `load()` は使わなくなった設定 (`OLD_SETTINGS`: Telegram のトークン・Gemini のキーなど) を端末から消す
+- タブ: `top` (ホーム)・`poly`・`btc` (マクロ)・`hl`・`flow`・`gloss`・`settings`。`switchTab()` が初回だけ各タブの読み込みを呼ぶ
+- 設定の「旧データ (予定) をエクスポート」(`oldDataFetch`): サーバーの `?action=load` と端末の `state.projects` のうち件数の多い方を JSON で書き出す。設定・合言葉は入れない
+- 起動時・画面に戻った時は `gasAutoResume()` → `gasCheck()` でサーバーの版数と合言葉を確かめるだけ (何も書き込まない)
+- 版数: `APP_VERSION`, `MIN_GAS_VERSION` (サーバーが古いと警告)。変更したら日付で上げる。**`sw.js` の `VERSION` も必ず同じにする** (ホーム画面アプリは index.html をキャッシュから開くので、上げ忘れると新しい版が届かない。テストで確認している)
 - PWA: `manifest.webmanifest`・`sw.js`・`icons/` (アイコンは `python3 icons/make-icons.py` で作り直せる)
-- 機能: HOME / よてい一覧 / Polymarket / BTCマクロ(FRED) / 設定 / 「🤖 AIに渡す」(用途別プロンプト・JSON/Markdown表の取り込み・📈振り返り分析) / 部屋の背景(手帳の線画SVG、家具・段ボール・日替わりイベント・季節) / ものがたり(完了数で進む全21話) / レベル・XP・連続記録の表示
-- 秘密情報 (`key, tgToken, tgChat, gasUrl, gasKey, fredKey`) はエクスポートに含めない
-- サーバーとの通信は必ず `gasGetUrl()` (GET) / `withGasKey()` (POST・フォーム送信) を通し、合言葉 `settings.gasKey` を付ける
+- サーバーとの通信は必ず `gasGetUrl()` (GET) / `withGasKey()` (POST) を通し、合言葉 `settings.gasKey` を付ける
 
 ## サーバー (gas/Code.gs) の要点
 
-- 保存: 大きなデータは `saveBlob_/loadBlob_` を通す。保存先は Google ドライブ「予定管理データ」フォルダの `<KEY>.json` (Script Properties `STORE='drive'` の時)。移行前は Script Properties に8000文字ずつ分割 (合計500KB上限)
-  - `ALL` 案件, `DELETED` 削除記録, `INBOX` Telegram変更の受信箱, `GAME` ゲーム状態, `HIST` 操作の記録
-  - 移行 `migrateToDrive_()`: 書く→読み直して一致確認→`STORE='drive'`→古いチャンク削除。`setup()` と `pollTelegram` (30分に1回まで) から呼ぶ。失敗時は元データのまま
-  - `loadBlob_` は1回の実行の中だけキャッシュする。ロックを取った直後は `blobCacheClear_()` を呼ぶこと。ドライブが読めない時は空ではなく例外にする (空データ扱いの上書き事故を防ぐ)
-  - 週ごとのバックアップ `weeklyBackup` (日曜2時): 「予定管理バックアップ」に `yotei-backup-YYYY-MM-DD.json`、12個まで。秘密情報は入れない。詳細は `docs/storage.md`
-  - その他: `TG_TOKEN, TG_CHAT(カンマ区切り), TG_PENDING, TG_OFFSET, TG_LASTLIST_<chat>, GEMINI_KEY, GEMINI_MODEL, MAIL_TO, SYNCED_AT, ALERT_LAST_RUN, ALERT_TRIES_<日付>, ALERT_LAST_OK, TG_LAST_SEND, NUDGE_LAST, HIST_SINCE, API_SECRET, STORE, STORE_AT, STORE_ERROR, STORE_TRIED, DATA_FOLDER_ID, FILE_<KEY>, BACKUP_FOLDER_ID, BACKUP_LAST`
-- 合言葉 `API_SECRET`: 設定済みなら doGet は `key` パラメータ、doPost は JSON の `key` が一致しないと `{ok:false, needKey:true, version}` だけを返す (中身は返さない)。未設定なら今まで通り。`{action:"setSecret", newKey}` で設定 (未設定時は誰でも / 設定済みは今の key が必要)。Telegram・トリガーは doGet/doPost を通らないので影響なし。手順は `docs/secret.md`
-- `doGet`: 状態 (`version, count, telegram, tgChats, game, inbox...`)。`?action=load` で案件+削除記録、`?action=history` で操作の記録
-- `doPost` (text/plain JSON、フォーム送信 `payload=` も可):
-  - `{action:"config", tgToken, tgChat, geminiKey, clear}` Chat IDは既存に追加、空値は変更しない
-  - `{action:"inboxClear", before}`
-  - 保存 `{all, deleted, base, syncedAt, email, force}` → 合体して `{projects, deleted, game}` を返す
-- トリガー: `setup()` が作る。`sendDailyMail` 毎朝8時 (ピン留め&未完了をメール)、`pollTelegram` 1分おき (受信・ボタン処理・9時のクエスト・20時の連続記録お知らせ)、`weeklyBackup` 毎週日曜2時
-- 日付はすべて日本時間 (`jstDays_`, `todayJst_`)
-- Telegram: 自由文→Geminiで案件化 (キーが無ければ簡易登録)、`/alert /list /today /done N /pin N /help`、クエストのボタン `q:d|s|x:<id>`, `q:c`
-- 毎朝のクエスト (`pickQuest_`): 期限が近い順→ピン留め、最大3件。繰り返しの予定は1日1件まで
-- ゲーム: XP (期限内20/通常10/見送り2/確認2/全クリア+30)、レベル=累計25×(L-1)×L、連続記録、二重付与防止 `awarded`、`doneTotal` (ものがたり用)、`qhist`
-- 記録 `HIST`: `{t,k,id,n,c,d,s}` k=add/done/drop/reopen/due/del/skip/check/pin、180日・1500件まで
+- 先頭: 合言葉 → ドライブの共通処理 (`driveRetry_` `driveFolder_`) と旧データの読み出し → `doPost` / `doGet` → `setup` → 以降は機能ごとの節 (Polymarket の記録、和訳、通知、マクロ…)
+- 合言葉 `API_SECRET`: 設定済みなら doGet は `key` パラメータ、doPost は JSON の `key` が一致しないと `{ok:false, needKey:true, version}` だけを返す (中身は返さない)。未設定なら誰でも使える。`{action:"setSecret", newKey}` で設定・変更 (12〜200文字)
+- `doGet`: 既定は状況 (`version, locked, pm{..., ai, health, mail}`)。`?action=load` (旧データ) `report` `macro` `hl` `llama` `llamaFees` `health` `compare`
+- `doPost` (text/plain JSON、フォーム送信 `payload=` も可): `pm*` の操作 (`pmDoPost_`) と `setSecret` だけ。それ以外 (以前の案件の保存など) は `{ok:false, error:"予定管理の機能は終了しました…"}` を返す
+- Script Properties: `API_SECRET, GEMINI_KEY, MAIL_TO, PM_*, HB_*/HBE_* (見張り), DATA_FOLDER_ID 系のフォルダID` など。以前の `TG_*` `GAME` などは残っていても使わない
+- 日付はすべて日本時間 (`todayJst_`)
+- 毎朝のまとめ (`pmDigest`): 天気図・予定 (`pmMacroSection_`) → Polymarket → マクロ指標の一覧 (`pmMacroList_`、`NTF_SPEC.dMacro`) → お金の流れ (`pmFlowSection_`、`NTF_SPEC.dFlow`) → 記録の状況。欄を足す時は `NTF_SPEC` と設定画面の `data-ntf` にオン/オフを足す
 - 版数: `GAS_VERSION`
 
 ## 作業のルール
@@ -98,13 +83,14 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 ## テスト (`npm test`)
 
 - Node 22 以上。`npm ci` → `npm test`。GitHub Actions (`.github/workflows/test.yml`) がプッシュ・PRのたびに実行する
-- `test/helpers/gas.js`: `gas/Code.gs` を Node の vm で読み込み、PropertiesService などの偽物を差し込む (Telegramの送受信は `tg` に記録)
+- `test/helpers/gas.js`: `gas/Code.gs` を Node の vm で読み込み、PropertiesService などの偽物を差し込む。`gas.setLegacy(list, tombs)` で旧データがドライブにある状態を作れる
 - `test/helpers/app.js`: `index.html` を jsdom で開く。通信は偽のGAS (上記) へ届く。`app.run("式")` でアプリ内の変数・関数を使える
 - `test/helpers/clock.js`: 両方で共有する偽の時計 (日本時間)。テストでは実際の時刻を使わない
 
 ## サーバーの公開 (`.github/workflows/deploy-gas.yml`)
 
 - main の `gas/` が変わると: テスト → `clasp push --force` → `clasp deploy -i <既存のデプロイID>` (新バージョン、URLは変わらない) → 公開中の `version` が `GAS_VERSION` と一致するか確認
+- GitHub の画面からのアップロードではファイルを消せないので、使わなくなったテスト (`gas-game` `gas-history` `gas-sync` `repeat` `room`) は中身を空にしてある。消してよい
 - 設定: `gas/.clasp.json` (スクリプトID), `gas/appsscript.json` (Asia/Tokyo・V8・自分として実行・全員・`oauthScopes` を明示), `gas/.claspignore` (Code.gs と appsscript.json だけ送る)
 - 権限は自動判定に頼らず `oauthScopes` に明示 (drive / script.external_request / script.send_mail / script.scriptapp)。新しいサービスを使う時は足すこと。`test/gas-scopes.test.js` が Code.gs のサービスと突き合わせる
 - Secrets: `CLASPRC_JSON` (clasp login の認証情報), `GAS_DEPLOYMENT_ID`。手順は `docs/deploy.md`

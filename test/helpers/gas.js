@@ -7,8 +7,7 @@ const { createClock } = require('./clock');
 
 const CODE_PATH = path.join(__dirname, '..', '..', 'gas', 'Code.gs');
 /* const で宣言された値は vm の global に出てこないので、読み込み後に取り出す */
-const EXPORT_CONSTS = ['GAS_VERSION', 'STORY', 'XP_ON_TIME', 'XP_DONE', 'XP_DROP', 'XP_CHECK', 'XP_BONUS',
-  'ALERT_HOUR', 'NUDGE_HOUR', 'SEND_HOUR', 'URGENT_DAYS', 'LEVEL_TITLES'];
+const EXPORT_CONSTS = ['GAS_VERSION'];
 
 const pad = (n, w) => String(n).padStart(w || 2, '0');
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -101,48 +100,19 @@ function createProps(initial, limit) {
 
 /**
  * GAS 環境を作る。
- * 戻り値: { ctx (Code.gs の関数), C (定数), clock, props, tg (Telegramの送受信記録), mails, post(), get() ... }
+ * 戻り値: { ctx (Code.gs の関数), C (定数), clock, props, mails, drive, post(), get() ... }
  */
 function loadGas(opts) {
   opts = opts || {};
   const clock = opts.clock || createClock(opts.start);
   const props = createProps(opts.props, opts.propsLimit);
 
-  /* Telegram の偽物: 送ったものは tg.sent に記録、getUpdates は tg.queue から返す */
-  const tg = {
-    sent: [], calls: [], queue: [], nextUpdateId: 1, failSend: false,
-    /** 届いた文章 (sendMessage の text) だけを取り出す */
-    texts(chat) { return tg.sent.filter(s => chat == null || String(s.chat_id) === String(chat)).map(s => s.text); },
-    clear() { tg.sent.length = 0; tg.calls.length = 0; },
-    pushMessage(chat, text) { tg.queue.push({ update_id: tg.nextUpdateId++, message: { message_id: tg.nextUpdateId, chat: { id: Number(chat) }, text } }); },
-    pushButton(chat, data, messageId) {
-      tg.queue.push({ update_id: tg.nextUpdateId++, callback_query: { id: 'cb' + tg.nextUpdateId, data, message: { message_id: messageId || 100, chat: { id: Number(chat) } } } });
-    },
-  };
   const fetchLog = [];
   const response = obj => ({ getContentText: () => JSON.stringify(obj), getResponseCode: () => 200 });
 
   const UrlFetchApp = {
     fetch(url, params) {
       fetchLog.push({ url, params });
-      const m = String(url).match(/^https:\/\/api\.telegram\.org\/bot[^/]+\/(\w+)$/);
-      if (m) {
-        const method = m[1];
-        const body = params && params.payload ? JSON.parse(params.payload) : {};
-        tg.calls.push({ method, body });
-        if (method === 'getUpdates') {
-          const off = Number(body.offset || 0);
-          const res = tg.queue.filter(u => u.update_id >= off).slice(0, body.limit || 100);
-          tg.queue = tg.queue.filter(u => !res.includes(u));
-          return response({ ok: true, result: res });
-        }
-        if (method === 'sendMessage') {
-          if (tg.failSend) return response({ ok: false, description: 'テスト用の送信失敗' });
-          tg.sent.push(body);
-          return response({ ok: true, result: { message_id: tg.sent.length } });
-        }
-        return response({ ok: true, result: true });
-      }
       if (opts.fetch) return opts.fetch(url, params);
       throw new Error('テストでは外部への通信はできません: ' + url);
     },
@@ -188,23 +158,20 @@ function loadGas(opts) {
 
   const parse = out => JSON.parse(out.getContent());
   const env = {
-    ctx, C, clock, props, tg, mails, logs, fetchLog, drive,
-    /** 別の実行 (トリガー・通信) が始まったことにする: 読み出しキャッシュを捨てる (本物のGASでは実行ごとに消える) */
-    newRun() { ctx.blobCacheClear_(); },
+    ctx, C, clock, props, mails, logs, fetchLog, drive,
+    /** 別の実行 (トリガー・通信) が始まったことにする (今は実行をまたぐキャッシュが無いので何もしない) */
+    newRun() {},
     /** doPost に JSON を送る (アプリの fetch と同じ形) */
     post(obj) { return parse(ctx.doPost({ postData: { contents: JSON.stringify(obj) }, parameter: {} })); },
     /** フォーム送信 (payload=) の形で送る */
     postForm(obj) { return parse(ctx.doPost({ parameter: { payload: JSON.stringify(obj) } })); },
     get(params) { return parse(ctx.doGet({ parameter: params || {} })); },
-    projects() { return JSON.parse(ctx.loadBlob_('ALL') || '[]'); },
-    tombs() { return JSON.parse(ctx.loadBlob_('DELETED') || '{}'); },
-    game() { return JSON.parse(ctx.loadBlob_('GAME') || '{}'); },
-    hist() { return JSON.parse(ctx.loadBlob_('HIST') || '[]'); },
-    setProjects(list) { ctx.saveBlob_('ALL', JSON.stringify(list)); },
-    /** Telegram を有効にした状態にする */
-    enableTelegram(chats) {
-      props.setProperty('TG_TOKEN', 'test-token');
-      props.setProperty('TG_CHAT', (chats || ['111']).join(','));
+    /** 以前の予定管理のデータがドライブ (「予定管理データ」) に残っている状態にする */
+    setLegacy(list, tombs) {
+      const folder = drive.api.createFolder('予定管理データ');
+      props.setProperty('STORE', 'drive');
+      props.setProperty('FILE_ALL', folder.createFile('ALL.json', JSON.stringify(list || [])).getId());
+      props.setProperty('FILE_DELETED', folder.createFile('DELETED.json', JSON.stringify(tombs || {})).getId());
     },
   };
   return env;

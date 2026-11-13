@@ -48,6 +48,7 @@ function world() {
       { name: 'Kalshi', category: 'Prediction Market', chains: ['Off Chain'], total24h: 2.0e9, change_1d: -4.8, change_7d: -7.2, change_1m: 34, defillamaId: '104', slug: 'kalshi' },
       { name: 'Aster Perps', category: 'Derivatives', chains: ['BSC'], total24h: 1.36e9, change_1d: 1, change_7d: 2, change_1m: 3, defillamaId: '102', slug: 'aster-perps' },
       { name: 'Lighter Perps', category: 'Derivatives', chains: ['zkLighter'], total24h: 5e8, change_1d: 3, change_7d: 20, change_1m: 150, defillamaId: '103', slug: 'lighter-perps' }] });
+    if (/gamma-api\.polymarket\.com\/markets/.test(url)) return ok([]);
     if (/gamma-api|kalshi|hyperliquid|fred|alternative/.test(url)) throw new Error('このテストでは使わない');
     throw new Error('想定外: ' + url);
   };
@@ -164,4 +165,30 @@ test('アプリ: 先物 DEX の欄 (エアドロップ候補・シェアの推�
     assert.equal(app.text('#flPDetail'), '');
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
+});
+
+test('毎朝のまとめ: お金の流れ (チェーン・ステーブルコインの増減・先物 DEX・エアドロップ候補) を入れる。設定で外せる', () => {
+  const { gas } = world();
+  gas.props.setProperty('MAIL_TO', 'muse@example.com');
+  const f = gas.ctx.pmFlowSection_();
+  assert.match(f.text, /^■■ お金の流れ \(DefiLlama\)\n・全体: 預かり資産 \(TVL\) [\d.]+億ドル ／ ステーブルコイン [\d.]+億ドル/);
+  assert.match(f.text, /■ チェーンごとの預かり資産 \(上位10\)\n・Ethereum: 420億ドル \(1日 [+−][\d.]+%・7日 [+−][\d.]+%・30日 [+−][\d.]+%\) ／ ステーブルコイン 1340億ドル/);
+  assert.match(f.text, /■ 30日で預かり資産が伸びているチェーン\n・Monad \+80%/);
+  assert.match(f.text, /・増えた: Hyperliquid L1 \+12億ドル[^\n]*、Ethereum \+10億ドル/);
+  assert.match(f.text, /・減った: Solana −3億ドル/);
+  assert.match(f.text, /■ 先物 DEX の建玉 \(上位10\)\n・全体: 173億ドル \(1日 −2%・7日 \+3%\)\n・Hyperliquid Perps: 70億ドル \([^\n]*手数料 24時間 220万ドル ／ トークン HYPE/);
+  assert.match(f.text, /■ トークン未発行の先物 DEX \(エアドロップの候補\)\n・Lighter Perps: 建玉 5億ドル \(30日 \+150%\)[^\n]*NEW/);
+  assert.ok(!/エアドロップの候補\)\n[^■]*Kalshi/.test(f.text), '予測市場は候補に入れない');
+  assert.ok(f.html.includes('💧 お金の流れ') && f.html.includes('Lighter Perps'));
+
+  // まとめメールに入る (マクロが取れなくても、この欄は出る)
+  gas.ctx.pmDigest();
+  assert.equal(gas.mails.length, 1);
+  assert.match(gas.mails[0].body, /■■ お金の流れ \(DefiLlama\)/);
+  assert.ok(gas.mails[0].htmlBody.includes('💧 お金の流れ'));
+  // 設定で外す
+  assert.equal(gas.post({ action: 'pmConfig', notify: { dFlow: false } }).ok, true);
+  gas.ctx.pmDigest();
+  assert.equal(gas.mails.length, 2);
+  assert.doesNotMatch(gas.mails[1].body, /お金の流れ/);
 });

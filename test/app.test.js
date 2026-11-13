@@ -1,347 +1,195 @@
 'use strict';
-/* アプリ本体 (index.html) を jsdom で開いて確かめる */
+/* アプリ本体 (index.html) を jsdom で開いて確かめる — 起動・設定・旧データのエクスポート・以前の機能が無いこと */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp } = require('./helpers/app');
+const { openApp, HTML } = require('./helpers/app');
 const { loadGas, project } = require('./helpers/gas');
 const { createClock, jstLocal } = require('./helpers/clock');
 
 const clone = x => JSON.parse(JSON.stringify(x));
+const TABS = ['top', 'poly', 'btc', 'hl', 'flow', 'gloss', 'settings'];
 
-/** よくある状態: 今日まで・期限切れ・明日・ピン留め・完了済み */
-function sampleState(clock) {
+/** 以前の予定管理を使っていた端末に残っている状態 */
+function oldState(clock) {
   return {
     projects: [
       project(clock, { id: 'a1', name: '今日締切の案件', chain: 'ETH', deadline: jstLocal(clock, 0), memo: 'ブリッジする', sources: [{ url: 'https://example.com/a', title: '公式' }] }),
-      project(clock, { id: 'a2', name: '期限切れの案件', chain: 'SOL', deadline: jstLocal(clock, -2) }),
-      project(clock, { id: 'a3', name: '明日締切の案件', deadline: jstLocal(clock, 1) }),
-      project(clock, { id: 'a4', name: '重要な案件', pinned: true }),
-      project(clock, { id: 'a5', name: '完了した案件', status: 'done', doneAt: new Date(clock.now - 86400000).toISOString() }),
+      project(clock, { id: 'a2', name: '期限切れの案件', chain: 'SOL', deadline: jstLocal(clock, -2), repeat: { type: 'weekly', dow: [1] } }),
+      project(clock, { id: 'a3', name: '完了した案件', status: 'done', doneAt: new Date(clock.now - 86400000).toISOString() }),
     ],
-    settings: { key: 'SECRET-GEMINI', tgToken: 'SECRET-TG', tgChat: '999', fredKey: 'SECRET-FRED', model: 'gemini-2.5-flash' },
-    deleted: {},
+    settings: { key: 'SECRET-GEMINI', tgToken: 'SECRET-TG', tgChat: '999', fredKey: 'SECRET-FRED', model: 'gemini-2.5-flash', gasMail: 'me@example.com', gasAuto: true, roomBg: true, theme: 'dark', gasKey: 'SECRET-PASSPHRASE-1' },
+    deleted: { gone: new Date(clock.now).toISOString() },
+    updatedAt: new Date(clock.now).toISOString(),
   };
 }
+function catchDownload(app) {
+  const got = { blob: null, name: null };
+  app.win.URL.createObjectURL = b => { got.blob = b; return 'blob:test'; };
+  app.win.URL.revokeObjectURL = () => {};
+  app.win.HTMLAnchorElement.prototype.click = function () { got.name = this.download; };
+  return got;
+}
 
-test('index.html: 空の状態で開いてもエラーが出ない', async () => {
+test('index.html: 空の状態で開いてもエラーが出ない。タブは7つで、最初はホーム', async () => {
   const app = await openApp();
   try {
     assert.deepEqual(app.errors, []);
     assert.equal(app.doc.title, 'ポリマーケット記録');
-    // 予定管理は画面に出さず、Polymarket を最初に開く
-    assert.ok(app.doc.body.classList.contains('pm-mode'));
+    assert.deepEqual([...app.doc.querySelectorAll('nav.tabs button[data-tab]')].map(b => b.dataset.tab), TABS);
+    assert.deepEqual([...app.doc.querySelectorAll('section.tab')].map(s => s.id), TABS.map(t => 'tab-' + t));
     assert.ok(app.doc.querySelector('#tab-top').classList.contains('active'), '最初はホーム');
-    for (const sel of ['nav button[data-tab="home"]', 'nav button[data-tab="projects"]', '#tab-home', '#tab-projects']) {
-      assert.ok(app.doc.querySelector(sel).classList.contains('legacy'), sel + ' は隠す');
+    for (const t of TABS) {
+      app.run(`switchTab(${JSON.stringify(t)})`); await app.settle();
+      assert.ok(app.doc.querySelector('#tab-' + t).classList.contains('active'), t);
     }
-    assert.match(app.text('#hSay'), /登録されている案件はありません/);
-    for (const t of ['projects', 'settings', 'home']) { app.run(`switchTab(${JSON.stringify(t)})`); await app.settle(); }
-    assert.ok(app.doc.querySelector('#tab-home').classList.contains('active'));
+    assert.match(app.text('#appVer'), /^v\d{4}\.\d{2}\.\d{2}$/);
+    assert.match(app.text('#gasStatus'), /URLが未設定/);
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });
 
-test('index.html: 旧形式や壊れたデータで開いてもエラーが出ず、修復される', async () => {
+test('index.html: 壊れた保存データで開いてもエラーが出ない', async () => {
+  for (const raw of ['{こわれた', 'null', '[]', '"文字"', '{"settings":null}', '{"settings":"x","projects":"y"}']) {
+    const app = await openApp({ storage: { sakiyomi_v1: raw } });
+    try {
+      assert.deepEqual(app.errors, [], raw);
+      assert.equal(typeof app.run('state.settings'), 'object', raw);
+      app.run('switchTab("settings")'); await app.settle();
+      assert.deepEqual(app.errors, [], raw);
+    } finally { app.close(); }
+  }
+});
+
+test('以前の予定データが端末に残っていても、消さずに持ち続ける。使わなくなった設定 (トークン類) は端末から消す', async () => {
   const clock = createClock();
-  const app = await openApp({ clock, state: {
-    projects: [{ name: 'idなし' }, null, { id: 'x', name: '危険なリンク', sources: [{ url: 'javascript:alert(1)', title: '' }] }, { id: 'y' }],
-    settings: {}, chat: [{}],
-  } });
+  const st = oldState(clock);
+  st.settings.gasUrl = '';
+  const app = await openApp({ clock, state: st });
   try {
     assert.deepEqual(app.errors, []);
-    const ps = clone(app.run('state.projects'));
-    assert.equal(ps.length, 2, '名前の無い案件・null は除く');
-    assert.ok(ps.every(p => p.id && p.status === 'open' && Array.isArray(p.sources)));
-    assert.equal(ps.find(p => p.id === 'x').sources[0].url, '', 'javascript: のURLは除く');
-    assert.equal(app.run('state.chat'), undefined);
-  } finally { app.close(); }
-});
-
-test('HOME: 締切・おしらせ・数字・今日やることの文面が作れる', async () => {
-  const clock = createClock('2026-11-02T10:00:00+09:00');
-  const app = await openApp({ clock, state: sampleState(clock) });
-  try {
-    assert.deepEqual(app.errors, []);
-    assert.equal(app.text('#hDate'), '11/2 (月)');
-    assert.equal(app.text('#hSay'), 'おはようございます。今日が締切の案件が1件あります。まずは「今日締切の案件」から片付けましょう');
-    const notice = app.text('#hNotice');
-    assert.match(notice, /本日まで今日締切の案件/);
-    assert.match(notice, /明日まで明日締切の案件/);
-    assert.match(notice, /2日超過期限切れの案件/);
-    const metrics = [...app.doc.querySelectorAll('#hMetrics .metric')].map(m => m.textContent.replace(/\s+/g, ''));
-    assert.deepEqual(metrics, ['未完了4', '7日以内・超過3', '期限未設定1', '7日間で完了1']);
-    assert.equal(app.text('#hGaugeTxt'), '3 / 4 件 (75%)');
-    const todo = [...app.doc.querySelectorAll('#hTodo .todo')].map(t => t.querySelector('.ntag').textContent + ':' + t.querySelector('.tname').textContent);
-    assert.deepEqual(todo, ['本日まで:今日締切の案件', '2日超過:期限切れの案件', '明日まで:明日締切の案件', '重要:重要な案件']);
-    assert.match(app.text('#hStory'), /第1話「はじまりの部屋」/, '完了1件で第1話');
-
-    // 時間帯であいさつが変わる / 締切が無ければピン留めを勧める
-    clock.set('2026-11-02T19:00');
-    app.run('state.projects = state.projects.filter(p=>!p.deadline); renderHome()');
-    assert.equal(app.text('#hSay'), 'こんばんは。急ぎの締切はありません。重要案件の「重要な案件」から進めましょう');
-    assert.deepEqual(app.errors, []);
-  } finally { app.close(); }
-});
-
-test('よてい一覧: グループ分け・絞り込み・検索ができ、ボタンで完了/ピン/削除できる', async () => {
-  const clock = createClock('2026-11-02T10:00:00+09:00');
-  const app = await openApp({ clock, state: sampleState(clock) });
-  try {
-    app.run('switchTab("projects")');
-    const heads = () => [...app.doc.querySelectorAll('#projectList .grp-head')].map(h => h.textContent.replace(/\s+/g, ''));
-    assert.deepEqual(heads(), ['⚠期限切れ・3日以内(3)', '📌重要(1)', '✓完了(1)']);
-    const names = () => [...app.doc.querySelectorAll('#projectList .pname')].map(n => n.textContent);
-    assert.ok(names().includes('今日締切の案件'));
-    assert.equal(app.text('#stOpen'), '4');
-    assert.equal(app.text('#stPin'), '1');
-    assert.match(app.doc.querySelector('#projectList').innerHTML, /href="https:\/\/example.com\/a"/);
-
-    // 検索
-    app.doc.querySelector('#pSearch').value = 'sol';
-    app.run('renderProjects()');
-    assert.deepEqual(names(), ['期限切れの案件']);
-    app.doc.querySelector('#pSearch').value = '';
-    app.run('renderProjects()');
-    assert.equal(names().length, 5);
-
-    // ボタン: 完了にする → 完了日時と更新時刻が付く
-    clock.tick(60000);
-    app.doc.querySelector('.pcard[data-id="a3"] [data-act="toggle"]').click();
-    let a3 = clone(app.run('state.projects.find(p=>p.id==="a3")'));
-    assert.equal(a3.status, 'done');
-    assert.ok(a3.doneAt);
-    assert.equal(a3.updatedAt, clock.iso(), '変更した案件だけ更新時刻が変わる');
-    assert.notEqual(clone(app.run('state.projects.find(p=>p.id==="a1")')).updatedAt, clock.iso());
-
-    // ピン留め
-    app.doc.querySelector('.pcard[data-id="a1"] [data-act="pin"]').click();
-    assert.equal(app.run('state.projects.find(p=>p.id==="a1").pinned'), true);
-
-    // 削除 → 削除記録が残る / localStorage にも保存される
-    app.doc.querySelector('.pcard[data-id="a2"] [data-act="del"]').click();
-    assert.equal(app.run('state.projects.some(p=>p.id==="a2")'), false);
-    assert.ok(app.run('state.deleted.a2'));
+    assert.equal(app.doc.documentElement.dataset.theme, 'dark', '配色はそのまま');
+    // 設定を保存しても、予定データはそのまま残る
+    app.run('switchTab("settings")');
+    app.doc.querySelector('#themeBtn').click();
     const saved = JSON.parse(app.win.localStorage.getItem('sakiyomi_v1'));
-    assert.ok(saved.deleted.a2);
-    assert.ok(!saved.projects.some(p => p.id === 'a2'));
-    assert.ok(JSON.parse(app.win.localStorage.getItem('sakiyomi_backups')).length >= 1, '削除前に自動バックアップ');
-    assert.deepEqual(app.errors, []);
+    assert.deepEqual(saved.projects, clone(st.projects), '案件は1文字も変えない');
+    assert.deepEqual(saved.deleted, clone(st.deleted));
+    assert.equal(saved.settings.theme, 'light');
+    assert.equal(saved.settings.gasKey, 'SECRET-PASSPHRASE-1', '合言葉は残す');
+    for (const k of ['key', 'tgToken', 'tgChat', 'fredKey', 'model', 'gasMail', 'gasAuto', 'roomBg']) assert.equal(saved.settings[k], undefined, k + ' は消す');
+    const txt = JSON.stringify(saved);
+    for (const s of ['SECRET-GEMINI', 'SECRET-TG', 'SECRET-FRED']) assert.ok(!txt.includes(s), s);
   } finally { app.close(); }
 });
 
-test('設定: 画面が開け、入力欄に設定が入る。エクスポートに秘密情報が含まれない', async () => {
+test('旧データのエクスポート: この端末に残っている分を書き出す。秘密情報は入れない', async () => {
   const clock = createClock();
-  const st = sampleState(clock);
+  const st = oldState(clock);
   st.settings.gasUrl = '';
   const app = await openApp({ clock, state: st });
   try {
     app.run('switchTab("settings")');
-    await app.settle();
-    assert.ok(app.doc.querySelector('#tab-settings').classList.contains('active'));
-    assert.equal(app.doc.querySelector('#tgToken').value, 'SECRET-TG');
-    assert.equal(app.doc.querySelector('#tgToken').type, 'password');
-    assert.match(app.text('#appVer'), /^v\d{4}\.\d{2}\.\d{2}$/);
-
-    let blob = null;
-    app.win.URL.createObjectURL = b => { blob = b; return 'blob:test'; };
-    app.win.URL.revokeObjectURL = () => {};
-    app.win.HTMLAnchorElement.prototype.click = function () {};
+    const got = catchDownload(app);
     app.doc.querySelector('#btnExport').click();
-    assert.ok(blob, 'エクスポートのファイルが作られた');
-    const txt = await blob.text();
+    await app.settle();
+    assert.ok(got.blob, 'ファイルが作られた');
+    assert.match(got.name, /^yotei_backup_\d{4}-\d{2}-\d{2}\.json$/);
+    const txt = await got.blob.text();
     const out = JSON.parse(txt);
-    assert.equal(out.projects.length, 5);
-    for (const s of ['SECRET-GEMINI', 'SECRET-TG', 'SECRET-FRED', '"999"']) assert.ok(!txt.includes(s), s + ' を含まない');
+    assert.deepEqual(out.projects, clone(st.projects));
+    assert.deepEqual(out.deleted, clone(st.deleted));
+    assert.equal(out.source, 'この端末');
+    assert.equal(out.settings, undefined, '設定は書き出さない');
+    for (const s of ['SECRET-GEMINI', 'SECRET-TG', 'SECRET-FRED', 'SECRET-PASSPHRASE-1', '"999"']) assert.ok(!txt.includes(s), s + ' を含まない');
+    assert.match(app.text('#exportResult'), /3件を書き出しました/);
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });
 
-test('🤖 AIに渡す: 用途ごとのプロンプトが作れる (振り返り分析を含む)', async () => {
-  const clock = createClock('2026-11-02T10:00:00+09:00');
-  const app = await openApp({ clock, state: sampleState(clock) });
-  try {
-    app.doc.querySelector('#btnAiExport').click();
-    await app.settle();
-    const sel = app.doc.querySelector('#aiPurpose');
-    const prompts = {};
-    for (const o of [...sel.options].map(o => o.value).filter(v => v !== 'review')) {
-      sel.value = o;
-      sel.dispatchEvent(new app.win.Event('change'));
-      prompts[o] = app.doc.querySelector('#aiPrompt').value;
-      assert.match(prompts[o], /## 案件一覧/, o);
-      assert.match(prompts[o], /今日締切の案件/, o);
-    }
-    assert.ok(!prompts.table.includes('完了した案件'), '通常は未完了のみ');
-    assert.ok(prompts.handover.includes('完了した案件'), '引き継ぎは完了済みも含む');
-    for (const s of ['SECRET-GEMINI', 'SECRET-TG']) assert.ok(!Object.values(prompts).join('').includes(s));
-    assert.deepEqual(app.errors, []);
-  } finally { app.close(); }
-});
-
-test('📈 振り返り分析: サーバーの操作の記録から文面が作れる (案件名を伏せられる)', async () => {
-  const clock = createClock('2026-11-02T10:00:00+09:00');
+test('旧データのエクスポート: 端末に無くても、サーバー (ドライブ) に残っている分を書き出せる。サーバーは書き換えない', async () => {
+  const clock = createClock();
   const gas = loadGas({ clock });
-  const app0 = sampleState(clock);
-  // サーバー側に記録を作る: 追加 → 期限変更 → 完了 / 明日へ
-  gas.enableTelegram(['111']);
-  const list = clone(app0.projects);
-  gas.post({ all: list, deleted: {}, syncedAt: clock.iso() });
-  clock.tick(60000);
-  list[2].deadline = jstLocal(clock, 5); list[2].updatedAt = clock.iso();
-  list[3].status = 'done'; list[3].doneAt = list[3].updatedAt = clock.iso();
-  gas.post({ all: list, deleted: {}, syncedAt: clock.iso() });
-  gas.ctx.handleCallback_({ id: 'c', data: 'q:s:a1', message: { message_id: 1, chat: { id: 111 } } });
+  const list = Array.from({ length: 31 }, (_, i) => project(clock, { id: 'c' + i, name: 'クラウドの案件' + i }));
+  gas.setLegacy(list, { gone: clock.iso() });
+  const legacyFiles = () => JSON.stringify(gas.drive.folderFiles('予定管理データ'));
+  const before = legacyFiles();
+  const app = await openApp({ clock, gas, state: { settings: { gasUrl: 'https://script.google.com/macros/s/TEST/exec' } } });
+  try {
+    app.run('switchTab("settings")');
+    const got = catchDownload(app);
+    app.doc.querySelector('#btnExport').click();
+    for (let i = 0; i < 3; i++) await app.settle();
+    const out = JSON.parse(await got.blob.text());
+    assert.equal(out.projects.length, 31);
+    assert.equal(out.source, 'サーバー');
+    assert.deepEqual(Object.keys(out.deleted), ['gone']);
+    assert.match(app.text('#exportResult'), /31件を書き出しました \(サーバーの内容\)/);
+    assert.equal(legacyFiles(), before, 'サーバーの旧データには書かない');
+    assert.equal(gas.drive.folderFiles('予定管理データ').length, 2);
+    assert.ok(!app.requests.some(r => r.init && r.init.method === 'POST'), '何も送信しない');
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
 
-  const st = sampleState(clock);
-  st.projects = clone(gas.projects());
+test('旧データのエクスポート: どこにも無ければ、ファイルを作らずにそう伝える', async () => {
+  const app = await openApp();
+  try {
+    app.run('switchTab("settings")');
+    const got = catchDownload(app);
+    app.doc.querySelector('#btnExport').click();
+    await app.settle();
+    assert.equal(got.blob, null);
+    assert.match(app.text('#exportResult'), /見つかりませんでした/);
+  } finally { app.close(); }
+});
+
+test('以前の予定管理の画面とコードは残っていない', async () => {
+  const app = await openApp();
+  try {
+    for (const sel of ['#tab-home', '#tab-projects', '#pDialog', '#aiDialog', '#storyDlg', '#roomBg', '#tgToken', '#tgChat', '#setKey', '#gasSync', '#gasLoad', '#gasMail', '#btnImport', '#btnRestore', '.legacy']) {
+      assert.equal(app.doc.querySelector(sel), null, sel);
+    }
+    for (const fn of ['renderHome', 'renderProjects', 'gasSync', 'gasLoad', 'mergeProjects', 'spawnRepeats', 'tgApi', 'renderRoom', 'drawRoom', 'buildReview', 'normalizeProjects', 'pushBackup', 'gasFormPost']) {
+      assert.equal(app.run(`typeof ${fn}`), 'undefined', fn);
+    }
+    assert.ok(!/api\.telegram\.org/.test(HTML), 'Telegram へは通信しない');
+    assert.ok(!/generativelanguage\.googleapis\.com/.test(HTML), 'アプリから Gemini を直接は呼ばない');
+    assert.ok(!/class="[^"]*\blegacy\b/.test(HTML));
+  } finally { app.close(); }
+});
+
+test('起動しただけでは、サーバーへ何も書き込まない (状況を読むだけ)', async () => {
+  const clock = createClock();
+  const gas = loadGas({ clock });
+  gas.setLegacy([project(clock, { id: 'k', name: '残す' })]);
+  const st = oldState(clock);
   st.settings.gasUrl = 'https://script.google.com/macros/s/TEST/exec';
-  st.settings.gasAuto = false;
-  const app = await openApp({ clock, gas, state: st });
+  st.settings.gasKey = '';
+  const app = await openApp({ clock, gas, state: st, fetch: async () => { throw new TypeError('offline'); } });
   try {
-    app.doc.querySelector('#btnAiExport').click();
-    const sel = app.doc.querySelector('#aiPurpose');
-    sel.value = 'review';
-    sel.dispatchEvent(new app.win.Event('change'));
-    await app.settle();
-    assert.ok(app.requests.some(r => /action=history/.test(r.url)), '記録をサーバーから読む');
-    let p = app.doc.querySelector('#aiPrompt').value;
-    for (const h of ['## お願いしたいこと', '## 全体の数字', '## 完了の質', '## 曜日・時間帯ごとの完了数', '## 分野ごと', '## 先送りが多い案件', '## 期限切れのまま残っている案件', '## 毎朝のクエストと連続記録', '## 操作の記録']) {
-      assert.ok(p.includes(h), h);
-    }
-    assert.match(p, /\| 追加 \| 4 \|/, '最初から完了済みの1件は「完了」として記録される');
-    assert.match(p, /\| 完了 \| 2 \|/);
-    assert.match(p, /\| 期限変更 \| 1 \|/);
-    assert.match(p, /\| 明日へ\(先送り\) \| 1 \|/);
-    assert.match(p, /案件名は伏せています/);
-    assert.ok(!p.includes('今日締切の案件'), '案件名を伏せる');
-    assert.match(p, /案件A/);
-    assert.match(p, /\| ETH \|/, '分野名は残す');
-
-    // 伏せない設定
-    const anon = app.doc.querySelector('#rvAnon');
-    anon.checked = false;
-    anon.dispatchEvent(new app.win.Event('change'));
-    p = app.doc.querySelector('#aiPrompt').value;
-    assert.ok(p.includes('今日締切の案件'));
-    assert.deepEqual(app.errors, []);
+    for (let i = 0; i < 3; i++) await app.settle();
+    assert.ok(app.requests.some(r => r.url.startsWith(app.GAS_URL)), 'サーバーには問い合わせる');
+    assert.ok(!app.requests.some(r => r.url.startsWith(app.GAS_URL) && r.init && r.init.method === 'POST'), 'POST はしない');
+    assert.deepEqual(gas.get({ action: 'load' }).projects.map(p => p.id), ['k']);
   } finally { app.close(); }
 });
 
-test('振り返り分析: サーバー未設定でも、アプリの完了日時から文面が作れる', async () => {
-  const clock = createClock('2026-11-02T10:00:00+09:00');
-  const app = await openApp({ clock, state: sampleState(clock) });
-  try {
-    await app.run('loadReviewData()');
-    const p = app.run('buildReviewPrompt()');
-    assert.match(p, /\| 完了 \| 1 \|/);
-    assert.match(p, /まだ記録がありません/);
-    assert.deepEqual(app.errors, []);
-  } finally { app.close(); }
-});
-
-test('ものがたり: アプリとサーバーの文章が同じ。お話のダイアログが開ける', async () => {
+test('サーバーの版: 古い版なら設定に知らせが出て、最新のサーバーにつなぐと消える', async () => {
   const clock = createClock();
-  const gas = loadGas({ clock });
-  const app = await openApp({ clock, state: sampleState(clock) });
-  try {
-    const appStory = clone(app.run('STORY')).map(s => [s.at, s.t, s.b]);
-    assert.deepEqual(appStory, clone(gas.C.STORY));
-    app.doc.querySelector('#storyOpen').click();
-    assert.ok(app.doc.querySelector('#storyDlg').hasAttribute('open'));
-    assert.match(app.text('#storyBody'), /第1話　はじまりの部屋/);
-    assert.match(app.text('#storyBody'), /第2話）まで、あと2件/);
-    assert.deepEqual(app.errors, []);
-  } finally { app.close(); }
-});
-
-test('アプリの保護: この端末が0件ならクラウドを上書きしない', async () => {
-  const clock = createClock();
-  const gas = loadGas({ clock });
-  gas.post({ all: [project(clock, { id: 'keep', name: 'クラウドの案件' })], deleted: {}, syncedAt: clock.iso() });
-  const app = await openApp({ clock, gas, state: { projects: [], settings: { gasUrl: 'https://script.google.com/macros/s/TEST/exec', gasAuto: false }, deleted: {} } });
-  try {
-    // 起動時: 手元が0件でクラウドにデータがあれば、上書きせずに読み込む
-    assert.deepEqual(clone(app.run('state.projects')).map(p => p.id), ['keep']);
-    assert.ok(!app.requests.some(r => r.init && r.init.method === 'POST'), '保存の送信をしない');
-    // 0件のまま保存しようとしても中止される
-    app.run('state.projects = []; save();');
-    await assert.rejects(app.run('gasSync()'), /クラウドの1件を消さないため中止/);
-    assert.deepEqual(gas.projects().map(p => p.id), ['keep']);
-    assert.ok(!app.requests.some(r => r.init && r.init.method === 'POST'), '保存の送信をしない');
-  } finally { app.close(); }
-});
-
-test('同期 (アプリ⇔サーバー): 2台の端末とTelegramの変更が全部残り、削除した案件は復活しない', async () => {
-  const clock = createClock('2026-11-02T10:00:00+09:00');
-  const gas = loadGas({ clock });
-  gas.enableTelegram(['111']);
-  const URL_ = 'https://script.google.com/macros/s/TEST/exec';
-  const base = () => ({ projects: [], settings: { gasUrl: URL_, gasAuto: false, gasMail: '' }, deleted: {} });
-
-  // 端末A: 3件を登録してクラウドへ
-  const A = await openApp({ clock, gas, state: base() });
-  // 端末B: 起動時にクラウドから読み込む
-  let B;
-  try {
-    A.run(`state.projects.push(...${JSON.stringify([
-      project(clock, { id: 'e1', name: '共通の案件' }),
-      project(clock, { id: 'e2', name: '端末Aで消す案件' }),
-      project(clock, { id: 'e3', name: 'Telegramで完了する案件' }),
-    ])}); save();`);
-    clock.tick(1000);
-    await A.run('gasSync()');
-    assert.equal(gas.projects().length, 3);
-
-    clock.tick(1000);
-    B = await openApp({ clock, gas, state: base() });
-    await B.settle();
-    assert.equal(B.run('state.projects.length'), 3, '端末Bは起動時にクラウドから読み込む');
-
-    // 端末A: 案件を削除 (同期はまだ)
-    clock.tick(60000);
-    A.doc.querySelector('.pcard[data-id="e2"] [data-act="del"]').click();
-    // 端末B: 名前を変更して新しい案件を追加 (同期はまだ)
-    clock.tick(1000);
-    B.run(`state.projects.find(p=>p.id==="e1").name = "端末Bで名前を変更"; state.projects.push(${JSON.stringify(project(clock, { id: 'e4', name: '端末Bの新しい案件' }))}); save();`);
-    // Telegram: 完了
-    clock.tick(1000);
-    gas.ctx.handleCommand_('/list', '111');
-    const ids = JSON.parse(gas.props.getProperty('TG_LASTLIST_111'));
-    gas.ctx.handleCommand_('/done ' + (ids.indexOf('e3') + 1), '111');
-
-    // 端末B → 端末A → 端末B の順で同期
-    clock.tick(1000); await B.run('gasSync()');
-    clock.tick(1000); await A.run('gasSync()');
-    clock.tick(1000); await B.run('gasSync()');
-
-    const summary = app => clone(app.run('state.projects')).map(p => p.id + ':' + p.name + ':' + p.status).sort();
-    const expected = ['e1:端末Bで名前を変更:open', 'e3:Telegramで完了する案件:done', 'e4:端末Bの新しい案件:open'];
-    assert.deepEqual(summary(A), expected, '端末A');
-    assert.deepEqual(summary(B), expected, '端末B');
-    assert.deepEqual(gas.projects().map(p => p.id + ':' + p.name + ':' + p.status).sort(), expected, 'クラウド');
-    assert.ok(B.run('state.deleted.e2'), '端末Bにも削除記録が届く');
-    assert.deepEqual(A.errors, []);
-    assert.deepEqual(B.errors, []);
-  } finally { A.close(); if (B) B.close(); }
-});
-
-test('サーバーの版: 古い版ならHOMEに「要更新」が出て、最新のサーバーにつなぐと消える', async () => {
-  const clock = createClock();
-  const st = () => ({ projects: [project(clock, { id: 'v1', name: 'x' })], settings: { gasUrl: 'https://script.google.com/macros/s/TEST/exec', gasAuto: false, gasVersion: '2000.01.01' }, deleted: {} });
+  const st = () => ({ settings: { gasUrl: 'https://script.google.com/macros/s/TEST/exec', gasVersion: '2000.01.01' } });
   // サーバーにつながらない時は、前回の版のまま
   const off = await openApp({ clock, state: st() });
   try {
-    off.run('renderHome()');
-    assert.match(off.text('#hNotice'), /要更新/);
+    assert.match(off.text('#verInfo'), /古い版/);
+    assert.doesNotMatch(off.text('#verInfo'), /gas-daily-mail/);
     assert.deepEqual(off.errors, [], '通信できなくてもエラーにしない');
   } finally { off.close(); }
   const gas = loadGas({ clock });
-  const on = await openApp({ clock, state: st(), gas });
+  const on = await openApp({ clock, state: st(), gas, fetch: async () => { throw new TypeError('offline'); } });
   try {
-    on.run('renderHome()');
+    for (let i = 0; i < 3; i++) await on.settle();
     assert.equal(on.run('state.settings.gasVersion'), gas.C.GAS_VERSION);
-    assert.doesNotMatch(on.text('#hNotice'), /要更新/);
+    assert.doesNotMatch(on.text('#verInfo'), /古い版/);
     assert.ok(on.run('MIN_GAS_VERSION') <= gas.C.GAS_VERSION, '今のサーバーはアプリが求める版を満たす');
-    assert.deepEqual(on.errors, []);
   } finally { on.close(); }
 });
