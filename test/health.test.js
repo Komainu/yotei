@@ -5,12 +5,15 @@ const assert = require('node:assert/strict');
 const { loadGas } = require('./helpers/gas');
 const { openApp, GAS_URL } = require('./helpers/app');
 const { createClock } = require('./helpers/clock');
+const { deribitFetch } = require('./helpers/deribit');
 
 function world() {
   const clock = createClock('2026-11-12T10:00:00+09:00');
   const st = { hlDown: false };
   const ok = o => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify(o) });
+  const deribit = deribitFetch(clock);
   const fetch = (url, params) => {
+    const dr = deribit(url); if (dr) return dr;
     if (/gamma-api\.polymarket\.com\/markets/.test(url)) return ok(Number(new URL(url).searchParams.get('offset')) === 0 ? [{ id: '1', question: 'Q', outcomes: '["Yes","No"]', outcomePrices: '["0.5","0.5"]', volume24hr: 1, closed: false, events: [{ id: 'e', title: 'E', slug: 'e' }] }] : []);
     if (/gamma-api/.test(url)) return ok({ events: [] });
     if (/kalshi/.test(url)) return ok({ events: [] });
@@ -83,7 +86,8 @@ test('アプリ: ホームに記録の状態 (正常/止まっている)、設�
     app.doc.querySelector('#gasCheck').click();
     for (let i = 0; i < 4; i++) await app.settle();
     const rows = [...app.doc.querySelectorAll('#gasResult .hc-tbl tbody tr')];
-    assert.equal(rows.length, 10);
+    assert.equal(rows.length, 11);
+    assert.match(rows.map(r => r.textContent).join('\n'), /オプション市場.*✅ 動いています/);
     assert.match(rows[0].textContent, /Polymarket の確率・出来高1時間ごと.*✅ 動いています/);
   } finally { app.close(); }
   st.hlDown = true; clock.tick(3600000); gas.ctx.pmRecord();

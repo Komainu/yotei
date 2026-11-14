@@ -16,7 +16,7 @@
  */
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.12.03';
+const GAS_VERSION = '2026.12.04';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -159,6 +159,10 @@ function doGetInner_(e) {
     let snap = null, err = null;
     try { snap = hlSnapshot_(); } catch (x) { err = String(x); }
     return json({ ok: !!snap, version: GAS_VERSION, error: err, snap: snap, series: hlSeries_(Number(e.parameter.hours) || 192), watch: hlWatch_(), fixed: HL_COINS });
+  }
+  if (action === 'opt') {
+    const od = optData_(e.parameter.force === '1');
+    return json({ ok: true, version: GAS_VERSION, opt: od, hist: optHist_(120) });
   }
   if (action === 'health') {
     return json({ ok: true, version: GAS_VERSION, health: pmHealth_() });
@@ -397,6 +401,7 @@ function pmRecord() {
   hbRun_('macro', function () { macroData_(false); });   // マクロの指標も1時間ごとに取り直しておく (アプリを開いた時にすぐ出るように)
   hbRun_('fed', fedCompareRecord_);
   hbRun_('hl', hlRecord_);
+  hbRun_('opt', optRecord_);
   try { pmHealthMail_(); } catch (e) { Logger.log('記録の見張りに失敗: ' + e); }
 }
 
@@ -1014,7 +1019,8 @@ function pmDigest() {
     const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
     let mac = null;
     try { mac = pmMacroSection_(); } catch (e) { Logger.log('天気図をまとめに入れられません: ' + e); }
-    let ml = null, flow = null;
+    let ml = null, flow = null, optS = null;
+    if (ntf_().dOpt) { try { optS = pmOptSection_(); } catch (e) { Logger.log('オプション市場をまとめに入れられません: ' + e); } }
     if (ntf_().dMacro) { try { ml = mac ? pmMacroList_(mac.res) : null; } catch (e) { Logger.log('マクロ指標の一覧をまとめに入れられません: ' + e); } }
     if (ntf_().dFlow) { try { flow = pmFlowSection_(); } catch (e) { Logger.log('お金の流れをまとめに入れられません: ' + e); } }
     const text = day + ' のまとめ\n\n' + (mac ? mac.text + '\n' : '')
@@ -1022,7 +1028,7 @@ function pmDigest() {
       + sec('24時間で大きく動いた市場', movers, '大きな動きはありませんでした') + '\n'
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
-      + (ml ? ml.text + '\n' : '') + (flow ? flow.text + '\n' : '')
+      + (ml ? ml.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '')
       + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + pmHealthLine_() + '\n\n'
       + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
     const h = function (title, list, empty) {
@@ -1037,7 +1043,7 @@ function pmDigest() {
       to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (mac ? ' ' + mac.sky[1] + mac.sky[2] : '') + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
       htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', (mac ? '<tr><td style="padding:6px 0 2px;font-weight:700;font-size:15px">🌐 相場の天気図</td></tr>' + mac.html : '') + h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')
-        + (ml ? ml.html : '') + (flow ? flow.html : '')),
+        + (ml ? ml.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
     hbOk_('digest');
@@ -1518,7 +1524,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -1679,6 +1685,7 @@ function pmReport_(opt) {
     }
     lines.push('');
   }
+  if (parts.indexOf('opt') >= 0) { try { optReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 8. オプション市場', '(読み出せませんでした: ' + e + ')', ''); } }
   const text = lines.join('\n');
   return { ok: true, text: text, chars: text.length, from: from, to: to };
 }
@@ -2088,6 +2095,224 @@ function llamaFeesHist_(slug) {
 function llamaIsCand_(x) { return x.token === false && !/prediction/i.test(x.cat || '') && (x.ch || []).indexOf('Off Chain') < 0; }
 
 // =====================================================================
+//  オプション市場 (Deribit の公開データ) — BTC・ETH
+//    予想変動率 (DVOL)・プット/コール比率・満期ごとの建玉・スキュー・マックスペイン
+//    opt-latest.json … 最新 (1時間ごとに取り直す) / opt-YYYY-MM.json … 日ごとの記録 (その日の最後の値)
+//      { 日付: { BTC: [価格, DVOL, P/C(建玉), P/C(出来高), 建玉(ドル), 出来高(ドル), スキュー, マックスペイン, その満期] } }
+// =====================================================================
+
+const OPT_URL = 'https://www.deribit.com/api/v2/public';
+const OPT_CURS = ['BTC', 'ETH'];
+const OPT_TTL = 55 * 60000;
+const OPT_DVOL_DAYS = 90;
+const OPT_COOLDOWN = 12 * 3600000;
+const OPT_MON = { JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6, JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12 };
+
+function optJson_(path) {
+  const d = JSON.parse(macroFetchText_(OPT_URL + path));
+  if (!d || d.result == null) throw new Error('Deribit から読めません: ' + path.split('?')[0]);
+  return d.result;
+}
+/** 'BTC-27NOV26-100000-C' → { exp:'2026-11-27', t:満期の時刻 (UTC 8時), k:100000, cp:'C' } */
+function optName_(name) {
+  const m = String(name).match(/^[A-Z]+-(\d{1,2})([A-Z]{3})(\d{2})-(\d+(?:d\d+)?)-([CP])$/);
+  if (!m || !OPT_MON[m[2]]) return null;
+  const y = 2000 + Number(m[3]), mo = OPT_MON[m[2]], d = Number(m[1]);
+  return { exp: y + '-' + ('0' + mo).slice(-2) + '-' + ('0' + d).slice(-2), t: Date.UTC(y, mo - 1, d, 8), k: Number(m[4].replace('d', '.')), cp: m[5] };
+}
+const optR_ = function (x, n) { const p = Math.pow(10, n == null ? 1 : n); return x == null || isNaN(x) ? null : Math.round(x * p) / p; };
+
+/** 1つの満期をまとめる。S = { 行使価格: [コール建玉, プット建玉, コールIV, プットIV] } (建玉は枚数=コイン) */
+function optExpiry_(e, px, now) {
+  const ks = Object.keys(e.S).map(Number).sort(function (a, b) { return a - b; });
+  const fwd = e.fwd || px;
+  const near = function (target) { return ks.reduce(function (b, k) { return b == null || Math.abs(k - target) < Math.abs(b - target) ? k : b; }, null); };
+  const atmK = near(fwd), at = e.S[atmK] || [];
+  const ivs = [at[2], at[3]].filter(function (x) { return x > 0; });
+  // マックスペイン: 満期にその価格で終わると、買い手の受け取りの合計がいちばん小さくなる行使価格
+  let mp = null, best = Infinity;
+  ks.forEach(function (s) {
+    let pain = 0;
+    ks.forEach(function (k) { const r = e.S[k]; if (s > k) pain += r[0] * (s - k); else if (s < k) pain += r[1] * (k - s); });
+    if (pain < best) { best = pain; mp = s; }
+  });
+  // スキュー: 10%下のプットの IV − 10%上のコールの IV (プラス = 下落への保険が割高)
+  let skew = null;
+  const pk = near(fwd * 0.9), ck = near(fwd * 1.1);
+  if (pk != null && ck != null && Math.abs(pk / fwd - 0.9) < 0.04 && Math.abs(ck / fwd - 1.1) < 0.04 && e.S[pk][3] > 0 && e.S[ck][2] > 0) skew = e.S[pk][3] - e.S[ck][2];
+  const top = function (i) { return ks.reduce(function (b, k) { return e.S[k][i] > (b == null ? 0 : e.S[b][i]) ? k : b; }, null); };
+  const strikes = ks.filter(function (k) { return k >= px * 0.6 && k <= px * 1.6 && (e.S[k][0] > 0 || e.S[k][1] > 0); })
+    .map(function (k) { return [k, optR_(e.S[k][0]), optR_(e.S[k][1])]; });
+  return { exp: e.exp, days: optR_((e.t - now) / 86400000), c: optR_(e.c), p: optR_(e.p), oi: Math.round((e.c + e.p) * px), pc: e.c > 0 ? optR_(e.p / e.c, 2) : null,
+    vol: Math.round((e.vc + e.vp) * px), iv: ivs.length ? optR_(ivs.reduce(function (a, x) { return a + x; }, 0) / ivs.length) : null,
+    mp: mp, skew: optR_(skew), topC: top(0), topP: top(1), strikes: strikes };
+}
+
+/** 数字から読み取れることを、やさしい文にする (画面とメールで同じ文を使う) */
+function optRead_(o) {
+  const out = [];
+  const dv = o.dvol;
+  if (dv && dv.v != null) {
+    const pos = dv.rank == null ? '' : dv.rank >= 80 ? '直近' + OPT_DVOL_DAYS + '日で高い水準: 大きな値動きを警戒しています' : dv.rank <= 20 ? '直近' + OPT_DVOL_DAYS + '日で低い水準: 市場は落ち着いています (急変の前に低くなることもあります)' : '直近' + OPT_DVOL_DAYS + '日の中ほど';
+    out.push('予想変動率 (DVOL) は ' + dv.v + (dv.d1 != null ? ' (24時間で ' + (dv.d1 >= 0 ? '+' : '−') + Math.abs(dv.d1) + ')' : '') + (pos ? '。' + pos : ''));
+    out.push('今後1日の値動きの目安は ±' + optR_(dv.v / Math.sqrt(365)) + '% (DVOL から計算)');
+  }
+  if (o.skew != null) {
+    out.push(o.skew >= 3 ? '下落への保険 (プット) が割高です (スキュー +' + o.skew + '): 下げを警戒しています'
+      : o.skew <= -3 ? '上昇への賭け (コール) が割高です (スキュー ' + o.skew + '): 上げを期待しています'
+      : '上げと下げの警戒はほぼ同じです (スキュー ' + (o.skew >= 0 ? '+' : '') + o.skew + ')');
+  }
+  if (o.pc != null) {
+    out.push('プット/コール比率 (建玉) は ' + o.pc + ': ' + (o.pc >= 1 ? 'プット (下落への備え) のほうが多い' : o.pc <= 0.5 ? 'コール (上昇への賭け) がかなり多い' : 'コール (上昇への賭け) のほうが多い (普段もこの形です)'));
+  }
+  const m = o.main;
+  if (m && m.mp != null && o.px) {
+    const gap = (m.mp / o.px - 1) * 100;
+    out.push('建玉がいちばん大きい満期は ' + m.exp.slice(5).replace('-', '/') + ' (あと' + Math.max(0, Math.round(m.days)) + '日)。マックスペインは ' + Number(m.mp).toLocaleString() + 'ドル (今の価格より ' + (gap >= 0 ? '+' : '−') + Math.abs(optR_(gap)) + '%)');
+  }
+  return out;
+}
+
+function optOne_(cur, now) {
+  const rows = optJson_('/get_book_summary_by_currency?currency=' + cur + '&kind=option');
+  let px = 0;
+  const E = {};
+  rows.forEach(function (r) {
+    const n = optName_(r.instrument_name);
+    if (!n || n.t <= now) return;
+    if (!px && r.estimated_delivery_price > 0) px = r.estimated_delivery_price;
+    const e = E[n.exp] || (E[n.exp] = { exp: n.exp, t: n.t, c: 0, p: 0, vc: 0, vp: 0, fwd: 0, S: {} });
+    if (r.underlying_price > 0) e.fwd = r.underlying_price;
+    const s = e.S[n.k] || (e.S[n.k] = [0, 0, 0, 0]);
+    const oi = Number(r.open_interest) || 0, vol = Number(r.volume) || 0;
+    if (n.cp === 'C') { e.c += oi; e.vc += vol; s[0] += oi; s[2] = Number(r.mark_iv) || 0; }
+    else { e.p += oi; e.vp += vol; s[1] += oi; s[3] = Number(r.mark_iv) || 0; }
+  });
+  if (!px) throw new Error(cur + ' のオプションが見つかりません');
+  const exps = Object.keys(E).sort().map(function (k) { return optExpiry_(E[k], px, now); });
+  let c = 0, p = 0, vc = 0, vp = 0;
+  Object.keys(E).forEach(function (k) { c += E[k].c; p += E[k].p; vc += E[k].vc; vp += E[k].vp; });
+  const out = { px: px, oi: Math.round((c + p) * px), pc: c > 0 ? optR_(p / c, 2) : null, vol: Math.round((vc + vp) * px), pcVol: vc > 0 ? optR_(vp / vc, 2) : null, exps: exps };
+  // スキューは30日にいちばん近い満期 (7日以上先) で見る
+  const sk = exps.filter(function (e) { return e.days >= 7 && e.skew != null; }).sort(function (a, b) { return Math.abs(a.days - 30) - Math.abs(b.days - 30); })[0];
+  out.skew = sk ? sk.skew : null; out.skewExp = sk ? sk.exp : null;
+  const main = exps.slice().sort(function (a, b) { return b.oi - a.oi; })[0];
+  out.main = main ? { exp: main.exp, days: main.days, mp: main.mp, oi: main.oi } : null;
+  // DVOL (30日先までの予想変動率、年率%)。12時間ごとの終値
+  try {
+    const d = optJson_('/get_volatility_index_data?currency=' + cur + '&start_timestamp=' + (now - OPT_DVOL_DAYS * 86400000) + '&end_timestamp=' + now + '&resolution=43200').data || [];
+    const s = d.map(function (r) { return [r[0], optR_(r[4])]; }).filter(function (r) { return r[1] > 0; });
+    if (s.length) {
+      const last = s[s.length - 1], ago = function (ms) { let b = null; s.forEach(function (r) { if (r[0] <= last[0] - ms) b = r; }); return b; };
+      const a1 = ago(86400000), a7 = ago(7 * 86400000), vals = s.map(function (r) { return r[1]; });
+      out.dvol = { v: last[1], d1: a1 ? optR_(last[1] - a1[1]) : null, d7: a7 ? optR_(last[1] - a7[1]) : null,
+        lo: Math.min.apply(null, vals), hi: Math.max.apply(null, vals), rank: Math.round(vals.filter(function (x) { return x <= last[1]; }).length / vals.length * 100), s: s };
+    }
+  } catch (e) { out.dvolErr = String(e).slice(0, 120); }
+  out.read = optRead_(out);
+  return out;
+}
+
+function optData_(force) {
+  let cur = null;
+  try { cur = JSON.parse(pmRead_('opt-latest.json') || 'null'); } catch (e) {}
+  if (force || !cur || Date.now() - cur.at > OPT_TTL) {
+    const now = Date.now(), fresh = { at: now, cur: {}, errors: [] };
+    OPT_CURS.forEach(function (c) { try { fresh.cur[c] = optOne_(c, now); } catch (e) { fresh.errors.push(c + ': ' + String(e).slice(0, 120)); Logger.log('オプション ' + c + ' に失敗: ' + e); } });
+    if (Object.keys(fresh.cur).length) { cur = fresh; try { pmWrite_('opt-latest.json', JSON.stringify(cur)); } catch (e) {} }
+    else if (!cur) throw new Error(fresh.errors.join(' / ') || 'オプションのデータを取得できません');
+  }
+  return cur;
+}
+
+/** 1時間ごと (pmRecord から): 最新を取り直し、その日の値を残す。DVOL が大きく動いたら知らせる */
+function optRecord_() {
+  const d = optData_(true);
+  const now = Date.now();
+  if (now - d.at > 5 * 60000) throw new Error('オプションの最新を取得できません (前回の値のまま)');
+  const day = pmJstDay_(now), name = 'opt-' + day.slice(0, 7) + '.json';
+  const entry = {};
+  Object.keys(d.cur).forEach(function (c) {
+    const o = d.cur[c];
+    entry[c] = [Math.round(o.px * 100) / 100, o.dvol ? o.dvol.v : null, o.pc, o.pcVol, o.oi, o.vol, o.skew, o.main ? o.main.mp : null, o.main ? o.main.exp : null];
+  });
+  const file = pmLoadJson_(name); file[day] = entry; pmWrite_(name, JSON.stringify(file));
+  const props = PropertiesService.getScriptProperties(), to = pmMailTo_(), NT = ntf_();
+  if (!to || !pmMailOn_('PM_ALERT_ON') || !NT.opt) return entry;
+  let sent = {};
+  try { sent = JSON.parse(props.getProperty('OPT_ALERT_SENT') || '{}'); } catch (e) {}
+  const hits = [];
+  Object.keys(d.cur).forEach(function (c) {
+    const o = d.cur[c], dv = o.dvol;
+    if (!dv || dv.d1 == null || Math.abs(dv.d1) < NT.dvol || (sent[c] && now - sent[c] < OPT_COOLDOWN)) return;
+    hits.push(c + ' の予想変動率 (DVOL) が24時間で ' + (dv.d1 > 0 ? '+' : '−') + Math.abs(dv.d1) + ' (' + optR_(dv.v - dv.d1) + ' → ' + dv.v + ') — '
+      + (dv.d1 > 0 ? 'オプション市場が大きな値動きを警戒し始めました' : '警戒がゆるみました') + '\n  ' + o.read.slice(1).join('\n  '));
+    sent[c] = now;
+  });
+  if (hits.length) {
+    MailApp.sendEmail({ to: to, subject: '【ポリマーケット】オプション市場: ' + hits[0].split(' — ')[0].slice(0, 44),
+      body: 'オプション市場 (Deribit) で大きな変化がありました (' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M/d HH:mm') + ')。\n\n・' + hits.join('\n\n・')
+        + '\n\nDVOL = これから30日の値動きの大きさを、オプションの値段から逆算したもの (年率%)。上がるほど、市場が大きな動きに備えています。\n※ ポリマーケット記録アプリからの自動通知です。売買はしていません。' });
+    props.setProperty('OPT_ALERT_SENT', JSON.stringify(sent));
+  }
+  return entry;
+}
+
+/** 日ごとの記録 (直近 days 日) → { 日付: { BTC:[...], ETH:[...] } } */
+function optHist_(days) {
+  const from = pmJstDay_(Date.now() - days * 86400000), out = {};
+  hlMonths_(Date.now(), Math.ceil(days / 28) + 1).forEach(function (m) {
+    const f = pmLoadJson_('opt-' + m + '.json');
+    Object.keys(f).forEach(function (d) { if (d >= from) out[d] = f[d]; });
+  });
+  return out;
+}
+
+/** 毎朝のまとめに入れる欄 */
+function pmOptSection_() {
+  const d = optData_(false);
+  if (!d || !d.cur || !Object.keys(d.cur).length) return null;
+  let text = '■■ オプション市場 (Deribit)\n', html = pmMailHead_('🎯 オプション市場');
+  OPT_CURS.forEach(function (c) {
+    const o = d.cur[c]; if (!o) return;
+    const head = c + ': 価格 ' + Math.round(o.px).toLocaleString() + 'ドル ／ 建玉 ' + pmMoneyJa_(o.oi) + ' ／ 24時間の出来高 ' + pmMoneyJa_(o.vol);
+    const near = o.exps.filter(function (e) { return e.oi > 0; }).slice().sort(function (a, b) { return b.oi - a.oi; }).slice(0, 4).sort(function (a, b) { return a.exp < b.exp ? -1 : 1; });
+    const el = function (e) { return e.exp.slice(5).replace('-', '/') + ' (あと' + Math.max(0, Math.round(e.days)) + '日): 建玉 ' + pmMoneyJa_(e.oi) + '、P/C ' + (e.pc == null ? '-' : e.pc) + '、IV ' + (e.iv == null ? '-' : e.iv + '%') + '、マックスペイン ' + (e.mp == null ? '-' : Number(e.mp).toLocaleString() + 'ドル'); };
+    text += '\n■ ' + head + '\n' + o.read.map(function (x) { return '・' + x; }).join('\n') + '\n' + (near.length ? '・建玉の大きい満期:\n' + near.map(function (e) { return '  - ' + el(e); }).join('\n') + '\n' : '');
+    html += pmMailSub_(head) + o.read.map(function (x) { return pmMailRow_(esc(x)); }).join('') + near.map(function (e) { return pmMailRow_('<span style="color:#4b5563">満期 ' + esc(el(e)) + '</span>'); }).join('');
+  });
+  return { text: text, html: html };
+}
+
+/** AI に渡すレポートの節 */
+function optReportLines_(from) {
+  const lines = [], hist = optHist_(200), ds = Object.keys(hist).filter(function (d) { return d >= from; }).sort();
+  lines.push('## 8. オプション市場 (Deribit、日ごとの最後の値)');
+  lines.push('DVOL = これから30日の予想変動率 (年率%)。P/C = プットの建玉 ÷ コールの建玉 (1より大きいと下落への備えが多い)。スキュー = 10%下のプットの IV − 10%上のコールの IV (プラスは下落への警戒)。マックスペイン = 建玉がいちばん大きい満期で、買い手の受け取りが最小になる価格。');
+  let latest = null;
+  try { latest = optData_(false); } catch (e) {}
+  OPT_CURS.forEach(function (c) {
+    lines.push('### ' + c);
+    const o = latest && latest.cur ? latest.cur[c] : null;
+    if (o) {
+      lines.push('いまの読み取り: ' + o.read.join(' ／ '));
+      lines.push(pmMdTable_(['満期', '残り日数', '建玉', 'P/C', 'IV (ATM)', 'スキュー', 'マックスペイン', 'コール最大の行使価格', 'プット最大の行使価格'], o.exps.filter(function (e) { return e.oi > 0; }).map(function (e) {
+        return [e.exp, Math.max(0, Math.round(e.days)), pmMoneyJa_(e.oi), e.pc == null ? '-' : e.pc, e.iv == null ? '-' : e.iv + '%', e.skew == null ? '-' : e.skew, e.mp == null ? '-' : e.mp, e.topC == null ? '-' : e.topC, e.topP == null ? '-' : e.topP];
+      })));
+    }
+    const rows = ds.filter(function (d) { return hist[d][c]; });
+    if (rows.length) {
+      lines.push(pmMdTable_(['日付', '価格', 'DVOL', 'P/C (建玉)', 'P/C (出来高)', '建玉', '出来高', 'スキュー', 'マックスペイン (満期)'], rows.map(function (d) {
+        const x = hist[d][c], v = function (y) { return y == null ? '-' : y; };
+        return [d, '$' + Number(x[0]).toLocaleString(), v(x[1]), v(x[2]), v(x[3]), pmMoneyJa_(x[4]), pmMoneyJa_(x[5]), v(x[6]), x[7] == null ? '-' : x[7] + ' (' + x[8] + ')'];
+      })));
+    } else lines.push('(日ごとの記録はまだありません)');
+  });
+  lines.push('');
+  return lines;
+}
+
+// =====================================================================
 //  記録の見張り — それぞれの記録が最後にいつ動いたかを控え、止まっていたら知らせる
 //    HB_<名前> = 最後に成功した時刻 / HBE_<名前> = 最後の失敗 (時刻 + 理由)。成功したら失敗は消す
 // =====================================================================
@@ -2097,6 +2322,7 @@ const HEALTH_JOBS = [
   { k: 'fed',      n: 'Kalshi との比較',                  every: '1時間ごと', max: 3 },
   { k: 'hl',       n: 'Hyperliquid の建玉・ファンディング', every: '1時間ごと', max: 3 },
   { k: 'macro',    n: 'マクロ指標の更新',                  every: '1時間ごと', max: 3 },
+  { k: 'opt',      n: 'オプション市場 (Deribit)',           every: '1時間ごと', max: 3 },
   { k: 'resolve',  n: '決着の取り込み',                    every: '毎日5時',   max: 30 },
   { k: 'daily',    n: '日ごとの要約',                      every: '毎日5時',   max: 30 },
   { k: 'macrolog', n: 'マクロの日誌 (天気図)',             every: '毎日5時',   max: 30 },
@@ -2180,8 +2406,9 @@ const NTF_SPEC = {
   pm: [true], h1: [10, 1, 50], d1: [15, 1, 80], wh1: [5, 1, 50], volx: [3, 1.5, 50], minvol: [10000, 0, 10000000], cool: [6, 1, 72],
   kalshi: [true], gap: [5, 1, 50],
   hl: [true], oi: [20, 5, 200], fhi: [0.05, 0.005, 1], flo: [-0.03, -1, -0.005],
+  opt: [true], dvol: [8, 2, 50],   // オプション: DVOL が24時間でこれだけ動いたら知らせる
   health: [true],
-  dMacro: [true], dFlow: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
+  dMacro: [true], dFlow: [true], dOpt: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
 };
 function ntfDefaults_() { const o = {}; Object.keys(NTF_SPEC).forEach(function (k) { o[k] = NTF_SPEC[k][0]; }); return o; }
 function ntf_() {

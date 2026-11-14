@@ -47,7 +47,7 @@ test('ホーム: 最初に開き、天気・予定・ウォッチ・先物・お
     app.doc.querySelector('#pmSheet .pm-x').click();
     // 「くわしく →」→ お金の流れタブ
     app.run('switchTab("top")');
-    app.doc.querySelector('#homeBody .hm-wide .hm-more').click();
+    app.doc.querySelector('#homeBody .hm-more[data-jump="flow"]').click();
     assert.ok(app.doc.querySelector('#tab-flow').classList.contains('active'));
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }

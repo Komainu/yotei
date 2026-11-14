@@ -409,6 +409,31 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 
   main{padding:16px 12px 90px}
 }
+
+/* ---------- オプション市場 ---------- */
+.op-sig{font-size:14px}
+.op-range{position:relative; height:6px; border-radius:3px; background:linear-gradient(90deg,var(--ok),var(--warn),var(--danger)); margin:8px 0 2px; opacity:.85}
+.op-range i{position:absolute; top:-3px; width:4px; height:12px; margin-left:-2px; border-radius:2px; background:var(--text)}
+.op-range-l{display:flex; justify-content:space-between; font-size:10.5px; color:var(--dim)}
+.op-read{margin:0; padding-left:1.2em; font-size:13.5px; line-height:1.75}
+.op-bar{position:relative; min-width:110px; height:20px; background:var(--card2); border-radius:6px; overflow:hidden}
+.op-bar i{position:absolute; inset:0 auto 0 0; background:var(--tint-accent)}
+.op-bar span{position:relative; padding:0 8px; font-size:12.5px; line-height:20px; white-space:nowrap}
+.op-tbl tbody tr{cursor:pointer}
+.op-tbl small{color:var(--muted)}
+.op-st{display:grid; grid-template-columns:1fr 84px 1fr; gap:6px; align-items:center; font-size:12px; padding:1px 0; font-variant-numeric:tabular-nums}
+.op-st b{text-align:center; font-weight:600}
+.op-st-h{color:var(--muted); padding-bottom:4px}
+.op-st-h b{font-weight:400}
+.op-p, .op-c{display:flex; align-items:center; gap:6px; min-width:0}
+.op-p{justify-content:flex-end}
+.op-p i, .op-c i{display:block; height:14px; border-radius:3px; flex:none; max-width:calc(100% - 52px)}
+.op-p i{background:var(--danger); opacity:.55}
+.op-c i{background:var(--ok); opacity:.55}
+.op-p span, .op-c span{color:var(--muted); white-space:nowrap}
+.op-mp{background:var(--tint-warn); border-radius:6px}
+.op-now{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--accent); margin:3px 0}
+.op-now::before, .op-now::after{content:""; flex:1; border-top:1.5px dashed var(--accent)}
 </style>
 </head>
 <body>
@@ -424,6 +449,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       <button data-tab="poly">📊 Polymarket</button>
       <button data-tab="btc">🌐 マクロ</button>
       <button data-tab="hl">🟢 Hyperliquid</button>
+      <button data-tab="opt">🎯 オプション</button>
       <button data-tab="flow">💧 お金の流れ</button>
       <button data-tab="gloss">📖 用語集</button>
       <button data-tab="settings">⚙️ 設定</button>
@@ -509,6 +535,26 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
   <p class="hint">ソース: Hyperliquid の公開データ。ファンディングは比べやすいよう、すべて8時間あたりに直しています (Hyperliquid は1時間ごと、Binance・Bybit は多くが8時間ごと)。売買はしていません。</p>
 </section>
 
+<!-- ============ オプション市場 (Deribit) ============ -->
+<section class="tab" id="tab-opt">
+  <div class="toolbar">
+    <span class="hint" style="margin:0">BTC・ETH のオプション市場 (Deribit) から、市場がどんな値動きに備えているかを読みます。先物とは別の角度の情報です。</span>
+    <span id="opCurs" class="hl-coins" style="margin:0"></span>
+    <span id="opInfo" class="pm-info" style="margin-left:auto"></span>
+    <button class="btn small" data-ai-report="1">🤖 記録</button>
+    <button class="btn small" id="opReload" title="最新にする">↻</button>
+  </div>
+  <div id="opSum"></div>
+  <div class="mc-cal" id="opRead"></div>
+  <div class="mc-cal" id="opCharts"></div>
+  <div class="mc-cal">
+    <div class="mc-w-h" style="margin-top:0">📅 満期ごとの建玉 <button class="gq" data-term="expiry" aria-label="解説">?</button></div>
+    <div id="opExps"></div>
+    <div id="opStrikes"></div>
+  </div>
+  <p class="hint">ソース: Deribit の公開データ (世界最大の暗号資産オプション取引所)。サーバーが1時間ごとに取り直し、日ごとの値を記録しています。読み取りは一般的な目安で、売買の判断ではありません。</p>
+</section>
+
 <!-- ============ お金の流れ (DefiLlama) ============ -->
 <section class="tab" id="tab-flow">
   <div class="toolbar">
@@ -585,12 +631,17 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r">ファンディング (8時間) が <input type="number" data-ntf="flo" step="0.01"> % 以下 (売りが優勢)</div>
       </div>
       <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="opt" style="width:auto">🎯 オプション市場 (Deribit)</label>
+        <div class="ntf-r">予想変動率 (DVOL) が24時間で ± <input type="number" data-ntf="dvol" step="1"> 以上 動いた</div>
+      </div>
+      <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="health" style="width:auto">⚠ 記録が止まった時</label>
       </div>
       <div class="ntf-g">
         <div class="ntf-t" style="font-weight:700">🗞 毎朝のまとめに入れるもの</div>
         <div class="ntf-r" style="color:var(--muted)">相場の天気図・これからの予定・動いた市場・ウォッチ・新しい市場 は、いつも入ります。</div>
         <label class="check"><input type="checkbox" data-ntf="dMacro" style="width:auto">📋 マクロ指標の一覧 (金利・お金の量・ドルと円・株・暗号資産などの数値と信号)</label>
+        <label class="check"><input type="checkbox" data-ntf="dOpt" style="width:auto">🎯 オプション市場 (予想変動率・プット/コール比率・スキュー・建玉の大きい満期)</label>
         <label class="check"><input type="checkbox" data-ntf="dFlow" style="width:auto">💧 お金の流れ (チェーンの預かり資産・ステーブルコインの増減・先物 DEX・エアドロップ候補)</label>
       </div>
       <div class="row" style="margin-top:8px"><button class="btn small" id="ntfReset" type="button">初期値に戻す</button><span class="hint" style="margin:0">変えたあと、下の「保存」を押してください。数字を小さくすると通知が増え、大きくすると減ります。</span></div>
@@ -702,6 +753,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       <label class="check"><input type="checkbox" value="kalshi" checked style="width:auto">⚖️ Polymarket と Kalshi のずれ (FOMC)</label>
       <label class="check"><input type="checkbox" value="hl" checked style="width:auto">📊 暗号資産の先物 (建玉・ファンディング)</label>
       <label class="check"><input type="checkbox" value="llama" checked style="width:auto">💧 チェーンごとのお金の流れ・先物 DEX</label>
+      <label class="check"><input type="checkbox" value="opt" checked style="width:auto">🎯 オプション市場 (予想変動率・P/C・満期ごとの建玉)</label>
     </div>
     <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
     <div id="repOut"></div>
@@ -729,9 +781,9 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.03";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.04";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.02";
+const MIN_GAS_VERSION = "2026.12.04";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { settings: {} };
@@ -1896,6 +1948,115 @@ $("#tab-hl").addEventListener("click", ev=>{
 });
 $("#hlQ").addEventListener("input", ()=>{ HL.shown = 40; renderHlPerps(); });
 $("#hlSort").addEventListener("change", ()=>{ HL.shown = 40; renderHlPerps(); });
+/* ================= オプション市場 (Deribit) ================= */
+/* BTC・ETH のオプションから「市場が何に備えているか」を読む。数字と読み取りの文はサーバー (optData_) が作る */
+const OP = { data: null, loading: false, cur: "BTC", exp: null };
+const opNum = x => x == null || isNaN(x) ? "-" : Number(x).toLocaleString();
+const opSigned = (x, unit) => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "−") + Math.abs(x) + (unit || "");
+const opExpLabel = e => e.exp.slice(2).replace(/-/g, "/") + ` (あと${Math.max(0, Math.round(e.days))}日)`;
+function opCur(){ const d = OP.data && OP.data.opt; return d && d.cur ? d.cur[OP.cur] || null : null; }
+async function loadOpt(force){
+  if(OP.loading) return;
+  if(!state.settings.gasUrl){ $("#opSum").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると表示されます。</div>`; return; }
+  const cache = pmLS.get("op_cache_v1", null);
+  if(cache && !OP.data){ OP.data = cache; renderOpt(); }
+  if(!OP.data) $("#opSum").innerHTML = Array.from({length:3}, ()=>`<div class="pm-skel"></div>`).join("");
+  OP.loading = true; $("#opInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=opt" + (force === true ? "&force=1" : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !d.opt || !d.opt.cur) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    OP.data = d; pmLS.set("op_cache_v1", d);
+    renderOpt();
+  }catch(err){
+    if(!OP.data) $("#opSum").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`;
+    else $("#opInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ OP.loading = false; }
+}
+/** DVOL の水準: 直近90日の中での位置 (0〜100) から信号と一言 */
+function opDvolSig(dv){
+  if(!dv || dv.rank == null) return ["", ""];
+  return dv.rank >= 80 ? ["r", "警戒が強い"] : dv.rank <= 20 ? ["g", "落ち着いている"] : ["y", "ふつう"];
+}
+function renderOpt(){
+  const d = OP.data; if(!d || !d.opt) return;
+  const curs = Object.keys(d.opt.cur);
+  if(!curs.includes(OP.cur) && curs.length) OP.cur = curs[0];
+  $("#opCurs").innerHTML = curs.map(c=>`<button class="chip ${c === OP.cur ? "active" : ""}" data-opcur="${esc(c)}">${esc(c)}</button>`).join("");
+  const o = opCur();
+  if(!o){ $("#opSum").innerHTML = `<div class="empty">データがありません</div>`; return; }
+  const dv = o.dvol || {}, sig = opDvolSig(dv);
+  const card = (n, v, sub, t, s) => `<div class="mc-card"><div class="mc-h"><span>${esc(n)}</span>${t ? termBtn(t) : ""}</div><div class="mc-v">${v}${s ? ` <span class="op-sig">${MC_SIG[s] || ""}</span>` : ""}</div><div class="mc-sub">${sub}</div></div>`;
+  const pos = dv.hi > dv.lo ? Math.max(0, Math.min(100, (dv.v - dv.lo) / (dv.hi - dv.lo) * 100)) : 50;
+  $("#opSum").innerHTML = `<div class="hl-sum">
+    ${card("予想変動率 (DVOL)", dv.v == null ? "-" : esc(String(dv.v)), dv.v == null ? "取得できませんでした" : `24時間 ${esc(opSigned(dv.d1))} ／ 7日 ${esc(opSigned(dv.d7))} ／ ${esc(sig[1])}<div class="op-range" title="直近90日の幅の中での位置"><i style="left:${pos.toFixed(0)}%"></i></div><div class="op-range-l"><span>${esc(String(dv.lo))}</span><span>直近90日の幅</span><span>${esc(String(dv.hi))}</span></div>`, "dvol", sig[0])}
+    ${card("プット/コール比率", o.pc == null ? "-" : esc(String(o.pc)), `建玉で比べた値 ／ 24時間の出来高では ${esc(o.pcVol == null ? "-" : String(o.pcVol))}`, "pcr")}
+    ${card("スキュー (下落への警戒)", esc(opSigned(o.skew)), o.skew == null ? "計算できる満期がありません" : `${esc((o.skewExp || "").slice(5).replace("-", "/"))} 満期 ／ ${o.skew >= 3 ? "下げを警戒" : o.skew <= -3 ? "上げを期待" : "ほぼ中立"}`, "skew", o.skew == null ? "" : o.skew >= 3 ? "r" : o.skew <= -3 ? "g" : "y")}
+    ${card("建玉の合計", esc(hlUsd(o.oi)), `24時間の出来高 ${esc(hlUsd(o.vol))} ／ ${esc(OP.cur)} ${esc(hlPx(o.px))}`, "oi")}
+  </div>`;
+  $("#opRead").innerHTML = `<div class="mc-w-h" style="margin-top:0">🔎 いまの読み取り (${esc(OP.cur)})</div>`
+    + ((o.read || []).length ? `<ul class="op-read">${o.read.map(x=>`<li>${linkTerms(esc(x))}</li>`).join("")}</ul>` : `<div class="hint">読み取れる材料がありません</div>`)
+    + `<div class="hint">オプションの値段から逆算した「市場の見方」です。当たるとは限りません。</div>`;
+  renderOptCharts(); renderOptExps();
+  const t = new Date(d.opt.at).toLocaleTimeString("ja-JP", { hour:"2-digit", minute:"2-digit" });
+  $("#opInfo").textContent = t + " 時点" + ((d.opt.errors || []).length ? " ・ 一部取得できず" : "");
+}
+function renderOptCharts(){
+  const d = OP.data, o = opCur(); if(!o) return;
+  const key = t => { const x = new Date(t + 9*3600000); return x.toISOString().slice(0, 13); };   /* 日本時間の "YYYY-MM-DDTHH" */
+  const dv = ((o.dvol || {}).s || []).map(r=>[key(r[0]), r[1]]);
+  const days = Object.keys(d.hist || {}).sort().filter(k=>d.hist[k][OP.cur]);
+  const rec = i => days.map(k=>[k + "T00", d.hist[k][OP.cur][i]]);
+  const last = i => { const k = days[days.length-1]; return k ? d.hist[k][OP.cur][i] : null; };
+  const recBox = (title, i, t, fmt, zero) => `<div class="hl-chart"><div class="t"><span>${title} ${termBtn(t)}</span><b>${last(i) == null ? "-" : fmt(last(i))}</b></div>${days.length >= 2 ? hlLine(rec(i), { zero }) : `<div class="hint">記録が2日分以上たまると描きます</div>`}</div>`;
+  $("#opCharts").innerHTML = `<div class="mc-w-h" style="margin-top:0">📈 推移 (${esc(OP.cur)})</div><div class="hl-charts">
+      <div class="hl-chart"><div class="t"><span>予想変動率 (DVOL)・直近90日 ${termBtn("dvol")}</span><b>${(o.dvol || {}).v == null ? "-" : esc(String(o.dvol.v))}</b></div>${dv.length >= 2 ? hlLine(dv, {}) : `<div class="hint">DVOL を取得できませんでした</div>`}</div>
+      ${recBox("📼 プット/コール比率 (記録)", 2, "pcr", x=>esc(String(x)))}
+      ${recBox("📼 スキュー (記録)", 6, "skew", x=>esc(opSigned(x)), true)}
+      ${recBox("📼 建玉の合計 (記録)", 4, "oi", x=>esc(hlUsd(x)))}
+    </div>`;
+}
+function renderOptExps(){
+  const o = opCur(); if(!o) return;
+  const exps = (o.exps || []).filter(e=>e.oi > 0);
+  if(!exps.some(e=>e.exp === OP.exp)) OP.exp = o.main ? o.main.exp : (exps[0] || {}).exp;
+  const maxOi = Math.max(1, ...exps.map(e=>e.oi));
+  $("#opExps").innerHTML = exps.length ? `<div class="hl-wrap"><table class="hl-tbl op-tbl"><thead><tr><th>満期</th><th>建玉</th><th>P/C</th><th>IV (ATM)</th><th>スキュー</th><th>マックスペイン</th><th>コール最大</th><th>プット最大</th></tr></thead><tbody>`
+    + exps.map(e=>`<tr data-opexp="${esc(e.exp)}" class="${e.exp === OP.exp ? "sel" : ""}"><td><b>${esc(opExpLabel(e))}</b></td>
+        <td><div class="op-bar"><i style="width:${(e.oi/maxOi*100).toFixed(0)}%"></i><span>${esc(hlUsd(e.oi))}</span></div></td>
+        <td>${e.pc == null ? "-" : e.pc}</td><td>${e.iv == null ? "-" : e.iv + "%"}</td><td class="${e.skew >= 3 ? "down" : e.skew <= -3 ? "up" : ""}">${esc(opSigned(e.skew))}</td>
+        <td>${e.mp == null ? "-" : "$" + opNum(e.mp)}${e.mp != null && o.px ? ` <small>(${esc(opSigned(Math.round((e.mp/o.px-1)*1000)/10, "%"))})</small>` : ""}</td>
+        <td>${e.topC == null ? "-" : "$" + opNum(e.topC)}</td><td>${e.topP == null ? "-" : "$" + opNum(e.topP)}</td></tr>`).join("")
+    + `</tbody></table></div><div class="hint">行を押すと、その満期の行使価格ごとの建玉が下に出ます。建玉 = まだ決済されていない契約の総額。</div>` : `<div class="hint">満期のデータがありません</div>`;
+  renderOptStrikes();
+}
+/** 選んだ満期の、行使価格ごとの建玉 (左: プット / 右: コール) */
+function renderOptStrikes(){
+  const o = opCur(); if(!o) return;
+  const e = (o.exps || []).find(x=>x.exp === OP.exp);
+  if(!e || !(e.strikes || []).length){ $("#opStrikes").innerHTML = ""; return; }
+  /* 画面に収まるよう、建玉の大きい順に24本まで選び、価格の高い順に並べる */
+  const rows = e.strikes.slice().sort((a,b)=>(b[1]+b[2]) - (a[1]+a[2])).slice(0, 24).sort((a,b)=>b[0]-a[0]);
+  const mx = Math.max(1, ...rows.map(r=>Math.max(r[1], r[2])));
+  const coin = v => v >= 100 ? Math.round(v).toLocaleString() : String(Math.round(v*10)/10);
+  let marked = false;
+  const body = rows.map(r=>{
+    const here = !marked && r[0] <= o.px; if(here) marked = true;
+    return (here ? `<div class="op-now"><span>いまの価格 ${esc(hlPx(o.px))}</span></div>` : "")
+      + `<div class="op-st ${r[0] === e.mp ? "op-mp" : ""}"><div class="op-p"><span>${r[2] ? coin(r[2]) : ""}</span><i style="width:${(r[2]/mx*100).toFixed(1)}%"></i></div><b>$${opNum(r[0])}</b><div class="op-c"><i style="width:${(r[1]/mx*100).toFixed(1)}%"></i><span>${r[1] ? coin(r[1]) : ""}</span></div></div>`;
+  }).join("");
+  $("#opStrikes").innerHTML = `<div class="mc-w-h">🎚 行使価格ごとの建玉 — ${esc(opExpLabel(e))} <small style="font-weight:400; color:var(--muted)">(単位: ${esc(OP.cur)})</small></div>
+    <div class="op-st op-st-h"><div class="op-p"><span>← プット (下落への備え)</span></div><b>行使価格</b><div class="op-c"><span>コール (上昇への賭け) →</span></div></div>${body}
+    <div class="hint">色のついた行がマックスペイン ${termBtn("maxpain")} ($${opNum(e.mp)})。プットが厚い価格は下値の目安、コールが厚い価格は上値の目安として意識されやすいと言われます。</div>`;
+}
+$("#tab-opt").addEventListener("click", ev=>{
+  if(ev.target.closest("[data-term]")) return;
+  const c = ev.target.closest("[data-opcur]"); if(c){ OP.cur = c.dataset.opcur; OP.exp = null; renderOpt(); return; }
+  if(ev.target.id === "opReload"){ loadOpt(true); return; }
+  const tr = ev.target.closest("tr[data-opexp]"); if(tr){ OP.exp = tr.dataset.opexp; renderOptExps(); }
+});
+
 /* ================= お金の流れ (DefiLlama) ================= */
 const FL = { data: null, loading: false };
 const flPct = x => x == null || isNaN(x) ? "-" : `<span class="${x >= 0 ? "up" : "down"}">${x >= 0 ? "+" : ""}${Number(x).toFixed(1)}%</span>`;
@@ -2111,6 +2272,12 @@ const GLOSS = {
   oi: { n:"建玉 (OI・オープンインタレスト)", a:["建玉","オープンインタレスト","OI"], s:"まだ決済されていない先物の総額。どれだけのお金が先物で勝負しているかを表します。", w:"建玉が急に増えるのは、借金 (レバレッジ) をして賭ける人が増えたサイン。値段が少し動くだけで強制決済 (清算) が連鎖し、急騰・急落の燃料になります。過去の値は取り出せないので、このアプリが1時間ごとに記録しています。", u:"レバレッジが積み上がっている (急な値動きに注意)。", d:"手じまいや清算が進み、過熱が冷めた。", r:["funding","btc"] },
   tvl: { n:"TVL (預かり資産)", a:["TVL","預かり資産"], s:"DeFi のサービス (取引所・貸し借りなど) に預けられている資産の合計。チェーンごとに集計すると、そのチェーンにどれだけお金があるかの目安になります。", w:"増えているチェーンは人とお金が集まっている証拠で、新しいプロジェクトやエアドロップも生まれやすい傾向があります。ただし、預けている暗号資産の値上がりだけで増えることもあるので、ステーブルコインの量と合わせて見ると確かです。", u:"お金が集まっている。", d:"お金が出ていっている (または価格が下がった)。", r:["stable","perpdex"] },
   perpdex: { n:"先物 DEX (パーペチュアル DEX)", a:["先物 DEX","先物DEX","パーペチュアル DEX"], s:"ブロックチェーン上にある先物 (期限のない無期限先物) の取引所。Hyperliquid・Aster・Lighter などがあります。", w:"建玉が増えている DEX は利用者とお金が集まっています。トークンを出していない DEX は、使った人へのエアドロップを狙う対象としても注目されます。", r:["oi","funding","tvl"] },
+  option: { n:"オプション (コール・プット)", a:["オプション","コール","プット"], s:"決まった日 (満期) に、決まった値段 (行使価格) で買う権利がコール、売る権利がプットです。権利なので、不利なら使わなくてかまいません。", w:"コールは値上がりへの賭け、プットは値下がりへの保険として買われます。どちらがどれだけ買われているかを見ると、市場が何に備えているかが分かります。", r:["pcr","expiry","dvol","maxpain"] },
+  dvol: { n:"予想変動率 (DVOL・IV)", a:["予想変動率","DVOL","インプライド・ボラティリティ","IV"], s:"オプションの値段から逆算した「これから30日でどれくらい値が動きそうか」の見込み。年率の % で表します。DVOL は Deribit が出している指数で、株の VIX にあたります。", w:"上がる時は、上か下かは別として大きな値動きに備える人が増えています。重要な発表の前に上がりやすく、通過すると下がります。DVOL ÷ 19 がおよそ1日の値動きの目安 (%) です。", u:"市場が大きな値動きを警戒しています。オプション (保険) の値段が高くなります。", d:"市場は落ち着いています。ただし低すぎる時は、急変の前ぶれになることもあります。", r:["option","vix","skew"] },
+  pcr: { n:"プット/コール比率", a:["プット/コール比率","プットコール比率","P/C"], s:"プット (売る権利) の量を、コール (買う権利) の量で割った値。建玉で比べる方法と、その日の出来高で比べる方法があります。", w:"1より大きいと下落への備えが多く、小さいと上昇への賭けが多い状態です。暗号資産では普段からコールのほうが多く、0.5〜0.7 くらいがふつうです。", u:"下落に備える人が増えています。極端に高い時は、悲観が行きすぎた合図と見る人もいます。", d:"上昇に賭ける人が増えています。極端に低い時は、楽観が行きすぎた合図と見る人もいます。", r:["option","oi","skew"] },
+  skew: { n:"スキュー (下落への警戒)", a:["スキュー","skew"], s:"値下がりに備えるプットと、値上がりに賭けるコールの、割高さ (IV) の差。このアプリでは「いまより10%下のプットの IV − 10%上のコールの IV」で出しています。", w:"プラスなら下落への保険が割高 = 下げを警戒、マイナスなら上昇への賭けが割高 = 上げを期待しています。向きが変わる時は、市場の気分が変わった合図になります。", u:"下落への保険を高くても買いたい人が増えています (警戒)。", d:"上昇への賭けを高くても買いたい人が増えています (強気)。", r:["dvol","option","pcr"] },
+  maxpain: { n:"マックスペイン", a:["マックスペイン","max pain","最大苦痛"], s:"満期の日にその値段で終わると、オプションの買い手が受け取るお金の合計がいちばん少なくなる (売り手がいちばん得をする) 行使価格。", w:"満期が近づくと価格がこの水準に引き寄せられやすい、という見方があります。必ずそうなるわけではなく、目安の1つです。建玉の大きい満期ほど意識されます。", r:["expiry","option","oi"] },
+  expiry: { n:"満期 (オプションの期限)", a:["満期","行使価格","権利行使価格"], s:"オプションの権利が切れる日。Deribit では毎日・毎週金曜・月末・四半期末に満期があり、日本時間の17時に決まります。行使価格は、権利を使う時の値段です。", w:"月末・四半期末の満期は建玉が大きく、その前後で値動きが荒くなったり、通過後に流れが変わったりすることがあります。", r:["option","maxpain","oi"] },
   fundarb: { n:"ファンディングの差 (取引所どうし)", a:["ファンディングの差","ファンディング差"], s:"同じ銘柄でも、取引所ごとにファンディングレートが違うことがあります。その差のことです。", w:"差が大きい時は、払う側の取引所で売り・受け取る側の取引所で買うと、値動きを打ち消しつつ差を受け取れる (裁定) と言われます。ただし手数料・価格のずれ・取引所のリスクがあり、差はすぐ縮むこともあります。", r:["funding","oi"] },
   kalshi: { n:"Kalshi (カルシ)", a:["Kalshi","カルシ"], s:"アメリカ政府 (CFTC) の規制を受けている公認の予測市場。FOMC・CPI・景気後退など、経済の市場が多いのが特徴です。", w:"同じ出来事について Polymarket と確率を比べると、どちらかが割安・割高になっている場面や、どちらが先に動くかが分かります。決着のルールが少し違うことがあるので注意が必要です。", r:["pm","pmspread","fomc"] },
   bp: { n:"bp・pt", a:["bp","ベーシスポイント"], s:"bp は金利の 0.01% のこと (25bp = 0.25%)。pt はこのアプリでは確率の「ポイント」(40% → 50% は 10pt) の意味で使っています。", r:["cut"] },
@@ -2803,6 +2970,7 @@ function switchTab(t){
   if(t==="btc" && !loaded.btc){ loaded.btc=1; loadMacro(); }
   if(t==="gloss"){ renderGloss(); }
   if(t==="hl" && !loaded.hl){ loaded.hl=1; loadHl(); }
+  if(t==="opt" && !loaded.opt){ loaded.opt=1; loadOpt(); }
   if(t==="flow" && !loaded.flow){ loaded.flow=1; loadFlow(); }
   if(t==="top") loadTop();
 }
@@ -2930,6 +3098,7 @@ function loadTop(){
   if(!loaded.btc){ loaded.btc = 1; loadMacro(); }
   if(!loaded.hl){ loaded.hl = 1; loadHl(); }
   if(!loaded.flow){ loaded.flow = 1; loadFlow(); }
+  if(!loaded.opt){ loaded.opt = 1; loadOpt(); }
   renderTop();
 }
 function topCard(icon, title, tab, body, extra){
@@ -3008,6 +3177,16 @@ function renderTop(){
       ${alerts.slice(0, 3).join("") || `<div class="hm-ok">✅ 建玉・ファンディングに大きな異変はありません</div>`}
       ${arb ? `<div class="hm-row"><div class="hm-row-main"><b>取引所との差が最大: ${esc(arb[0].n)}</b><small>Hyperliquid ${hlF8(arb[0].f*8)} ／ 他の平均との差</small></div><span class="hm-badge">${hlF8(arb[1])}</span></div>` : ""}`;
   }
+  /* --- オプション市場 --- */
+  let opBody;
+  if(!OP.data || !OP.data.opt) opBody = !gas ? hmNoGas : OP.tried ? hmFail : hmWait;
+  else{
+    const C = OP.data.opt.cur || {}, kp = c => { const o = C[c]; if(!o) return ""; const dv = o.dvol || {}, sg = opDvolSig(dv);
+      return `<div><small>${c} の予想変動率</small><b>${dv.v == null ? "-" : esc(String(dv.v))} ${MC_SIG[sg[0]] || ""}</b><span>24時間 ${esc(opSigned(dv.d1))}</span></div>`; };
+    const b = C.BTC || C[Object.keys(C)[0]];
+    opBody = `<div class="hm-kpis">${kp("BTC")}${kp("ETH")}<div><small>BTC のスキュー</small><b>${esc(opSigned(b && b.skew))}</b><span>${!b || b.skew == null ? "-" : b.skew >= 3 ? "下げを警戒" : b.skew <= -3 ? "上げを期待" : "ほぼ中立"}</span></div></div>`
+      + (b && (b.read || []).length ? b.read.slice(2, 5).map(x=>`<div class="hm-row"><div class="hm-row-main"><small style="white-space:normal; color:var(--text)">${esc(x)}</small></div></div>`).join("") : "");
+  }
   /* --- お金の流れ --- */
   let flBody;
   if(!FL.data) flBody = !gas ? hmNoGas : FL.tried ? hmFail : hmWait;
@@ -3040,7 +3219,8 @@ function renderTop(){
     + topCard("📊", pmTitle, "poly", pmBody)
     + topCard("⚖️", "Polymarket と Kalshi のずれ", "poly", kBody)
     + topCard("🟢", "暗号資産の先物 (Hyperliquid)", "hl", hlBody)
-    + topCard("💧", "お金の流れ", "flow", flBody, "hm-wide")
+    + topCard("🎯", "オプション市場 (Deribit)", "opt", opBody)
+    + topCard("💧", "お金の流れ", "flow", flBody)
     + `</div>` + (hd && hd.ok ? healthTop : "");
 }
 $("#tab-top").addEventListener("click", ev=>{
@@ -3060,7 +3240,7 @@ $("#tab-top").addEventListener("click", ev=>{
   /* 読み込みが終わったら (失敗でも) 印を付けて、ホームの「読み込み中」を止める */
   const done = (fn, obj) => async function(){ try{ return await fn.apply(this, arguments); } finally { obj.tried = true; try{ renderTop(); }catch(e){} relRefresh(); } };
   const pl = pmLoad; pmLoad = async function(){ await pl.apply(this, arguments); relRefresh(); };
-  loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); }
+  loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); loadOpt = done(loadOpt, OP); renderOpt = wrap("renderOpt", renderOpt); }
 
 load();
 applyTheme();
