@@ -7,7 +7,7 @@ const { createClock } = require('./helpers/clock');
 
 const SECRET = 'test-secret-ABCDEFG-123';
 const CONTENT_KEYS = ['count', 'projects', 'deleted', 'pm', 'locked', 'macro', 'health', 'llama', 'snap', 'series', 'md'];
-const GET_ACTIONS = [undefined, 'load', 'report', 'macro', 'hl', 'llama', 'llamaFees', 'health', 'compare'];
+const GET_ACTIONS = [undefined, 'load', 'report', 'macro', 'hl', 'llama', 'llamaFees', 'health', 'compare', 'opt', 'news'];
 
 function withData(opts) {
   const clock = createClock('2026-11-02T10:00:00+09:00');

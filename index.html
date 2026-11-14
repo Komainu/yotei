@@ -306,6 +306,27 @@ section.tab.active{display:block; animation:fadein .18s ease}
 .hm-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px}
 .hm-card{background:var(--card); border:1px solid var(--border); border-radius:18px; padding:14px 16px; min-width:0}
 .hm-card.hm-wide{grid-column:1 / -1}
+/* ニュースと公式発表 */
+.nw-chips{margin-bottom:8px}
+.nw-chips .chip{white-space:nowrap}
+#tab-news .search{width:100%; margin:4px 0 12px}
+.nw-note{margin:0 0 12px; padding:8px 12px; border-radius:10px; background:var(--tint-accent)}
+.nw-err{color:var(--warn)}
+.nw-day{font-size:12.5px; font-weight:700; color:var(--dim); margin:14px 2px 6px}
+.nw-row{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:8px; min-width:0; overflow-wrap:anywhere}
+.nw-row.nw-hot{box-shadow:inset 3px 0 0 var(--accent)}
+.nw-meta{display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; font-size:12px; color:var(--muted)}
+.nw-src{font-size:11.5px; font-weight:700; padding:1px 8px; border-radius:99px; background:var(--card2); color:var(--text)}
+.nw-src.off{background:var(--tint-warn); color:var(--warn)}
+.nw-dots{color:var(--accent); letter-spacing:1px; font-size:10px}
+.nw-dots i{font-style:normal; color:var(--border)}
+.nw-t{font-weight:700; font-size:14.5px; line-height:1.5; margin-top:6px; word-break:break-word}
+.nw-mi{background:var(--tint-warn); color:var(--warn); font-weight:400}
+.nw-sum{font-size:13.5px; color:var(--text); margin-top:4px; line-height:1.6; word-break:break-word}
+.nw-orig{font-size:12.5px; color:var(--muted); margin-top:6px; padding:6px 10px; border-radius:8px; background:var(--card2); word-break:break-word}
+.nw-foot{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin-top:8px; font-size:12.5px}
+.nw-ob{border:none; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; padding:2px 0; text-decoration:underline}
+.nw-go{margin-left:auto}
 .hm-card > header{display:flex; align-items:center; gap:8px; margin-bottom:8px}
 .hm-card h3{font-size:14.5px; flex:1; min-width:0}
 .hm-ic{width:30px; height:30px; border-radius:10px; background:var(--card2); display:grid; place-items:center; font-size:16px; flex:none}
@@ -446,6 +467,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
     </div>
     <nav class="tabs">
       <button data-tab="top" class="active">🏠 ホーム</button>
+      <button data-tab="news">📰 ニュース</button>
       <button data-tab="poly">📊 Polymarket</button>
       <button data-tab="btc">🌐 マクロ</button>
       <button data-tab="hl">🟢 Hyperliquid</button>
@@ -465,6 +487,23 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
   <div class="hm-date" id="homeDate"></div>
   <div id="homeBody"></div>
   <p class="hint">各タブの要点を集めています。「くわしく →」や行を押すと、そのタブへ移動します。信号や候補は目安で、売買の判断ではありません。</p>
+</section>
+
+<!-- ============ ニュースと公式発表 ============ -->
+<section class="tab" id="tab-news">
+  <div class="toolbar">
+    <span class="hint" style="margin:0">FRB・SEC・CFTC の公式発表と、暗号資産の主なニュースです。日本語の題と一行の要約は AI が書いたものです。</span>
+    <span id="nwInfo" class="pm-info" style="margin-left:auto"></span>
+    <button class="btn small" data-ai-report="1">🤖 記録</button>
+    <button class="btn small" id="nwReload" title="最新にする">↻</button>
+  </div>
+  <div class="chips nw-chips" id="nwFilter"></div>
+  <div class="chips nw-chips" id="nwSrc"></div>
+  <input class="search" id="nwQ" placeholder="🔍 日本語・英語で検索 (例: ETF / SEC / ハッキング)" autocomplete="off">
+  <div id="nwNote"></div>
+  <div id="nwList"></div>
+  <div id="nwMore" style="text-align:center; margin:14px 0"></div>
+  <p class="hint">ソース: 各機関・各社の RSS (FRB・SEC・CFTC・CoinDesk・The Block・Cointelegraph・Decrypt)。サーバーが1時間ごとに取り込みます。記事の本文は保存せず、題・リンク・AI の要約だけを残しています。要約には間違いがあり得るので、大事な判断の前に元の記事を確かめてください。</p>
 </section>
 
 <!-- ============ polymarket ============ -->
@@ -635,11 +674,16 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r">予想変動率 (DVOL) が24時間で ± <input type="number" data-ntf="dvol" step="1"> 以上 動いた</div>
       </div>
       <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="news" style="width:auto">📰 ニュースと公式発表</label>
+        <div class="ntf-r">AI が付けた重要度が <select data-ntf="newsMin" style="width:auto"><option value="3">3 (いちばん大事) だけ</option><option value="2">2 以上</option></select> の記事を知らせる (1時間ごと・同じ記事は1回だけ)</div>
+      </div>
+      <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="health" style="width:auto">⚠ 記録が止まった時</label>
       </div>
       <div class="ntf-g">
         <div class="ntf-t" style="font-weight:700">🗞 毎朝のまとめに入れるもの</div>
         <div class="ntf-r" style="color:var(--muted)">相場の天気図・これからの予定・動いた市場・ウォッチ・新しい市場 は、いつも入ります。</div>
+        <label class="check"><input type="checkbox" data-ntf="dNews" style="width:auto">📰 ニュースと公式発表 (直近24時間の公式発表と、あなた向けの記事)</label>
         <label class="check"><input type="checkbox" data-ntf="dMacro" style="width:auto">📋 マクロ指標の一覧 (金利・お金の量・ドルと円・株・暗号資産などの数値と信号)</label>
         <label class="check"><input type="checkbox" data-ntf="dOpt" style="width:auto">🎯 オプション市場 (予想変動率・プット/コール比率・スキュー・建玉の大きい満期)</label>
         <label class="check"><input type="checkbox" data-ntf="dFlow" style="width:auto">💧 お金の流れ (チェーンの預かり資産・ステーブルコインの増減・先物 DEX・エアドロップ候補)</label>
@@ -754,6 +798,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       <label class="check"><input type="checkbox" value="hl" checked style="width:auto">📊 暗号資産の先物 (建玉・ファンディング)</label>
       <label class="check"><input type="checkbox" value="llama" checked style="width:auto">💧 チェーンごとのお金の流れ・先物 DEX</label>
       <label class="check"><input type="checkbox" value="opt" checked style="width:auto">🎯 オプション市場 (予想変動率・P/C・満期ごとの建玉)</label>
+      <label class="check"><input type="checkbox" value="news" checked style="width:auto">📰 ニュースと公式発表</label>
     </div>
     <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
     <div id="repOut"></div>
@@ -781,9 +826,9 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.04";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.05";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.04";
+const MIN_GAS_VERSION = "2026.12.05";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { settings: {} };
@@ -1041,7 +1086,7 @@ function pmSince(e){
   return best;
 }
 function pmIsNew(e){ return !!(pm.base && !pm.base.ev[e.id] && !e.markets.some(m=>pm.base.p[m.id] != null)); }
-function pmSaveUi(){ pmLS.set("pm_ui_v1", { cat: pm.cat, sort: $("#pmSort").value }); }
+function pmSaveUi(){ pmLS.set("pm_ui_v1", Object.assign(pmLS.get("pm_ui_v1", {}), { cat: pm.cat, sort: $("#pmSort").value })); }
 function pmToggleWatch(e){
   if(pm.watch[e.id]) delete pm.watch[e.id];
   else pm.watch[e.id] = { t: e.t, m: (e.multi ? pmTopN(e) : e.markets.slice(0, 1)).map(m=>m.id), at: Date.now() };
@@ -2057,6 +2102,130 @@ $("#tab-opt").addEventListener("click", ev=>{
   const tr = ev.target.closest("tr[data-opexp]"); if(tr){ OP.exp = tr.dataset.opexp; renderOptExps(); }
 });
 
+/* ================= ニュースと公式発表 ================= */
+/* サーバー (newsRecord_) が1時間ごとに RSS を取り込み、AI が日本語の題・一行の要約・重要度 (0〜3)・分野を付けたもの */
+const NW_FILTERS = [["rel", "✨ あなた向け"], ["off", "🏛 公式発表"], ["all", "すべて"]];
+const NW_SHOW = 40;
+const NW = { data: null, loading: false, filter: "rel", src: "", shown: NW_SHOW, q: "", orig: {} };
+{ const f = pmLS.get("pm_ui_v1", {}).nw; if(NW_FILTERS.some(x=>x[0] === f)) NW.filter = f; }
+function nwItems(){ return NW.data && NW.data.news && Array.isArray(NW.data.news.items) ? NW.data.news.items : []; }
+function nwFeed(k){ return ((NW.data && NW.data.feeds) || []).find(f=>f.k === k) || { k, n: String(k || ""), off: false }; }
+const nwLink = l => /^https?:\/\//i.test(String(l || "")) ? String(l) : "";
+const nwTitle = x => x.ja || x.ti || "";
+const nwJst = t => new Date(Number(t) + 9 * 3600000);
+const nwHm = t => { const d = nwJst(t); return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0"); };
+const nwDayKey = t => nwJst(t).toISOString().slice(0, 10);
+function nwDayLabel(t){
+  const k = nwDayKey(t), now = Date.now();
+  if(k === nwDayKey(now)) return "今日";
+  if(k === nwDayKey(now - 86400000)) return "昨日";
+  const d = nwJst(t); return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
+}
+function nwAgo(t){
+  const m = Math.max(0, Math.round((Date.now() - t) / 60000));
+  return m < 1 ? "たった今" : m < 60 ? `${m}分前` : m < 1440 ? `${Math.floor(m / 60)}時間前` : `${Math.floor(m / 1440)}日前`;
+}
+function nwSaveUi(){ pmLS.set("pm_ui_v1", Object.assign(pmLS.get("pm_ui_v1", {}), { nw: NW.filter })); }
+async function loadNews(force){
+  if(NW.loading) return;
+  if(!state.settings.gasUrl){ $("#nwList").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると表示されます。</div>`; return; }
+  const cache = pmLS.get("nw_cache_v1", null);
+  if(cache && !NW.data){ NW.data = cache; renderNews(); }
+  if(!NW.data) $("#nwList").innerHTML = Array.from({length:3}, ()=>`<div class="pm-skel"></div>`).join("");
+  NW.loading = true; $("#nwInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=news&days=7" + (force === true ? "&force=1" : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !d.news || !Array.isArray(d.news.items)) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    NW.data = d; pmLS.set("nw_cache_v1", d);
+    renderNews();
+  }catch(err){
+    if(!NW.data) $("#nwList").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`;
+    else $("#nwInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ NW.loading = false; }
+}
+function nwFiltered(){
+  const q = NW.q.trim().toLowerCase();
+  return nwItems().filter(x=>{
+    if(NW.filter === "rel" && !(x.sc >= 2)) return false;
+    if(NW.filter === "off" && !nwFeed(x.s).off) return false;
+    if(NW.src && x.s !== NW.src) return false;
+    if(q && ![x.ja, x.ti, x.sum, x.cat, nwFeed(x.s).n].some(s=>String(s || "").toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a, b)=>b.t - a.t);
+}
+function nwDots(sc){
+  if(sc == null) return "";
+  return `<span class="nw-dots" title="重要度 ${sc} / 3" aria-label="重要度 ${sc} / 3">${"●".repeat(sc)}<i>${"●".repeat(3 - sc)}</i></span>`;
+}
+function nwRowHtml(x){
+  const f = nwFeed(x.s), link = nwLink(x.l), id = esc(x.id);
+  return `<article class="nw-row${x.sc >= 3 ? " nw-hot" : ""}" data-nwid="${id}">
+    <div class="nw-meta"><span class="nw-src${f.off ? " off" : ""}">${f.off ? "🏛 " : ""}${esc(f.n)}</span><span>${esc(nwAgo(x.t))} ・ ${esc(nwHm(x.t))}</span>${x.cat ? `<span class="pm-tag">${esc(x.cat)}</span>` : ""}${nwDots(x.sc)}</div>
+    <div class="nw-t">${esc(nwTitle(x))}${x.ja ? "" : ` <span class="pm-tag nw-mi">未訳</span>`}</div>
+    ${x.sum ? `<div class="nw-sum">${esc(x.sum)}</div>` : ""}
+    ${x.ja && NW.orig[x.id] ? `<div class="nw-orig">${esc(x.ti)}</div>` : ""}
+    <div class="nw-foot">${x.ja ? `<button class="nw-ob" type="button" data-nworig="${id}">${NW.orig[x.id] ? "原文を隠す" : "原文を見る"}</button>` : ""}${link ? `<a class="nw-go" href="${esc(link)}" target="_blank" rel="noopener">記事を開く ↗</a>` : ""}</div>
+  </article>`;
+}
+function renderNews(){
+  const items = nwItems(), d = NW.data;
+  if(!d) return;
+  $("#nwFilter").innerHTML = NW_FILTERS.map(([k, n])=>`<button class="chip${NW.filter === k ? " active" : ""}" data-nwf="${k}">${n}</button>`).join("");
+  const srcs = (d.feeds || []).filter(f=>items.some(x=>x.s === f.k));
+  $("#nwSrc").innerHTML = srcs.length ? `<button class="chip${NW.src ? "" : " active"}" data-nwsrc="">すべての出どころ</button>` + srcs.map(f=>`<button class="chip${NW.src === f.k ? " active" : ""}" data-nwsrc="${esc(f.k)}">${f.off ? "🏛 " : ""}${esc(f.n)}</button>`).join("") : "";
+  const at = d.news.at ? `${nwDayLabel(d.news.at)} ${nwHm(d.news.at)} 更新` : "まだ記録がありません";
+  const errs = d.news.errors || [];
+  $("#nwInfo").innerHTML = esc(at) + (errs.length ? ` ・ <span class="nw-err" title="${esc(errs.join("、"))}">一部取得できず (${esc(errs.join("、"))})</span>` : "");
+  const noAi = d.ai === false || (items.length && items.every(x=>!x.ja));
+  $("#nwNote").innerHTML = noAi ? `<div class="hint nw-note">🈯 和訳と「あなた向け」の判定は、設定「🈯 和訳とあなた向け」で Gemini のキーを登録すると始まります。今は英語の題のまま表示しています。</div>` : "";
+  const list = nwFiltered();
+  if(!list.length){
+    let msg;
+    if(!items.length) msg = d.news.at ? "直近の記事はまだありません。1時間ごとに取り込みます。" : "まだ記録がありません。サーバーが1時間ごとに取り込むので、しばらくお待ちください。";
+    else if(NW.filter === "rel" && !NW.src && !NW.q.trim()) msg = `あなた向け (重要度2以上) のニュースは今はありません。ほかに ${items.length}件 あります。 <button class="btn small" data-nwf="all">すべて表示</button>`;
+    else msg = "条件に合うニュースはありません。";
+    $("#nwList").innerHTML = `<div class="empty">${msg}</div>`;
+    $("#nwMore").innerHTML = "";
+    return;
+  }
+  let day = "", html = "";
+  list.slice(0, NW.shown).forEach(x=>{
+    const k = nwDayKey(x.t);
+    if(k !== day){ day = k; html += `<div class="nw-day">${esc(nwDayLabel(x.t))}</div>`; }
+    html += nwRowHtml(x);
+  });
+  $("#nwList").innerHTML = html;
+  $("#nwMore").innerHTML = list.length > NW.shown ? `<button class="btn" data-nwmore="1">もっと見る (残り ${list.length - NW.shown}件)</button>` : "";
+}
+$("#tab-news").addEventListener("click", ev=>{
+  const f = ev.target.closest("[data-nwf]"); if(f){ NW.filter = f.dataset.nwf; NW.shown = NW_SHOW; nwSaveUi(); renderNews(); return; }
+  const s = ev.target.closest("[data-nwsrc]"); if(s){ NW.src = s.dataset.nwsrc; NW.shown = NW_SHOW; renderNews(); return; }
+  const o = ev.target.closest("[data-nworig]"); if(o){ const id = o.dataset.nworig; NW.orig[id] = !NW.orig[id]; renderNews(); return; }
+  if(ev.target.closest("[data-nwmore]")){ NW.shown += NW_SHOW; renderNews(); return; }
+  if(ev.target.id === "nwReload"){ loadNews(true); return; }
+});
+$("#nwQ").addEventListener("input", ev=>{ NW.q = ev.target.value; NW.shown = NW_SHOW; renderNews(); });
+/** Polymarket の詳細に出す「関連しそうなニュース」(市場のプロジェクト名・銘柄が題に入っているもの) */
+const NW_COIN_JA = { BTC: /ビットコイン/, ETH: /イーサリアム/, SOL: /ソラナ/, HYPE: /ハイパーリキッド/ };
+function nwRelatedHtml(e){
+  const items = nwItems(); if(!items.length || !e) return "";
+  const res = [];
+  const p = relKey(relProject(e));
+  if(p.length >= 3) res.push(new RegExp("\\b" + p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i"));
+  const text = relText(e);
+  for(const [c, re] of REL_COINS) if(re.test(text)){ res.push(re); if(NW_COIN_JA[c]) res.push(NW_COIN_JA[c]); }
+  if(!res.length) return "";
+  const hit = items.filter(x=>res.some(re=>re.test(String(x.ti || "")) || re.test(String(x.ja || "")))).sort((a, b)=>b.t - a.t).slice(0, 3);
+  if(!hit.length) return "";
+  return `<div class="pm-h">📰 関連しそうなニュース</div><div class="rel-list">${hit.map(x=>{
+    const f = nwFeed(x.s), link = nwLink(x.l);
+    const inner = `<span class="rel-ic">📰</span><div><b>${esc(nwTitle(x))}</b><small>${f.off ? "🏛 " : ""}${esc(f.n)} ・ ${esc(nwAgo(x.t))}${x.sum ? " ・ " + esc(x.sum) : ""}</small></div>`;
+    return link ? `<a class="rel-row" href="${esc(link)}" target="_blank" rel="noopener">${inner}</a>` : `<div class="rel-row rel-static">${inner}</div>`;
+  }).join("")}</div>`;
+}
+
 /* ================= お金の流れ (DefiLlama) ================= */
 const FL = { data: null, loading: false };
 const flPct = x => x == null || isNaN(x) ? "-" : `<span class="${x >= 0 ? "up" : "down"}">${x >= 0 ? "+" : ""}${Number(x).toFixed(1)}%</span>`;
@@ -2971,6 +3140,7 @@ function switchTab(t){
   if(t==="gloss"){ renderGloss(); }
   if(t==="hl" && !loaded.hl){ loaded.hl=1; loadHl(); }
   if(t==="opt" && !loaded.opt){ loaded.opt=1; loadOpt(); }
+  if(t==="news" && !loaded.news){ loaded.news=1; loadNews(); }
   if(t==="flow" && !loaded.flow){ loaded.flow=1; loadFlow(); }
   if(t==="top") loadTop();
 }
@@ -3040,7 +3210,7 @@ function pmRelatedHtml(e){
       if(px) out.push(`<button class="rel-row" data-relgo="flow" data-perp="${esc(px.key)}"><span class="rel-ic">📊</span><div><b>${esc(px.n)} (先物 DEX)</b><small>建玉 ${esc(flUsd(px.oi))}${px.c30 != null ? ` (30日 ${px.c30 >= 0 ? "+" : ""}${Number(px.c30).toFixed(1)}%)` : ""}${px.f30 != null ? ` ・ 手数料30日 ${esc(flUsd(px.f30))}` : ""} ・ トークン ${px.token == null ? "不明" : px.token ? esc(px.sym) : "未発行"}</small></div><span class="rel-go">→</span></button>`);
     }
   }
-  return out.length ? `<div class="pm-h">🔗 関連する情報</div><div class="rel-list">${out.join("")}</div>` : "";
+  return (out.length ? `<div class="pm-h">🔗 関連する情報</div><div class="rel-list">${out.join("")}</div>` : "") + nwRelatedHtml(e);
 }
 function pmRenderRelated(){
   const box = $("#pmSRelated"); if(!box) return;
@@ -3099,6 +3269,7 @@ function loadTop(){
   if(!loaded.hl){ loaded.hl = 1; loadHl(); }
   if(!loaded.flow){ loaded.flow = 1; loadFlow(); }
   if(!loaded.opt){ loaded.opt = 1; loadOpt(); }
+  if(!loaded.news){ loaded.news = 1; loadNews(); }
   renderTop();
 }
 function topCard(icon, title, tab, body, extra){
@@ -3200,6 +3371,14 @@ function renderTop(){
       + (cand.length ? `<div class="hm-sub">🪂 エアドロップ候補 (トークン未発行の先物 DEX)</div>` + cand.map(x=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(x.n)}${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}</b><small>建玉 ${esc(flUsd(x.oi))} ・ ${esc((x.ch||[]).join("・"))}</small></div><span class="hm-num">${flPct(x.c30)}</span></div>`).join("") : "")
       || `<div class="hint" style="margin:0">データを取得中です</div>`;
   }
+  /* --- ニュースと公式発表 --- */
+  let nwBody;
+  if(!NW.data) nwBody = !gas ? hmNoGas : NW.tried ? hmFail : hmWait;
+  else {
+    const top = nwItems().filter(x=>Date.now() - x.t < 86400000 && (nwFeed(x.s).off || x.sc >= 2)).sort((a, b)=>b.t - a.t).slice(0, 4);
+    nwBody = top.length ? top.map(x=>{ const f = nwFeed(x.s); return `<button class="hm-row hm-click" data-jump="news"><div class="hm-row-main"><b>${esc(nwTitle(x))}</b><small>${f.off ? "🏛 " : ""}${esc(f.n)} ・ ${esc(nwAgo(x.t))}${x.sum ? " ・ " + esc(x.sum) : ""}</small></div>${x.sc != null ? nwDots(x.sc) : ""}</button>`; }).join("")
+      : `<div class="hint" style="margin:0">直近24時間に、公式発表やあなた向けのニュースはありませんでした</div>`;
+  }
   /* --- 記録の見張り --- */
   let healthTop = "";
   const hd = HEALTH.data;
@@ -3215,6 +3394,7 @@ function renderTop(){
       : `<button class="hm-health" data-jump="settings">✅ 記録は正常に動いています (${run}種類) <span>くわしく →</span></button>`;
   }
   box.innerHTML = (hd && !hd.ok ? healthTop : "") + hero + `<div class="hm-grid">`
+    + topCard("📰", "ニュースと公式発表", "news", nwBody, "hm-wide")
     + topCard("📅", "これからの予定", "btc", calBody)
     + topCard("📊", pmTitle, "poly", pmBody)
     + topCard("⚖️", "Polymarket と Kalshi のずれ", "poly", kBody)
@@ -3240,7 +3420,8 @@ $("#tab-top").addEventListener("click", ev=>{
   /* 読み込みが終わったら (失敗でも) 印を付けて、ホームの「読み込み中」を止める */
   const done = (fn, obj) => async function(){ try{ return await fn.apply(this, arguments); } finally { obj.tried = true; try{ renderTop(); }catch(e){} relRefresh(); } };
   const pl = pmLoad; pmLoad = async function(){ await pl.apply(this, arguments); relRefresh(); };
-  loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); loadOpt = done(loadOpt, OP); renderOpt = wrap("renderOpt", renderOpt); }
+  loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); loadOpt = done(loadOpt, OP); renderOpt = wrap("renderOpt", renderOpt);
+  loadNews = done(loadNews, NW); renderNews = wrap("renderNews", renderNews); }
 
 load();
 applyTheme();

@@ -25,6 +25,7 @@
 > - Hyperliquid タブ (index.html「Hyperliquid」の囲み): `doGet ?action=hl` (サーバーの `hlSnapshot_`: 先物全部・`predictedFundings` で Binance/Bybit のファンディングを8時間に直したもの・現物の流通量/総発行量) と記録 (`hlSeries_`)。記録の配列は [建玉, ファンディング(1h), 価格, 出来高, プレミアム, Binance8h, Bybit8h]。☆ で `pmHlWatch` → `HL_WATCH` (BTC/ETH/SOL/HYPE はいつも記録)。現物は hl-spot-YYYY-MM.json に日ごと
 > - お金の流れタブ (DefiLlama): サーバーの `llamaData_` が /v2/chains・historicalChainTvl・stablecoinchains・stablecoincharts・overview/open-interest を取り llama-latest.json に6時間保存 (`doGet ?action=llama`)。`pmDailyJobs_` の `llamaLog_` が llama-YYYY-MM.json に日ごと。先物 DEX の出来高 (overview/derivatives) は有料なので使わない。先物 DEX は `llamaPerps_`: 建玉の内訳の推移 (シェア・NEW 判定)・overview/fees の手数料・/protocols (1日1回 llama-protocols.json) のトークンの有無と TVL。`llamaIsCand_` = トークン未発行のエアドロップ候補。詳細の手数料の推移は `doGet ?action=llamaFees&slug=`
 > - オプション市場タブ (Deribit の公開 API・キー不要): サーバーの `optData_` (`optOne_`/`optExpiry_`/`optRead_`) が BTC・ETH の建玉・プット/コール比率・スキュー (10%下のプット IV − 10%上のコール IV、30日に近い満期)・マックスペイン・DVOL (12時間足90日) を計算し opt-latest.json に55分保存 (`doGet ?action=opt`、日ごとの記録 `hist` つき)。`pmRecord` の後に `hbRun_('opt', optRecord_)` が opt-YYYY-MM.json に日ごとの行 [価格, DVOL, P/C(建玉), P/C(出来高), 建玉, 出来高, スキュー, マックスペイン, その満期] を残し、DVOL が24時間で `NTF_SPEC.dvol` 以上動いたら通知 (`opt` でオン/オフ、12時間に1回)。毎朝のまとめは `pmOptSection_` (`dOpt`)、AI レポートは `optReportLines_` (parts `opt`, ## 8.)。見張りの `HEALTH_JOBS` に `opt`。画面は index.html「オプション市場 (Deribit)」の囲み (`OP` `loadOpt` `renderOpt` `renderOptCharts` `renderOptExps` `renderOptStrikes`、端末の保存 `op_cache_v1`)。テストの偽 Deribit は `test/helpers/deribit.js` (`deribitFetch(clock, world)`)
+> - ニュースと公式発表 (gas/Code.gs「ニュースと公式発表 (RSS)」の囲み): `NEWS_FEEDS` (k, n, url, off=公式) = FRB・SEC・CFTC (公式) と CoinDesk・The Block・Cointelegraph・Decrypt。`pmRecord` の後に `hbRun_('news', newsRecord_)` が全部のフィードを別々に取り (`macroFetchText_`、User-Agent `market-notes/1.0` を付ける。SEC が名乗りを求めるため)、`newsParse_` (正規表現で RSS/Atom・CDATA・文字参照。http(s) 以外のリンクは捨てる) で72時間以内を取り込む。全部失敗した時だけ投げる。ドライブに `news-YYYY-MM.json` ({id: {t, s, ti, l, ja, sum, sc, cat, m=通知済み}}、月は記事の日本時間) と `news-latest.json` ({at, items 新しい順・7日・300件, errors: 取れなかったフィードの名前})。**記事の説明文・本文は保存しない** (AI に渡すだけ)。AI は `GEMINI_KEY` がある時だけ、未訳を新しい順に1回30件・15件ずつ `pmGemini_` (1日の上限 `PM_AI_DAY` に数える) で `ja` `sum` `sc` (0〜3、`pmProfile_()` に照らす) `cat` (`NEWS_CATS`)。通知は今回判定した `sc >= NTF_SPEC.newsMin` を1通 (8件まで・1件1回)。`newsList_(hours)`・`doGet ?action=news&days=` (既定3・最大7)。毎朝のまとめは `pmNewsSection_` (`dNews`、Polymarket の後)、急変メールに `newsAlertBlock_` (直近6時間・5件)、AI レポートは `newsReportLines_` (parts `news`, ## 9.)。見張りの `HEALTH_JOBS` に `news`。画面は index.html「ニュースと公式発表」の囲み (`NW` `loadNews` `renderNews` `nwRelatedHtml`=Polymarket の詳細の「関連しそうなニュース」、端末の保存 `nw_cache_v1`、絞り込みは `pm_ui_v1.nw`)。テストの偽 RSS と偽 Gemini は `test/helpers/news.js` (`newsFetch(clock, world)` `geminiFake()`)
 > - ホーム (`tab-top`・`renderTop`): 各タブのデータ (`MC.res` `pm` `CMP` `HL` `FL`) から要点を集める。各タブの描画関数を包んで、描画のたびにホームも描き直す。旧・予定管理の `renderHome` (`tab-home`) とは別物なので名前を混ぜない
 > - 記録の見張り (gas/Code.gs 末尾): 各ジョブが `hbOk_`/`hbErr_`/`hbRun_` で `HB_<名前>`・`HBE_<名前>` に控える。`pmHealth_` が `HEALTH_JOBS` の間隔と比べて ok/stale/error/never/off を返す (`doGet ?action=health`、状況の `pm.health`)。`pmHealthMail_` (pmRecord の最後) が、間隔を過ぎても直らない時だけ24時間に1回メール。**新しい定期処理を足したら HEALTH_JOBS にも足す**
 > - 通知の条件 (gas/Code.gs 末尾 `NTF_SPEC`・`ntf_()`): 初期値と範囲を1か所で持ち、変更分だけ `PM_NOTIFY` に保存。`pmConfig` の `notify` (オブジェクト or 'reset') で変える。単位は画面と同じ (pt・%・倍・ドル・時間)。アプリは設定の「通知の条件を変える」(`data-ntf`)。**通知の基準を足す時は NTF_SPEC と画面の入力欄の両方に足す**
@@ -40,7 +41,7 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 |---|---|---|
 | アプリ本体 | `index.html` (1ファイル、HTML+CSS+JS) | GitHub Pages で公開 (https://komainu.github.io/yotei/)。表示用のキャッシュと設定は端末の localStorage |
 | サーバー | `gas/Code.gs` (Google Apps Script) | 記録 (Polymarket・マクロ・Hyperliquid・DefiLlama)・和訳・通知メール。ウェブアプリとして公開 |
-| 外部 | Gmail(MailApp) / Gemini API / Polymarket・Kalshi・FRED・Hyperliquid・DefiLlama・Deribit・alternative.me | |
+| 外部 | Gmail(MailApp) / Gemini API / Polymarket・Kalshi・FRED・Hyperliquid・DefiLlama・Deribit・alternative.me・ニュースの RSS (FRB・SEC・CFTC・CoinDesk・The Block・Cointelegraph・Decrypt) | |
 
 外部のビルド工程はない。ブラウザで `index.html` を開けば動く(`file://` でも動作する前提を壊さない)。
 
@@ -55,7 +56,7 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 
 - `state = { settings:{...} }` (+ 旧データが残っていれば `projects`, `deleted` など。触らない)。`save()` は state をそのまま localStorage へ書く
 - `load()` は使わなくなった設定 (`OLD_SETTINGS`: Telegram のトークン・Gemini のキーなど) を端末から消す
-- タブ: `top` (ホーム)・`poly`・`btc` (マクロ)・`hl`・`opt` (オプション)・`flow`・`gloss`・`settings`。`switchTab()` が初回だけ各タブの読み込みを呼ぶ
+- タブ: `top` (ホーム)・`news` (ニュース)・`poly`・`btc` (マクロ)・`hl`・`opt` (オプション)・`flow`・`gloss`・`settings`。`switchTab()` が初回だけ各タブの読み込みを呼ぶ
 - 設定の「旧データ (予定) をエクスポート」(`oldDataFetch`): サーバーの `?action=load` と端末の `state.projects` のうち件数の多い方を JSON で書き出す。設定・合言葉は入れない
 - 起動時・画面に戻った時は `gasAutoResume()` → `gasCheck()` でサーバーの版数と合言葉を確かめるだけ (何も書き込まない)
 - 版数: `APP_VERSION`, `MIN_GAS_VERSION` (サーバーが古いと警告)。変更したら日付で上げる。**`sw.js` の `VERSION` も必ず同じにする** (ホーム画面アプリは index.html をキャッシュから開くので、上げ忘れると新しい版が届かない。テストで確認している)
@@ -66,11 +67,11 @@ AIエージェント／開発者向けの全体像。変更前に必ず読むこ
 
 - 先頭: 合言葉 → ドライブの共通処理 (`driveRetry_` `driveFolder_`) と旧データの読み出し → `doPost` / `doGet` → `setup` → 以降は機能ごとの節 (Polymarket の記録、和訳、通知、マクロ…)
 - 合言葉 `API_SECRET`: 設定済みなら doGet は `key` パラメータ、doPost は JSON の `key` が一致しないと `{ok:false, needKey:true, version}` だけを返す (中身は返さない)。未設定なら誰でも使える。`{action:"setSecret", newKey}` で設定・変更 (12〜200文字)
-- `doGet`: 既定は状況 (`version, locked, pm{..., ai, health, mail}`)。`?action=load` (旧データ) `report` `macro` `hl` `opt` `llama` `llamaFees` `health` `compare`
+- `doGet`: 既定は状況 (`version, locked, pm{..., ai, health, mail}`)。`?action=load` (旧データ) `report` `macro` `hl` `opt` `llama` `llamaFees` `health` `compare` `news`
 - `doPost` (text/plain JSON、フォーム送信 `payload=` も可): `pm*` の操作 (`pmDoPost_`) と `setSecret` だけ。それ以外 (以前の案件の保存など) は `{ok:false, error:"予定管理の機能は終了しました…"}` を返す
 - Script Properties: `API_SECRET, GEMINI_KEY, MAIL_TO, PM_*, HB_*/HBE_* (見張り), DATA_FOLDER_ID 系のフォルダID` など。以前の `TG_*` `GAME` などは残っていても使わない
 - 日付はすべて日本時間 (`todayJst_`)
-- 毎朝のまとめ (`pmDigest`): 天気図・予定 (`pmMacroSection_`) → Polymarket → マクロ指標の一覧 (`pmMacroList_`、`NTF_SPEC.dMacro`) → オプション市場 (`pmOptSection_`、`NTF_SPEC.dOpt`) → お金の流れ (`pmFlowSection_`、`NTF_SPEC.dFlow`) → 記録の状況。欄を足す時は `NTF_SPEC` と設定画面の `data-ntf` にオン/オフを足す
+- 毎朝のまとめ (`pmDigest`): 天気図・予定 (`pmMacroSection_`) → Polymarket → ニュースと公式発表 (`pmNewsSection_`、`NTF_SPEC.dNews`) → マクロ指標の一覧 (`pmMacroList_`、`NTF_SPEC.dMacro`) → オプション市場 (`pmOptSection_`、`NTF_SPEC.dOpt`) → お金の流れ (`pmFlowSection_`、`NTF_SPEC.dFlow`) → 記録の状況。欄を足す時は `NTF_SPEC` と設定画面の `data-ntf` にオン/オフを足す
 - 版数: `GAS_VERSION`
 
 ## 作業のルール

@@ -7,7 +7,7 @@ const { loadGas, project } = require('./helpers/gas');
 const { createClock, jstLocal } = require('./helpers/clock');
 
 const clone = x => JSON.parse(JSON.stringify(x));
-const TABS = ['top', 'poly', 'btc', 'hl', 'opt', 'flow', 'gloss', 'settings'];
+const TABS = ['top', 'news', 'poly', 'btc', 'hl', 'opt', 'flow', 'gloss', 'settings'];
 
 /** 以前の予定管理を使っていた端末に残っている状態 */
 function oldState(clock) {
@@ -30,7 +30,7 @@ function catchDownload(app) {
   return got;
 }
 
-test('index.html: 空の状態で開いてもエラーが出ない。タブは8つで、最初はホーム', async () => {
+test('index.html: 空の状態で開いてもエラーが出ない。タブは9つで、最初はホーム', async () => {
   const app = await openApp();
   try {
     assert.deepEqual(app.errors, []);

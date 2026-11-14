@@ -16,7 +16,7 @@
  */
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.12.04';
+const GAS_VERSION = '2026.12.05';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -163,6 +163,14 @@ function doGetInner_(e) {
   if (action === 'opt') {
     const od = optData_(e.parameter.force === '1');
     return json({ ok: true, version: GAS_VERSION, opt: od, hist: optHist_(120) });
+  }
+  if (action === 'news') {
+    const days = Math.max(1, Math.min(NEWS_LATEST_DAYS, Number(e.parameter.days) || 3));
+    let d = null;
+    try { d = JSON.parse(pmRead_('news-latest.json') || 'null'); } catch (x) {}
+    return json({ ok: true, version: GAS_VERSION, ai: !!PropertiesService.getScriptProperties().getProperty('GEMINI_KEY'),
+      news: { at: d ? d.at : null, items: newsList_(days * 24), errors: d && d.errors ? d.errors : [] },
+      feeds: NEWS_FEEDS.map(function (f) { return { k: f.k, n: f.n, off: f.off }; }) });
   }
   if (action === 'health') {
     return json({ ok: true, version: GAS_VERSION, health: pmHealth_() });
@@ -402,6 +410,7 @@ function pmRecord() {
   hbRun_('fed', fedCompareRecord_);
   hbRun_('hl', hlRecord_);
   hbRun_('opt', optRecord_);
+  hbRun_('news', newsRecord_);
   try { pmHealthMail_(); } catch (e) { Logger.log('記録の見張りに失敗: ' + e); }
 }
 
@@ -878,6 +887,8 @@ function pmAlert() {
         why: h.why.txt, vol: pmMoneyJa_(r.v24), watched: h.watched, url: 'https://polymarket.com/event/' + encodeURIComponent(r.es),
       };
     });
+    let nb = null;
+    try { nb = newsAlertBlock_(); } catch (e) { Logger.log('急変のメールにニュースを足せません: ' + e); }
     const subject = '【ポリマーケット】急変 ' + lines.length + '件: ' + lines[0].title.slice(0, 40);
     const text = 'Polymarket で大きな動きがありました (' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M/d HH:mm') + ' 日本時間)\n\n'
       + lines.map(function (l, i) {
@@ -885,13 +896,14 @@ function pmAlert() {
           + '   ' + (l.prev ? l.prev + ' → ' : '') + l.now + ' (' + l.why + ') 24時間の出来高 ' + l.vol + '\n'
           + '   原文: ' + l.en + '\n   ' + l.url;
       }).join('\n\n')
+      + (nb ? nb.text : '')
       + '\n\n※ ポリマーケット記録アプリが10分おきに確認しています。対象は「あなた向け」とウォッチ中の市場です。売買はしていません。';
     MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: pmMailHtml_('⚡ 急変のお知らせ', lines.map(function (l) {
       return '<tr><td style="padding:10px 0;border-bottom:1px solid #e5e7eb">'
         + '<div style="font-weight:700;font-size:15px">' + (l.watched ? '⭐ ' : '') + esc(l.title) + '</div>'
         + '<div style="font-size:14px;margin-top:3px">' + (l.prev ? esc(l.prev) + ' → ' : '') + '<b>' + esc(l.now) + '</b> <span style="color:#b45309">(' + esc(l.why) + ')</span> ・ 出来高 ' + esc(l.vol) + '</div>'
         + '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + esc(l.en) + ' ・ <a href="' + esc(l.url) + '">Polymarket</a></div></td></tr>';
-    }).join('')) });
+    }).join('') + (nb ? nb.html : '')) });
     hits.forEach(function (h) { sent[h.r.id] = now; });
     try { pmLogAlerts_(hits); } catch (e) { Logger.log('急変の記録に失敗: ' + e); }
     Object.keys(sent).forEach(function (k) { if (now - sent[k] > 2 * 86400000) delete sent[k]; });
@@ -1019,7 +1031,8 @@ function pmDigest() {
     const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
     let mac = null;
     try { mac = pmMacroSection_(); } catch (e) { Logger.log('天気図をまとめに入れられません: ' + e); }
-    let ml = null, flow = null, optS = null;
+    let ml = null, flow = null, optS = null, newsS = null;
+    if (ntf_().dNews) { try { newsS = pmNewsSection_(); } catch (e) { Logger.log('ニュースをまとめに入れられません: ' + e); } }
     if (ntf_().dOpt) { try { optS = pmOptSection_(); } catch (e) { Logger.log('オプション市場をまとめに入れられません: ' + e); } }
     if (ntf_().dMacro) { try { ml = mac ? pmMacroList_(mac.res) : null; } catch (e) { Logger.log('マクロ指標の一覧をまとめに入れられません: ' + e); } }
     if (ntf_().dFlow) { try { flow = pmFlowSection_(); } catch (e) { Logger.log('お金の流れをまとめに入れられません: ' + e); } }
@@ -1028,6 +1041,7 @@ function pmDigest() {
       + sec('24時間で大きく動いた市場', movers, '大きな動きはありませんでした') + '\n'
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
+      + (newsS ? newsS.text + '\n' : '')
       + (ml ? ml.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '')
       + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + pmHealthLine_() + '\n\n'
       + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
@@ -1043,7 +1057,7 @@ function pmDigest() {
       to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (mac ? ' ' + mac.sky[1] + mac.sky[2] : '') + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
       htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', (mac ? '<tr><td style="padding:6px 0 2px;font-weight:700;font-size:15px">🌐 相場の天気図</td></tr>' + mac.html : '') + h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')
-        + (ml ? ml.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '')),
+        + (newsS ? newsS.html : '') + (ml ? ml.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
     hbOk_('digest');
@@ -1524,7 +1538,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -1685,6 +1699,7 @@ function pmReport_(opt) {
     }
     lines.push('');
   }
+  if (parts.indexOf('news') >= 0) { try { newsReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 9. ニュースと公式発表', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('opt') >= 0) { try { optReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 8. オプション市場', '(読み出せませんでした: ' + e + ')', ''); } }
   const text = lines.join('\n');
   return { ok: true, text: text, chars: text.length, from: from, to: to };
@@ -2313,6 +2328,260 @@ function optReportLines_(from) {
 }
 
 // =====================================================================
+//  ニュースと公式発表 (RSS)
+//    FRB・SEC・CFTC の公式発表と、暗号資産の主なニュースサイトの RSS を1時間ごとに取り込む。
+//    ドライブに残すのは 題 (原文)・リンク・AI が書いた日本語の題と一行要約だけ (記事の本文や説明文は保存しない)
+// =====================================================================
+
+const NEWS_FEEDS = [
+  { k: 'frb',      n: 'FRB',           url: 'https://www.federalreserve.gov/feeds/press_all.xml', off: true },
+  { k: 'sec',      n: 'SEC',           url: 'https://www.sec.gov/news/pressreleases.rss', off: true },
+  { k: 'cftc',     n: 'CFTC',          url: 'https://www.cftc.gov/RSS/RSSGP/rssgp.xml', off: true },
+  { k: 'coindesk', n: 'CoinDesk',      url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', off: false },
+  { k: 'theblock', n: 'The Block',     url: 'https://www.theblock.co/rss.xml', off: false },
+  { k: 'ctg',      n: 'Cointelegraph', url: 'https://cointelegraph.com/rss', off: false },
+  { k: 'decrypt',  n: 'Decrypt',       url: 'https://decrypt.co/feed', off: false },
+];
+const NEWS_UA = 'Mozilla/5.0 (compatible; market-notes/1.0)';   // SEC は名乗りのない取得を断るので、すべてのフィードで付ける
+const NEWS_KEEP_H = 72;          // 取り込むのは72時間以内の記事
+const NEWS_LATEST_DAYS = 7;      // news-latest.json に入れる期間
+const NEWS_LATEST_MAX = 300;
+const NEWS_AI_MAX = 30;          // 1回の実行で AI に渡す数
+const NEWS_AI_BATCH = 15;        // 1回の Gemini で渡す数
+const NEWS_MAIL_MAX = 8;
+const NEWS_DESC_MAX = 600;
+const NEWS_CATS = ['金融政策', '規制', 'ETF・機関投資家', '暗号資産市場', 'DeFi・プロジェクト', 'ハッキング・事故', 'マクロ経済', 'その他'];
+const NEWS_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”' };
+
+function newsFeed_(k) { for (let i = 0; i < NEWS_FEEDS.length; i++) if (NEWS_FEEDS[i].k === k) return NEWS_FEEDS[i]; return { k: k, n: k, off: false }; }
+function newsEnt_(s) {
+  return String(s || '').replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, function (all, c) {
+    if (c[0] === '#') {
+      const n = c[1] === 'x' || c[1] === 'X' ? parseInt(c.slice(2), 16) : parseInt(c.slice(1), 10);
+      try { return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : ''; } catch (e) { return ''; }
+    }
+    const v = NEWS_ENT[c.toLowerCase()];
+    return v != null ? v : all;
+  });
+}
+/** 要素の中身 (CDATA はそのまま・それ以外は文字参照を戻す) */
+function newsText_(raw) {
+  let out = '';
+  String(raw || '').split(/(<!\[CDATA\[[\s\S]*?\]\]>)/).forEach(function (p) {
+    out += /^<!\[CDATA\[/.test(p) ? p.slice(9, -3) : newsEnt_(p);
+  });
+  return out;
+}
+/** HTML の断片 → ふつうの文 (タグを除き、文字参照を戻し、空白をまとめる) */
+function newsPlain_(s) {
+  return newsEnt_(String(s || '').replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]*>/g, ' ')).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function newsTag_(block, tags) {
+  for (let i = 0; i < tags.length; i++) {
+    const m = block.match(new RegExp('<' + tags[i] + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + tags[i] + '\\s*>', 'i'));
+    if (m && m[1].trim()) return m[1];
+  }
+  return '';
+}
+/** RSS / Atom の文字列 → [{ title, link, t, desc }] (題かリンクの無いもの・http(s) 以外のリンクは除く) */
+function newsParse_(xml, now) {
+  now = now || Date.now();
+  xml = String(xml || '');
+  const out = [];
+  const add = function (block, atom) {
+    const title = newsPlain_(newsText_(newsTag_(block, ['title'])));
+    let link = '';
+    if (atom) {
+      const ls = block.match(/<link\b[^>]*>/gi) || [];
+      for (let i = 0; i < ls.length && !link; i++) {
+        const rel = (ls[i].match(/\brel\s*=\s*["']([^"']*)["']/i) || [])[1];
+        const href = (ls[i].match(/\bhref\s*=\s*["']([^"']*)["']/i) || [])[1];
+        if (href && (!rel || rel === 'alternate')) link = newsEnt_(href);
+      }
+    }
+    if (!link) link = newsText_(newsTag_(block, ['link'])).trim();
+    if (!link) { const g = block.match(/<guid\b[^>]*isPermaLink\s*=\s*["']true["'][^>]*>([\s\S]*?)<\/guid>/i); if (g) link = newsText_(g[1]).trim(); }
+    link = link.replace(/\s+/g, '');
+    if (!title || !/^https?:\/\//i.test(link)) return;
+    const ds = newsPlain_(newsText_(newsTag_(block, atom ? ['published', 'updated'] : ['pubDate', 'dc:date', 'published', 'updated'])));
+    let t = Date.parse(ds);
+    if (isNaN(t)) t = now;
+    let desc = newsPlain_(newsText_(newsTag_(block, atom ? ['summary', 'content'] : ['description', 'content:encoded', 'summary'])));
+    if (desc.length > NEWS_DESC_MAX) desc = desc.slice(0, NEWS_DESC_MAX - 1) + '…';
+    out.push({ title: title.slice(0, 300), link: link.slice(0, 1000), t: Math.min(t, now), desc: desc });
+  };
+  let m;
+  const ri = /<item\b[^>]*>([\s\S]*?)<\/item>/gi;
+  while ((m = ri.exec(xml))) add(m[1], false);
+  const re = /<entry\b[^>]*>([\s\S]*?)<\/entry>/gi;
+  while ((m = re.exec(xml))) add(m[1], true);
+  return out;
+}
+function newsId_(link) { return pmHash_(link) + pmHash_(link.length + ':' + link.split('').reverse().join('')); }
+function newsMonth_(t) { return Utilities.formatDate(new Date(t), 'Asia/Tokyo', 'yyyy-MM'); }
+function newsWhen_(t) { return Utilities.formatDate(new Date(t), 'Asia/Tokyo', 'M/d HH:mm'); }
+function newsTitle_(x) { return x.ja || x.ti; }
+function newsPrompt_() {
+  return 'あなたは、英語のニュースの見出しを日本語の利用者向けに整理する係です。\n'
+    + '利用者の興味: ' + pmProfile_() + '\n'
+    + '入力は JSON 配列 [{"i":番号,"s":"出どころ","t":"見出し","d":"説明 (無いこともある)"}]。\n'
+    + '出力は JSON 配列 [{"i":番号,"ja":"日本語の題","sum":"一行の要約","sc":点数,"cat":"分野"}] だけにしてください。\n'
+    + '・ja: 見出しの自然な日本語訳 (説明や補足は足さない)\n'
+    + '・sum: 何が起きたかを、自分の言葉で日本語1文・80文字以内にまとめる (原文の文をそのまま訳して長く写さない)\n'
+    + '・sc: 利用者の興味との関係。3=興味の中心そのもので重要 / 2=関係が深い / 1=少し関係 / 0=関係なし\n'
+    + '・cat: 次から1つ: ' + NEWS_CATS.join(', ') + '\n'
+    + '・人名・団体名は一般的なカタカナ表記。定着した英字 (SEC, ETF, FOMC など) は英字のまま。数字・金額は変えない\n'
+    + '・用語集 (原文 → 訳):\n' + PM_GLOSSARY.map(function (g) { return '  ' + g[0] + ' → ' + g[1]; }).join('\n');
+}
+
+/** 1時間ごと (pmRecord から): フィードを取り込み、和訳・判定し、大事なものを知らせる。全部のフィードが失敗した時だけ投げる */
+function newsRecord_() {
+  const now = Date.now(), cut = now - NEWS_KEEP_H * 3600000;
+  const got = [], errors = [], desc = {};
+  NEWS_FEEDS.forEach(function (f) {
+    try {
+      const xml = macroFetchText_(f.url, { headers: { 'User-Agent': NEWS_UA, Accept: 'application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8' } });
+      if (!/<(rss|feed|rdf:RDF)\b/i.test(xml)) throw new Error('RSS / Atom ではありません');
+      newsParse_(xml, now).forEach(function (x) { if (x.t >= cut) got.push({ f: f, x: x }); });
+    } catch (e) { errors.push(f.n); Logger.log('ニュース ' + f.n + ' の取得に失敗: ' + e); }
+  });
+  if (errors.length === NEWS_FEEDS.length) throw new Error('ニュースを1つも取得できませんでした (' + errors.join(', ') + ')');
+
+  // 月ごとのファイル (今月・先月と、記事の月)
+  const months = hlMonths_(now, 2);
+  got.forEach(function (g) { const m = newsMonth_(g.x.t); if (months.indexOf(m) < 0) months.push(m); });
+  const files = {}, dirty = {};
+  months.forEach(function (m) { files[m] = pmLoadJson_('news-' + m + '.json'); });
+  const find = function (id) { for (const m in files) if (files[m][id]) return files[m][id]; return null; };
+  got.forEach(function (g) {
+    const id = newsId_(g.x.link);
+    if (g.x.desc) desc[id] = g.x.desc;   // AI に渡すためだけに使う (保存しない)
+    if (find(id)) return;
+    const m = newsMonth_(g.x.t);
+    files[m][id] = { t: g.x.t, s: g.f.k, ti: g.x.title, l: g.x.link };
+    dirty[m] = 1;
+  });
+
+  // AI: まだ和訳していないもの (新しい順に最大30件)
+  const props = PropertiesService.getScriptProperties();
+  const scored = [];
+  let aiErr = null;
+  if (props.getProperty('GEMINI_KEY')) {
+    const since = now - NEWS_LATEST_DAYS * 86400000, pend = [];
+    Object.keys(files).forEach(function (m) { Object.keys(files[m]).forEach(function (id) { const x = files[m][id]; if (!x.ja && x.t >= since) pend.push({ id: id, m: m, x: x }); }); });
+    pend.sort(function (a, b) { return b.x.t - a.x.t; });
+    const todo = pend.slice(0, NEWS_AI_MAX);
+    try {
+      for (let i = 0; i < todo.length; i += NEWS_AI_BATCH) {
+        const chunk = todo.slice(i, i + NEWS_AI_BATCH);
+        const out = pmGemini_(newsPrompt_(), chunk.map(function (p, j) { return { i: j, s: newsFeed_(p.x.s).n, t: p.x.ti, d: String(desc[p.id] || '').slice(0, 300) }; }), 4096);
+        (Array.isArray(out) ? out : []).forEach(function (o) {
+          const p = chunk[Number(o && o.i)];
+          if (!p || !o.ja) return;
+          p.x.ja = String(o.ja).slice(0, 200);
+          if (o.sum) p.x.sum = String(o.sum).slice(0, 120);
+          p.x.sc = Math.max(0, Math.min(3, Math.round(Number(o.sc) || 0)));
+          p.x.cat = NEWS_CATS.indexOf(o.cat) >= 0 ? o.cat : 'その他';
+          dirty[p.m] = 1; scored.push(p);
+        });
+      }
+    } catch (e) { aiErr = String(e); Logger.log('ニュースの和訳に失敗: ' + e); }   // 取り込んだ記事は失わない (次の実行でまた訳す)
+  }
+
+  // 通知: 今回判定したもののうち、重要度が基準以上 (1件につき1回だけ)
+  try {
+    const NT = ntf_(), to = pmMailTo_();
+    if (to && pmMailOn_('PM_ALERT_ON') && NT.news) {
+      const hits = scored.filter(function (p) { return p.x.sc >= NT.newsMin && !p.x.m; })
+        .sort(function (a, b) { return (b.x.sc - a.x.sc) || (b.x.t - a.x.t); }).slice(0, NEWS_MAIL_MAX);
+      if (hits.length) {
+        const body = '大事そうなニュース・公式発表がありました (' + newsWhen_(now) + ' 日本時間)\n\n'
+          + hits.map(function (p, i) {
+            const f = newsFeed_(p.x.s);
+            return (i + 1) + '. [' + f.n + (f.off ? '・公式' : '') + '] ' + newsWhen_(p.x.t) + '\n   ' + p.x.ja + (p.x.sum ? '\n   ' + p.x.sum : '') + '\n   原文: ' + p.x.ti + '\n   ' + p.x.l;
+          }).join('\n\n')
+          + '\n\n※ ポリマーケット記録アプリが1時間ごとに確認しています。題と要約は AI が書いたもので、間違いがあり得ます。元の記事で確かめてください。';
+        MailApp.sendEmail({ to: to, subject: '【ポリマーケット】ニュース: ' + hits[0].x.ja.slice(0, 60), body: body,
+          htmlBody: pmMailHtml_('📰 ニュースと公式発表', hits.map(function (p) {
+            const f = newsFeed_(p.x.s);
+            return pmMailRow_('<b>' + esc(p.x.ja) + '</b> <span style="color:#6b7280;font-size:12px">[' + esc(f.n) + (f.off ? '・公式' : '') + '] ' + esc(newsWhen_(p.x.t)) + '</span>'
+              + '<div style="font-size:12px;color:#6b7280"><a href="' + esc(p.x.l) + '">元の記事</a> ・ ' + esc(p.x.ti) + '</div>', p.x.sum || '');
+          }).join('')) });
+        hits.forEach(function (p) { p.x.m = 1; dirty[p.m] = 1; });
+      }
+    }
+  } catch (e) { Logger.log('ニュースの通知に失敗: ' + e); }
+
+  Object.keys(dirty).forEach(function (m) { pmWrite_('news-' + m + '.json', JSON.stringify(files[m])); });
+  const since = now - NEWS_LATEST_DAYS * 86400000, items = [];
+  Object.keys(files).forEach(function (m) { Object.keys(files[m]).forEach(function (id) { const x = files[m][id]; if (x.t >= since) items.push(newsItem_(id, x)); }); });
+  items.sort(function (a, b) { return b.t - a.t; });
+  pmWrite_('news-latest.json', JSON.stringify({ at: now, items: items.slice(0, NEWS_LATEST_MAX), errors: errors, aiErr: aiErr }));
+  return { n: got.length, errors: errors };
+}
+function newsItem_(id, x) {
+  const o = { id: id, t: x.t, s: x.s, ti: x.ti, l: x.l };
+  ['ja', 'sum', 'sc', 'cat'].forEach(function (k) { if (x[k] != null) o[k] = x[k]; });
+  return o;
+}
+/** 最近のもの (新しい順) */
+function newsList_(hours) {
+  let d = null;
+  try { d = JSON.parse(pmRead_('news-latest.json') || 'null'); } catch (e) {}
+  if (!d || !Array.isArray(d.items)) return [];
+  const from = Date.now() - hours * 3600000;
+  return d.items.filter(function (x) { return x.t >= from; }).sort(function (a, b) { return b.t - a.t; });
+}
+/** 大事なもの (公式発表・重要度2以上) を並べる: 公式 → 重要度 → 新しい順 */
+function newsPick_(list, n) {
+  return list.filter(function (x) { return newsFeed_(x.s).off || x.sc >= 2; }).sort(function (a, b) {
+    return (newsFeed_(b.s).off - newsFeed_(a.s).off) || ((b.sc || 0) - (a.sc || 0)) || (b.t - a.t);
+  }).slice(0, n);
+}
+function newsLine_(x) { return '・[' + newsFeed_(x.s).n + '] ' + newsTitle_(x) + (x.sum ? ' — ' + x.sum : ''); }
+function newsHtmlRow_(x) {
+  const f = newsFeed_(x.s);
+  return pmMailRow_('<span style="color:#6b7280;font-size:12px">[' + esc(f.n) + (f.off ? '・公式' : '') + ']</span> <a href="' + esc(x.l) + '">' + esc(newsTitle_(x)) + '</a>', x.sum || '');
+}
+/** 毎朝のまとめの欄 (無ければ null) */
+function pmNewsSection_() {
+  const list = newsPick_(newsList_(24), 12);
+  if (!list.length) return null;
+  return {
+    text: '■■ ニュースと公式発表 (直近24時間)\n' + list.map(function (x) { return newsLine_(x) + '\n  ' + x.l; }).join('\n') + '\n',
+    html: pmMailHead_('📰 ニュースと公式発表 (直近24時間)') + list.map(newsHtmlRow_).join(''),
+  };
+}
+/** 急変のメールに足す欄 (無ければ null) */
+function newsAlertBlock_() {
+  const list = newsPick_(newsList_(6), 5);
+  if (!list.length) return null;
+  return {
+    text: '\n\n■ 直近6時間のニュース (動いた理由の手がかり)\n' + list.map(function (x) { return newsLine_(x) + '\n  ' + x.l; }).join('\n'),
+    html: pmMailSub_('📰 直近6時間のニュース (動いた理由の手がかり)') + list.map(newsHtmlRow_).join(''),
+  };
+}
+/** AI に渡すレポートの節 */
+function newsReportLines_(from) {
+  const t0 = Date.parse(from + 'T00:00:00+09:00'), all = [];
+  const n = Math.ceil((Date.now() - t0) / (28 * 86400000)) + 1;
+  hlMonths_(Date.now(), n).forEach(function (m) {
+    const f = pmLoadJson_('news-' + m + '.json');
+    Object.keys(f).forEach(function (id) { if (f[id].t >= t0) all.push(newsItem_(id, f[id])); });
+  });
+  const rows = all.filter(function (x) { return newsFeed_(x.s).off || x.sc >= 2; }).sort(function (a, b) { return b.t - a.t; }).slice(0, 150);
+  const lines = ['## 9. ニュースと公式発表', '公式 = FRB・SEC・CFTC の発表。重要度 = AI が利用者の興味に照らして付けた 0〜3 (3 が最も重要)。題と要約は AI が書いたもの。'];
+  if (rows.length) {
+    lines.push(pmMdTable_(['日時 (日本時間)', '出どころ', '題', '要約', '重要度'], rows.map(function (x) {
+      const f = newsFeed_(x.s);
+      return [Utilities.formatDate(new Date(x.t), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'), f.n + (f.off ? ' (公式)' : ''), x.ja ? x.ja + ' (' + x.ti + ')' : x.ti, x.sum || '-', x.sc == null ? '-' : x.sc];
+    })));
+  } else lines.push('(この期間の記録はありません)');
+  lines.push('');
+  return lines;
+}
+
+// =====================================================================
 //  記録の見張り — それぞれの記録が最後にいつ動いたかを控え、止まっていたら知らせる
 //    HB_<名前> = 最後に成功した時刻 / HBE_<名前> = 最後の失敗 (時刻 + 理由)。成功したら失敗は消す
 // =====================================================================
@@ -2323,6 +2592,7 @@ const HEALTH_JOBS = [
   { k: 'hl',       n: 'Hyperliquid の建玉・ファンディング', every: '1時間ごと', max: 3 },
   { k: 'macro',    n: 'マクロ指標の更新',                  every: '1時間ごと', max: 3 },
   { k: 'opt',      n: 'オプション市場 (Deribit)',           every: '1時間ごと', max: 3 },
+  { k: 'news',     n: 'ニュースと公式発表',                 every: '1時間ごと', max: 3 },
   { k: 'resolve',  n: '決着の取り込み',                    every: '毎日5時',   max: 30 },
   { k: 'daily',    n: '日ごとの要約',                      every: '毎日5時',   max: 30 },
   { k: 'macrolog', n: 'マクロの日誌 (天気図)',             every: '毎日5時',   max: 30 },
@@ -2407,8 +2677,9 @@ const NTF_SPEC = {
   kalshi: [true], gap: [5, 1, 50],
   hl: [true], oi: [20, 5, 200], fhi: [0.05, 0.005, 1], flo: [-0.03, -1, -0.005],
   opt: [true], dvol: [8, 2, 50],   // オプション: DVOL が24時間でこれだけ動いたら知らせる
+  news: [true], newsMin: [3, 2, 3],   // ニュース: AI の重要度がこれ以上なら知らせる
   health: [true],
-  dMacro: [true], dFlow: [true], dOpt: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
+  dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
 };
 function ntfDefaults_() { const o = {}; Object.keys(NTF_SPEC).forEach(function (k) { o[k] = NTF_SPEC[k][0]; }); return o; }
 function ntf_() {
