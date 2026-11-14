@@ -16,7 +16,7 @@
  */
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.12.05';
+const GAS_VERSION = '2026.12.06';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -163,6 +163,9 @@ function doGetInner_(e) {
   if (action === 'opt') {
     const od = optData_(e.parameter.force === '1');
     return json({ ok: true, version: GAS_VERSION, opt: od, hist: optHist_(120) });
+  }
+  if (action === 'us') {
+    return json({ ok: true, version: GAS_VERSION, us: usData_(e.parameter.force === '1') });
   }
   if (action === 'news') {
     const days = Math.max(1, Math.min(NEWS_LATEST_DAYS, Number(e.parameter.days) || 3));
@@ -411,6 +414,7 @@ function pmRecord() {
   hbRun_('hl', hlRecord_);
   hbRun_('opt', optRecord_);
   hbRun_('news', newsRecord_);
+  hbRun_('us', usRecord_);
   try { pmHealthMail_(); } catch (e) { Logger.log('記録の見張りに失敗: ' + e); }
 }
 
@@ -1031,10 +1035,11 @@ function pmDigest() {
     const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
     let mac = null;
     try { mac = pmMacroSection_(); } catch (e) { Logger.log('天気図をまとめに入れられません: ' + e); }
-    let ml = null, flow = null, optS = null, newsS = null;
+    let ml = null, flow = null, optS = null, newsS = null, usS = null;
     if (ntf_().dNews) { try { newsS = pmNewsSection_(); } catch (e) { Logger.log('ニュースをまとめに入れられません: ' + e); } }
     if (ntf_().dOpt) { try { optS = pmOptSection_(); } catch (e) { Logger.log('オプション市場をまとめに入れられません: ' + e); } }
     if (ntf_().dMacro) { try { ml = mac ? pmMacroList_(mac.res) : null; } catch (e) { Logger.log('マクロ指標の一覧をまとめに入れられません: ' + e); } }
+    if (ntf_().dUs) { try { usS = pmUsSection_(); } catch (e) { Logger.log('米国のお金の流れをまとめに入れられません: ' + e); } }
     if (ntf_().dFlow) { try { flow = pmFlowSection_(); } catch (e) { Logger.log('お金の流れをまとめに入れられません: ' + e); } }
     const text = day + ' のまとめ\n\n' + (mac ? mac.text + '\n' : '')
       + '■■ ポリマーケット (あなた向け・ウォッチ中の市場)\n\n'
@@ -1042,7 +1047,7 @@ function pmDigest() {
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
       + (newsS ? newsS.text + '\n' : '')
-      + (ml ? ml.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '')
+      + (ml ? ml.text + '\n' : '') + (usS ? usS.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '')
       + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + pmHealthLine_() + '\n\n'
       + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
     const h = function (title, list, empty) {
@@ -1057,7 +1062,7 @@ function pmDigest() {
       to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (mac ? ' ' + mac.sky[1] + mac.sky[2] : '') + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
       htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', (mac ? '<tr><td style="padding:6px 0 2px;font-weight:700;font-size:15px">🌐 相場の天気図</td></tr>' + mac.html : '') + h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')
-        + (newsS ? newsS.html : '') + (ml ? ml.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '')),
+        + (newsS ? newsS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
     hbOk_('digest');
@@ -1167,6 +1172,8 @@ function macroData_(force) {
   }
   if (errors.length) cur.errors = errors; else delete cur.errors;
   if (changed) { try { pmWrite_('macro.json', JSON.stringify(cur)); } catch (e) { Logger.log('macro.json を保存できません: ' + e); } }
+  const us = usForMacro_();   // 財務省・NY連銀の日次の系列 (あれば天気図の「正味の流動性」などが日次になる。macro.json には入れない)
+  if (us) cur.us = us; else delete cur.us;
   return cur;
 }
 /** トリガー (1時間ごとの記録) からも温めておく */
@@ -1202,6 +1209,11 @@ function mcNetLiq(f){
   const at = (s, d) => { let v = null; for(const x of s){ if(x[0] <= d) v = x[1]; else break; } return v; };
   return w.map(([d, v])=>{ const a = at(t, d), b = at(r, d); return a == null || b == null ? null : [d, v - a - b]; }).filter(Boolean);
 }
+/** 日次の系列 (財務省・NY連銀。サーバーが D.us に入れる)。4週間前と比べられる長さがある時だけ使い、無ければ null (週ごとの FRED に戻す) */
+function mcDaily(D, k){
+  const s = D && D.us && D.us[k];
+  return s && s.length >= 2 && Date.parse(mcLast(s)[0]) - Date.parse(s[0][0]) >= 30*86400000 ? s : null;
+}
 /* 指標の定義: id, テーマ, 名前, 用語, 計算 (データ → {v 値, sub 変化, s 推移, d 日付, sig 'g'|'y'|'r', why 理由}) */
 const MC_THEMES = [["rate","🏦 金利"],["money","💧 お金の量"],["fx","💱 ドルと円"],["fear","😨 不安の度合い"],["econ","📊 物価と景気"],["mkt","📈 株と商品"],["crypto","🪙 暗号資産"]];
 const MC_DEFS = [
@@ -1219,17 +1231,17 @@ const MC_DEFS = [
   { id:"curve", th:"rate", n:"長短金利差 (10年−2年)", t:"curve", f:D=>{ const s = D.fred.T10Y2Y, l = mcLast(s), a = mcAgo(s, 91); if(!l) return null;
       return { v: mcBp(l[1]).replace("+",""), sub: a ? `3か月前 ${Math.round(a[1]*100)}bp` : "", s, d: l[0],
         sig: l[1] < 0 ? "r" : l[1] < 0.5 ? "y" : "g", why: l[1] < 0 ? "逆イールド: 景気後退の前触れとされる形" : l[1] < 0.5 ? "差が小さい: 逆イールドからの戻り途中など、景気の転換点に注意" : "普通の形 (長期のほうが高い)" }; } },
-  { id:"netliq", th:"money", n:"正味の流動性", t:"netliq", f:D=>{ const s = mcNetLiq(D.fred), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
-      return { v: mcMoney(l[1]), sub: a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "", s, d: l[0],
+  { id:"netliq", th:"money", n:"正味の流動性", t:"netliq", f:D=>{ const dl = mcDaily(D, "netliq"), s = dl || mcNetLiq(D.fred), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: mcMoney(l[1]), sub: (a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "") + (dl ? " ・ 日次" : ""), s, d: l[0],
         sig: ch > 50 ? "g" : ch < -50 ? "r" : "y", why: ch > 50 ? "市場のお金が増えている: リスク資産に追い風" : ch < -50 ? "市場のお金が減っている: リスク資産に逆風" : "大きな変化はない" }; } },
   { id:"walcl", th:"money", n:"FRB 総資産", t:"walcl", f:D=>{ const s = mcBil(D.fred.WALCL), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null;
       return { v: mcMoney(l[1]), sub: a ? `4週 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < a[1] ? " (量的引き締め中)" : "") : "", s, d: l[0] }; } },
-  { id:"rrp", th:"money", n:"リバースレポ残高", t:"rrp", f:D=>{ const s = mcBil(D.fred.RRPONTSYD), l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
-      return { v: mcMoney(l[1]), sub: a ? `1か月 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < 50 ? " ・ ほぼ使い切り" : "") : "", s, d: l[0] }; } },
+  { id:"rrp", th:"money", n:"リバースレポ残高", t:"rrp", f:D=>{ const dl = mcDaily(D, "rrp"), s = dl || mcBil(D.fred.RRPONTSYD), l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
+      return { v: mcMoney(l[1]), sub: (a ? `1か月 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < 50 ? " ・ ほぼ使い切り" : "") : "") + (dl ? " ・ 日次" : ""), s, d: l[0] }; } },
   { id:"res", th:"money", n:"準備預金", t:"reserves", f:D=>{ const s = mcBil(D.fred.WRESBAL), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null;
       return { v: mcMoney(l[1]), sub: a ? `4週 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` : "", s, d: l[0] }; } },
-  { id:"tga", th:"money", n:"財務省口座 (TGA)", t:"tga", f:D=>{ const s = mcBil(D.fred.WTREGEN), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
-      return { v: mcMoney(l[1]), sub: a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "", s, d: l[0],
+  { id:"tga", th:"money", n:"財務省口座 (TGA)", t:"tga", f:D=>{ const dl = mcDaily(D, "tga"), s = dl || mcBil(D.fred.WTREGEN), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: mcMoney(l[1]), sub: (a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "") + (dl ? " ・ 日次" : ""), s, d: l[0],
         sig: ch > 150 ? "r" : ch < -150 ? "g" : null, why: ch > 150 ? "政府の口座にお金が集まり、市場から吸い上げている" : ch < -150 ? "政府の支払いで市場にお金が戻っている" : "" }; } },
   { id:"dxy", th:"fx", n:"ドル指数 (広義)", t:"dxy", f:D=>{ const s = D.fred.DTWEXBGS, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? (l[1]/a[1]-1)*100 : 0;
       return { v: mcNum(l[1], 1), sub: a ? `1か月 ${mcPct(ch)}` : "", s, d: l[0],
@@ -1538,7 +1550,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -1701,6 +1713,7 @@ function pmReport_(opt) {
   }
   if (parts.indexOf('news') >= 0) { try { newsReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 9. ニュースと公式発表', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('opt') >= 0) { try { optReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 8. オプション市場', '(読み出せませんでした: ' + e + ')', ''); } }
+  if (parts.indexOf('us') >= 0) { try { usReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 10. 米国のお金の流れ', '(読み出せませんでした: ' + e + ')', ''); } }
   const text = lines.join('\n');
   return { ok: true, text: text, chars: text.length, from: from, to: to };
 }
@@ -2582,6 +2595,293 @@ function newsReportLines_(from) {
 }
 
 // =====================================================================
+//  米国のお金の流れ (財務省・NY連銀、日次)
+//    財務省 Fiscal Data: 財務省口座 (TGA) の毎日の残高 (dts/operating_cash_balance、100万ドル単位) と国債入札 (od/auctions_query・od/upcoming_auctions)
+//    NY連銀 Markets API: リバースレポ (ON RRP)・常設レポ (SRF) の毎日の利用額 (rp/results/search、ドル単位)、SOFR・EFFR (rates/.../last/N)
+//    us-latest.json … { at, tga, rrp, srf, sofr, effr, netliq, auctions: { recent, upcoming }, read, errors } (金額は10億ドル・0.1 で丸め)
+// =====================================================================
+
+const US_TTL = 3 * 3600000;
+const US_DAYS = 130;                // 取る期間 (日)。画面は約120日
+const US_AUC_DAYS = 400;            // 入札は「前6回の平均」に足りるよう長めに取る
+const US_COOLDOWN = 24 * 3600000;   // 通知は種類ごとに24時間に1回
+const US_FD = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service';
+const US_NYF = 'https://markets.newyorkfed.org/api';
+const US_TGA_ROW = 'Treasury General Account (TGA) Closing Balance';   // 2021年10月からの形 (値は open_today_bal に入る)
+const US_BILLS = ['13-Week', '26-Week', '52-Week'];                   // 短期国債はこの3つだけ見る
+const US_AUC_FIELDS = 'cusip,security_type,security_term,original_security_term,auction_date,issue_date,offering_amt,bid_to_cover_ratio,high_yield,high_investment_rate,high_discnt_rate,high_discnt_margin,indirect_bidder_accepted,comp_accepted,inflation_index_security,floating_rate,cash_management_bill_cmb';
+const US_SRC = [['tga', '財務省口座 (TGA)'], ['rrp', 'リバースレポ (ON RRP)'], ['srf', '常設レポ (SRF)'], ['sofr', 'SOFR'], ['effr', 'EFFR'], ['auctions', '国債入札']];
+const US_TYPE_JA = { Bill: '短期国債', Note: '国債', Bond: '国債', TIPS: '物価連動国債', FRN: '変動利付国債' };
+
+const usR_ = function (x, n) { const p = Math.pow(10, n == null ? 1 : n); return x == null || isNaN(x) ? null : Math.round(x * p) / p; };
+const usNum_ = function (x) { if (x == null || x === '' || x === 'null') return null; const v = Number(x); return isNaN(v) ? null : v; };
+const usJson_ = function (url) { return JSON.parse(macroFetchText_(url)); };
+const usSigned_ = function (bn) { return bn == null ? '-' : (bn >= 0 ? '+' : '−') + mcMoney(Math.abs(bn)); };
+const usBp_ = function (x) { return x == null ? '-' : (x >= 0 ? '+' : '−') + Math.abs(Math.round(x * 100)) + 'bp'; };
+const usPct_ = function (x) { return x == null ? '-' : Number(x).toFixed(2) + '%'; };
+const usMd_ = function (d) { return Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)); };
+/** 系列の最後と、n 本前 (営業日) との差 */
+function usChg_(s, n) { return s && s.length > n ? usR_(s[s.length - 1][1] - s[s.length - 1 - n][1], 3) : null; }
+/** その日以前で一番近い値 (無ければ null) */
+function usAt_(s, d) { let v = null; for (let i = 0; i < s.length; i++) { if (s[i][0] <= d) v = s[i][1]; else break; } return v; }
+
+/** 財務省口座 (TGA) の毎日の残高 → [[日付, 10億ドル]] */
+function usTga_(from) {
+  const d = usJson_(US_FD + '/v1/accounting/dts/operating_cash_balance?fields=record_date,account_type,open_today_bal,close_today_bal'
+    + '&filter=record_date:gte:' + from + ',account_type:eq:' + encodeURIComponent(US_TGA_ROW) + '&sort=record_date&page%5Bsize%5D=400');
+  const out = (d.data || []).map(function (r) {
+    const v = usNum_(r.close_today_bal) != null ? usNum_(r.close_today_bal) : usNum_(r.open_today_bal);   // 今の形は open_today_bal、以前の形は close_today_bal
+    return r.record_date && v != null ? [r.record_date, usR_(v / 1000)] : null;
+  }).filter(Boolean).sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+  if (!out.length) throw new Error('TGA の行がありません');
+  return out;
+}
+/** NY連銀のレポ・リバースレポの結果 → 日ごとの合計 [[日付, 10億ドル]]。rrp = 翌日物のリバースレポ / srf = レポ (常設レポファシリティ。1日に2回あるので足す) */
+function usRepo_(kind, from, to) {
+  const d = usJson_(US_NYF + '/rp/results/search.json?startDate=' + from + '&endDate=' + to + '&operationTypes=' + (kind === 'rrp' ? 'Reverse%20Repo' : 'Repo'));
+  const ops = d && d.repo && d.repo.operations;
+  if (!Array.isArray(ops)) throw new Error('NY連銀の応答の形が違います');
+  const by = {};
+  ops.forEach(function (o) {   // 種類の絞り込みが効かないことがあるので、ここでも分ける
+    if (kind === 'rrp' ? o.operationType !== 'Reverse Repo' || (o.term && o.term !== 'Overnight') : o.operationType !== 'Repo') return;
+    if (o.auctionStatus && o.auctionStatus !== 'Results') return;
+    by[o.operationDate] = (by[o.operationDate] || 0) + (Number(o.totalAmtAccepted) || 0);
+  });
+  return Object.keys(by).sort().map(function (k) { return [k, usR_(by[k] / 1e9)]; });
+}
+/** SOFR → [[日付, 金利, 取引額(10億ドル), 1%点, 99%点]] / EFFR → [[日付, 金利]] */
+function usRate_(kind) {
+  const d = usJson_(US_NYF + (kind === 'sofr' ? '/rates/secured/sofr/last/90.json' : '/rates/unsecured/effr/last/90.json'));
+  const rows = (d.refRates || []).filter(function (r) { return r.effectiveDate && r.percentRate != null; })
+    .sort(function (a, b) { return a.effectiveDate < b.effectiveDate ? -1 : 1; });
+  if (!rows.length) throw new Error(kind + ' がありません');
+  return rows.map(function (r) {
+    return kind === 'sofr' ? [r.effectiveDate, Number(r.percentRate), usNum_(r.volumeInBillions), usNum_(r.percentPercentile1), usNum_(r.percentPercentile99)] : [r.effectiveDate, Number(r.percentRate)];
+  });
+}
+/** '10-Year' → '10年国債' / '13-Week' → '13週の短期国債' / '19-Year 10-Month' → '19年10か月国債' */
+function usAucName_(type, term) {
+  const t = String(term || '').replace(/(\d+)-Year/g, '$1年').replace(/(\d+)-Month/g, '$1か月').replace(/(\d+)-Week/g, '$1週').replace(/(\d+)-Day/g, '$1日').replace(/\s+/g, '');
+  return type === 'Bill' ? t + 'の短期国債' : t + US_TYPE_JA[type];
+}
+/** 入札1件を小さくする (見ない短期国債・CMB は null) */
+function usAucRow_(r) {
+  const type = r.inflation_index_security === 'Yes' ? 'TIPS' : r.floating_rate === 'Yes' ? 'FRN' : r.security_type;
+  const term = r.original_security_term && r.original_security_term !== 'null' ? r.original_security_term : r.security_term;
+  if (!r.auction_date || !US_TYPE_JA[type]) return null;
+  if (type === 'Bill' && (US_BILLS.indexOf(term) < 0 || r.cash_management_bill_cmb === 'Yes')) return null;
+  const amt = usNum_(r.offering_amt), btc = usNum_(r.bid_to_cover_ratio), ind = usNum_(r.indirect_bidder_accepted), comp = usNum_(r.comp_accepted);
+  const rate = type === 'Bill' ? (usNum_(r.high_investment_rate) != null ? usNum_(r.high_investment_rate) : usNum_(r.high_discnt_rate)) : type === 'FRN' ? usNum_(r.high_discnt_margin) : usNum_(r.high_yield);
+  return { id: (r.cusip || '') + r.auction_date, d: r.auction_date, type: type, term: term, n: usAucName_(type, term), amt: amt == null ? null : usR_(amt / 1e9),
+    btc: usR_(btc, 2), rate: usR_(rate, 3), ind: ind != null && comp > 0 ? usR_(ind / comp * 100) : null };
+}
+/** 入札: 結果の出たもの (直近) と、これからのもの (10日以内) */
+function usAuctions_(now) {
+  const today = pmJstDay_(now), until = pmJstDay_(now + 10 * 86400000);
+  const d = usJson_(US_FD + '/v1/accounting/od/auctions_query?fields=' + US_AUC_FIELDS + '&filter=auction_date:gte:' + pmJstDay_(now - US_AUC_DAYS * 86400000)
+    + '&sort=-auction_date&page%5Bsize%5D=2000');
+  if (!Array.isArray(d.data)) throw new Error('国債入札の応答の形が違います');
+  const rows = d.data.map(usAucRow_).filter(Boolean);
+  const held = rows.filter(function (a) { return a.btc != null && a.d <= today; }).sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+  // 同じ種類・年限の前の6回と比べる (前が3回以上ある時だけ、いちばん低い/高いを判定)
+  const past = {};
+  held.forEach(function (a) {
+    const k = a.type + ' ' + a.term, prev = (past[k] || []).slice(-6);
+    if (prev.length) a.btcAvg = usR_(prev.reduce(function (s, x) { return s + x; }, 0) / prev.length, 2);
+    if (prev.length >= 3) { a.weak = a.btc < Math.min.apply(null, prev); a.strong = a.btc > Math.max.apply(null, prev); }
+    (past[k] = past[k] || []).push(a.btc);
+  });
+  const desc = held.slice().reverse();
+  const coupons = desc.filter(function (a) { return a.type !== 'Bill'; }).slice(0, 12), bills = desc.filter(function (a) { return a.type === 'Bill'; }).slice(0, 6);
+  const recent = coupons.concat(bills).sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : 0; });
+  // これから: 入札の一覧で結果がまだのもの + 予定の一覧 (予定の一覧が取れなくても続ける)
+  const up = {};
+  const add = function (a) { if (!a || a.d < today || a.d > until) return; const k = a.d + ' ' + a.type + ' ' + a.term, o = up[k]; up[k] = { d: a.d, type: a.type, term: a.term, n: a.n, amt: a.amt != null ? a.amt : o ? o.amt : null }; };
+  rows.filter(function (a) { return a.btc == null; }).forEach(add);
+  try {
+    const u = usJson_(US_FD + '/v1/accounting/od/upcoming_auctions?filter=auction_date:gte:' + today + '&sort=auction_date&page%5Bsize%5D=100');
+    (u.data || []).forEach(function (r) { add(usAucRow_(r)); });
+  } catch (e) { Logger.log('国債入札の予定を取得できません: ' + e); }
+  const upcoming = Object.keys(up).map(function (k) { return up[k]; }).sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+  return { recent: recent, upcoming: upcoming };
+}
+/** 日次の正味の流動性 = FRB 総資産 (週ごと、直近の値を毎日に引き継ぐ) − TGA (毎日) − ON RRP (毎日、無い日は前の値) */
+function usNetLiq_(walcl, tga, rrp) {
+  if (!walcl || !walcl.length || !tga || !rrp || !rrp.length) return [];
+  return tga.map(function (r) {
+    const w = usAt_(walcl, r[0]), b = usAt_(rrp, r[0]);
+    return w == null || b == null ? null : [r[0], usR_(w / 1000 - r[1] - b)];   // WALCL は100万ドル単位
+  }).filter(Boolean);
+}
+
+/** 数字から読み取れることを、やさしい文にする (画面・メールで同じ文を使う) */
+function usRead_(o) {
+  const out = [], L = function (s) { return s && s.length ? s[s.length - 1] : null; };
+  const t = L(o.tga);
+  if (t) {
+    const d1 = usChg_(o.tga, 1), d5 = usChg_(o.tga, 5);
+    out.push('財務省口座 (TGA) は ' + mcMoney(t[1]) + ' (' + usMd_(t[0]) + ')。前の営業日から ' + usSigned_(d1) + (d5 != null ? '、5営業日で ' + usSigned_(d5) : '')
+      + (d5 == null ? '' : d5 >= 50 ? ': 政府の口座にお金が集まり、市場からお金を吸い上げています' : d5 <= -50 ? ': 政府の支払いで、市場にお金が出てきています' : ': 大きな出入りはありません'));
+  }
+  const r = L(o.rrp);
+  if (r) out.push('リバースレポ (ON RRP) は ' + mcMoney(r[1]) + (r[1] < 50 ? '。ほぼ空で、余ったお金のクッションはもうありません' : '。5営業日で ' + usSigned_(usChg_(o.rrp, 5)) + ' (減ると、眠っていたお金が市場に出ていきます)'));
+  const n = L(o.netliq);
+  if (n) {
+    const d5 = usChg_(o.netliq, 5), d20 = usChg_(o.netliq, 20);
+    out.push('正味の流動性 (日次) は ' + mcMoney(n[1]) + '。5営業日で ' + usSigned_(d5) + (d20 != null ? '、20営業日で ' + usSigned_(d20) : '')
+      + (d20 == null ? '' : d20 > 50 ? ': 市場のお金は増えています' : d20 < -50 ? ': 市場のお金は減っています' : ': 大きな変化はありません'));
+  }
+  const s = L(o.sofr), e = L(o.effr);
+  if (s) {
+    const gap = e ? usR_(s[1] - e[1], 3) : null, tail = s[4] != null ? usR_(s[4] - s[1], 3) : null;
+    if (gap != null && gap >= 0.05) out.push('SOFR (' + usPct_(s[1]) + ') が EFFR (' + usPct_(e[1]) + ') を ' + Math.round(gap * 100) + 'bp 上回っています: 国債を担保にした短期のお金が足りなくなりかけている合図です');
+    else if (tail != null && tail >= 0.15) out.push('SOFR は ' + usPct_(s[1]) + ' ですが、高い側の取引 (上位1%) は ' + usPct_(s[4]) + ' まで上がりました: 一部でお金がひっ迫しています');
+    else out.push('SOFR は ' + usPct_(s[1]) + (e ? ' (EFFR は ' + usPct_(e[1]) + ')' : '') + '。短期のお金のやり取りは落ち着いています');
+  }
+  if (o.srf && o.srf.length) {
+    const last = L(o.srf), used = o.srf.slice(-20).filter(function (x) { return x[1] > 0; });
+    if (last[1] > 0) out.push('常設レポ (SRF) が ' + usMd_(last[0]) + ' に ' + mcMoney(last[1]) + ' 使われました: 短期のお金がひっ迫した合図です');
+    else if (used.length) out.push('常設レポ (SRF) は直近20営業日のうち ' + used.length + '日 使われました (最大 ' + mcMoney(Math.max.apply(null, used.map(function (x) { return x[1]; }))) + ')');
+    else out.push('常設レポ (SRF) はこのところ使われていません (短期のお金は足りています)');
+  }
+  const a = ((o.auctions && o.auctions.recent) || []).filter(function (x) { return (x.weak || x.strong) && x.type !== 'Bill'; })[0];
+  if (a) out.push(a.n + 'の入札 (' + usMd_(a.d) + ') は' + (a.weak ? '不調' : '好調') + 'でした: 応札倍率 ' + a.btc + '倍 (前の回の平均 ' + a.btcAvg + '倍)'
+    + (a.weak ? '。買い手が少なめで、金利が上がりやすくなります' : '。買い手が多く、国債の人気は保たれています'));
+  return out;
+}
+
+/** 保存してあるものが3時間より古ければ取り直す。取れなかったものは前回の値を使い、errors に名前を残す */
+function usData_(force) {
+  let cur = null;
+  try { cur = JSON.parse(pmRead_('us-latest.json') || 'null'); } catch (e) {}
+  if (!force && cur && Date.now() - cur.at <= US_TTL) return cur;
+  const now = Date.now(), from = pmJstDay_(now - US_DAYS * 86400000), to = pmJstDay_(now);
+  const fresh = { at: now, errors: [] };
+  let got = 0;
+  const run = function (k, fn) {
+    try { fresh[k] = fn(); got++; }
+    catch (e) { fresh.errors.push(US_SRC.filter(function (s) { return s[0] === k; })[0][1]); fresh[k] = cur ? cur[k] : null; Logger.log('米国のお金の流れ ' + k + ' に失敗: ' + e); }
+  };
+  run('tga', function () { return usTga_(from); });
+  run('rrp', function () { return usRepo_('rrp', from, to); });
+  run('srf', function () { return usRepo_('srf', from, to); });
+  run('sofr', function () { return usRate_('sofr'); });
+  run('effr', function () { return usRate_('effr'); });
+  run('auctions', function () { return usAuctions_(now); });
+  if (!got) {
+    if (cur) return cur;
+    throw new Error('米国のお金の流れを取得できません (' + fresh.errors.join('・') + ')');
+  }
+  let walcl = null;
+  try { walcl = (macroData_(false).fred || {}).WALCL || null; } catch (e) { Logger.log('FRB 総資産を読めません: ' + e); }
+  ['tga', 'rrp', 'srf', 'sofr', 'effr'].forEach(function (k) { fresh[k] = fresh[k] || []; });
+  fresh.auctions = fresh.auctions || { recent: [], upcoming: [] };
+  fresh.netliq = usNetLiq_(walcl, fresh.tga, fresh.rrp);
+  if (!fresh.netliq.length && cur && cur.netliq) fresh.netliq = cur.netliq;
+  fresh.read = usRead_(fresh);
+  try { pmWrite_('us-latest.json', JSON.stringify(fresh)); } catch (e) { Logger.log('us-latest.json を保存できません: ' + e); }
+  return fresh;
+}
+/** 天気図 (マクロの計算) に渡す日次の系列。保存してあるものを読むだけ (取りに行かない) */
+function usForMacro_() {
+  try {
+    const u = JSON.parse(pmRead_('us-latest.json') || 'null');
+    if (!u) return null;
+    const cut = function (s) { return (s || []).slice(-120); };
+    return { at: u.at, tga: cut(u.tga), rrp: cut(u.rrp), netliq: cut(u.netliq) };
+  } catch (e) { return null; }
+}
+
+/** 1時間ごと (pmRecord から): 3時間ごとに取り直し、SRF の利用・TGA の大きな動き・不調な入札を知らせる */
+function usRecord_() {
+  const d = usData_(false);
+  const props = PropertiesService.getScriptProperties(), to = pmMailTo_(), NT = ntf_(), now = Date.now();
+  if (!to || !pmMailOn_('PM_ALERT_ON') || !NT.us) return d;
+  let sent = {};
+  try { sent = JSON.parse(props.getProperty('US_ALERT_SENT') || '{}') || {}; } catch (e) {}
+  // 同じ種類は24時間に1回、同じ日のデータでは1回だけ
+  const ok = function (k, day) { return sent[k + 'D'] !== day && !(sent[k] && now - sent[k] < US_COOLDOWN); };
+  const hits = [];
+  const srf = d.srf && d.srf.length ? d.srf[d.srf.length - 1] : null;
+  if (srf && srf[1] >= NT.srf && ok('srf', srf[0])) {
+    hits.push('常設レポ (SRF) が ' + usMd_(srf[0]) + ' に ' + mcMoney(srf[1]) + ' 使われました (基準 ' + mcMoney(NT.srf) + ' 以上) — 短期のお金がひっ迫した合図です');
+    sent.srf = now; sent.srfD = srf[0];
+  }
+  const t = d.tga && d.tga.length > 1 ? d.tga[d.tga.length - 1] : null, t1 = usChg_(d.tga, 1);
+  if (t && t1 != null && Math.abs(t1) >= NT.tga && ok('tga', t[0])) {
+    hits.push('財務省口座 (TGA) が1営業日で ' + usSigned_(t1) + ' (' + usMd_(t[0]) + '、' + mcMoney(t[1]) + ') — ' + (t1 > 0 ? '市場からお金が吸い上げられました' : '市場にお金が出てきました') + ' (基準 ±' + mcMoney(NT.tga) + ')');
+    sent.tga = now; sent.tgaD = t[0];
+  }
+  const seen = sent.aucSeen || [];
+  const weak = ((d.auctions && d.auctions.recent) || []).filter(function (a) { return a.weak && a.type !== 'Bill' && seen.indexOf(a.id) < 0 && now - Date.parse(a.d + 'T00:00:00Z') < 7 * 86400000; });
+  if (weak.length && !(sent.auc && now - sent.auc < US_COOLDOWN)) {
+    weak.forEach(function (a) { hits.push(a.n + 'の入札 (' + usMd_(a.d) + ') が不調でした: 応札倍率 ' + a.btc + '倍 (前の回の平均 ' + a.btcAvg + '倍)、利回り ' + (a.rate == null ? '-' : a.rate + '%') + ' — 買い手が少なめで、金利が上がりやすくなります'); seen.push(a.id); });
+    sent.auc = now; sent.aucSeen = seen.slice(-40);
+  }
+  if (hits.length) {
+    MailApp.sendEmail({ to: to, subject: '【ポリマーケット】米国のお金の流れ: ' + hits[0].split(' — ')[0].slice(0, 44),
+      body: '米国のお金の流れ (財務省・NY連銀) で目立つ動きがありました (' + Utilities.formatDate(new Date(now), 'Asia/Tokyo', 'M/d HH:mm') + ')。\n\n・' + hits.join('\n\n・')
+        + '\n\n■ いまの読み取り\n' + (d.read || []).map(function (x) { return '・' + x; }).join('\n')
+        + '\n\n※ ポリマーケット記録アプリからの自動通知です。売買はしていません。' });
+    props.setProperty('US_ALERT_SENT', JSON.stringify(sent));
+  }
+  return d;
+}
+
+/** 最新の値と、前の営業日・5営業日前との差 (毎朝のまとめ用) */
+function usLatestRows_(d) {
+  const L = function (s) { return s && s.length ? s[s.length - 1] : null; };
+  const money = function (n, s) { const l = L(s); return l ? { n: n, v: mcMoney(l[1]), d: l[0], c1: usSigned_(usChg_(s, 1)), c5: usSigned_(usChg_(s, 5)) } : null; };
+  const rate = function (n, s) { const l = L(s); return l ? { n: n, v: usPct_(l[1]), d: l[0], c1: usBp_(usChg_(s, 1)), c5: usBp_(usChg_(s, 5)) } : null; };
+  return [money('財務省口座 (TGA)', d.tga), money('リバースレポ (ON RRP)', d.rrp), money('日次の正味の流動性', d.netliq), rate('SOFR', d.sofr), rate('EFFR', d.effr)].filter(Boolean);
+}
+function usAucLine_(a) {
+  return usMd_(a.d) + ' ' + a.n + ': 応札倍率 ' + a.btc + '倍' + (a.btcAvg != null ? ' (前の回の平均 ' + a.btcAvg + '倍)' : '') + '、利回り ' + (a.rate == null ? '-' : a.rate + '%')
+    + (a.ind != null ? '、海外などの間接入札 ' + a.ind + '%' : '') + (a.amt != null ? '、発行額 ' + mcMoney(a.amt) : '') + (a.weak ? ' 【不調】' : a.strong ? ' 【好調】' : '');
+}
+/** 毎朝のまとめに入れる欄 */
+function pmUsSection_() {
+  const d = usData_(false);
+  if (!d || (!(d.tga || []).length && !(d.sofr || []).length)) return null;
+  const rows = usLatestRows_(d), auc = ((d.auctions || {}).recent || []).slice(0, 3);
+  const until = pmJstDay_(Date.now() + 7 * 86400000), up = ((d.auctions || {}).upcoming || []).filter(function (a) { return a.d <= until; });
+  const vl = function (r) { return r.n + ': ' + r.v + ' (' + usMd_(r.d) + ') ／ 前の営業日比 ' + r.c1 + ' ／ 5営業日比 ' + r.c5; };
+  const ul = function (a) { return usMd_(a.d) + ' ' + a.n + (a.amt != null ? ' (' + mcMoney(a.amt) + ')' : ''); };
+  const text = '■■ 米国のお金の流れ (財務省・NY連銀)\n' + (d.read || []).map(function (x) { return '・' + x; }).join('\n') + '\n'
+    + '\n■ 最新の値\n' + rows.map(function (r) { return '・' + vl(r); }).join('\n') + '\n'
+    + (auc.length ? '\n■ 最近の国債入札\n' + auc.map(function (a) { return '・' + usAucLine_(a); }).join('\n') + '\n' : '')
+    + '\n■ これからの国債入札 (7日以内)\n' + (up.length ? up.map(function (a) { return '・' + ul(a); }).join('\n') : '・予定はありません') + '\n'
+    + ((d.errors || []).length ? '・一部取得できませんでした: ' + d.errors.join('、') + '\n' : '');
+  const html = pmMailHead_('🏛 米国のお金の流れ (財務省・NY連銀)') + (d.read || []).map(function (x) { return pmMailRow_(esc(x)); }).join('')
+    + pmMailSub_('最新の値') + rows.map(function (r) { return pmMailRow_(esc(r.n) + ' <b>' + esc(r.v) + '</b>', usMd_(r.d) + ' ／ 前の営業日比 ' + r.c1 + ' ／ 5営業日比 ' + r.c5); }).join('')
+    + (auc.length ? pmMailSub_('最近の国債入札') + auc.map(function (a) { return pmMailRow_(esc(usAucLine_(a))); }).join('') : '')
+    + pmMailSub_('これからの国債入札 (7日以内)') + (up.length ? up.map(function (a) { return pmMailRow_(esc(ul(a))); }).join('') : pmMailRow_('予定はありません'));
+  return { text: text, html: html };
+}
+/** AI に渡すレポートの節 */
+function usReportLines_(from) {
+  const d = usData_(false), lines = ['## 10. 米国のお金の流れ (財務省・NY連銀、日次)'];
+  lines.push('金額の単位は10億ドル。TGA = 財務省の口座の残高 (増えると市場からお金を吸い上げる)。ON RRP = 翌日物リバースレポの利用額。SRF = 常設レポの利用額 (使われるのは短期のお金がひっ迫した時)。正味の流動性 = FRB 総資産 (週ごと) − TGA − ON RRP。SOFR・EFFR は %。');
+  if ((d.read || []).length) lines.push('いまの読み取り: ' + d.read.join(' ／ '));
+  const ds = (d.tga || []).map(function (r) { return r[0]; }).filter(function (x) { return x >= from; });
+  const at = function (s, x) { for (let i = 0; i < (s || []).length; i++) if (s[i][0] === x) return s[i][1]; return null; };
+  const v = function (x) { return x == null ? '-' : x; };
+  if (ds.length) lines.push(pmMdTable_(['日付', 'TGA', 'ON RRP', 'SRF', '正味の流動性', 'SOFR', 'EFFR'], ds.map(function (x) { return [x, v(at(d.tga, x)), v(at(d.rrp, x)), v(at(d.srf, x)), v(at(d.netliq, x)), v(at(d.sofr, x)), v(at(d.effr, x))]; })));
+  else lines.push('(この期間の記録はありません)');
+  const rec = ((d.auctions || {}).recent || []).filter(function (a) { return a.d >= from; });
+  if (rec.length) {
+    lines.push('### 国債入札の結果 (前の回の平均 = 同じ年限の前の最大6回。不調 = 前の3回以上のどれよりも応札倍率が低い、好調 = どれよりも高い)');
+    lines.push(pmMdTable_(['入札日', '銘柄', '発行額', '応札倍率', '前の回の平均', '利回り (%)', '間接入札 (%)', '判定'], rec.map(function (a) {
+      return [a.d, a.n, v(a.amt), a.btc, v(a.btcAvg), v(a.rate), v(a.ind), a.weak ? '不調' : a.strong ? '好調' : '-'];
+    })));
+  }
+  const up = (d.auctions || {}).upcoming || [];
+  if (up.length) { lines.push('### これからの国債入札'); lines.push(pmMdTable_(['入札日', '銘柄', '発行額'], up.map(function (a) { return [a.d, a.n, v(a.amt)]; }))); }
+  lines.push('');
+  return lines;
+}
+
+// =====================================================================
 //  記録の見張り — それぞれの記録が最後にいつ動いたかを控え、止まっていたら知らせる
 //    HB_<名前> = 最後に成功した時刻 / HBE_<名前> = 最後の失敗 (時刻 + 理由)。成功したら失敗は消す
 // =====================================================================
@@ -2593,6 +2893,7 @@ const HEALTH_JOBS = [
   { k: 'macro',    n: 'マクロ指標の更新',                  every: '1時間ごと', max: 3 },
   { k: 'opt',      n: 'オプション市場 (Deribit)',           every: '1時間ごと', max: 3 },
   { k: 'news',     n: 'ニュースと公式発表',                 every: '1時間ごと', max: 3 },
+  { k: 'us',       n: '米国のお金の流れ (財務省・NY連銀)',  every: '1時間ごと', max: 6 },
   { k: 'resolve',  n: '決着の取り込み',                    every: '毎日5時',   max: 30 },
   { k: 'daily',    n: '日ごとの要約',                      every: '毎日5時',   max: 30 },
   { k: 'macrolog', n: 'マクロの日誌 (天気図)',             every: '毎日5時',   max: 30 },
@@ -2678,8 +2979,9 @@ const NTF_SPEC = {
   hl: [true], oi: [20, 5, 200], fhi: [0.05, 0.005, 1], flo: [-0.03, -1, -0.005],
   opt: [true], dvol: [8, 2, 50],   // オプション: DVOL が24時間でこれだけ動いたら知らせる
   news: [true], newsMin: [3, 2, 3],   // ニュース: AI の重要度がこれ以上なら知らせる
+  us: [true], srf: [5, 1, 200], tga: [50, 10, 500],   // 米国のお金の流れ: SRF の利用額・TGA の1営業日の増減 (どちらも10億ドル単位)
   health: [true],
-  dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
+  dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true], dUs: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
 };
 function ntfDefaults_() { const o = {}; Object.keys(NTF_SPEC).forEach(function (k) { o[k] = NTF_SPEC[k][0]; }); return o; }
 function ntf_() {

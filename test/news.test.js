@@ -486,8 +486,9 @@ test('アプリ: ホームに「📰 ニュースと公式発表」(24時間以�
     for (let i = 0; i < 10; i++) await app.settle();
     const card = [...app.doc.querySelectorAll('#homeBody .hm-card')].find(c => /ニュースと公式発表/.test(c.querySelector('h3').textContent));
     assert.ok(card, 'ホームにニュースのカード');
-    assert.ok(card.classList.contains('hm-wide'), '7枚目なので横いっぱいにして並びをそろえる');
-    assert.equal(app.doc.querySelectorAll('#homeBody .hm-card').length, 7);
+    assert.ok(card.classList.contains('hm-wide'), '横いっぱいにして並びをそろえる');
+    assert.equal(app.doc.querySelectorAll('#homeBody .hm-card').length, 8);
+    assert.equal(app.doc.querySelectorAll('#homeBody .hm-card.hm-wide').length, 2, '横いっぱいはニュースと米国のお金の流れ (残りの6枚は2列できれいに並ぶ)');
     const rows = [...card.querySelectorAll('.hm-row')];
     assert.equal(rows.length, 4);
     assert.match(rows[0].textContent, /和:CFTC Sues Louisiana.*🏛 CFTC ・ たった今/);

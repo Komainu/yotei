@@ -431,6 +431,38 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
   main{padding:16px 12px 90px}
 }
 
+/* ---------- Hyperliquid・オプション・お金の流れで共通の部品 (要点カードの並び・表・グラフ) ---------- */
+.hl-sum{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-bottom:14px}
+.hl-bar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px}
+.hl-bar .search{flex:1; min-width:140px; padding:6px 10px}
+.hl-bar select{width:auto; padding:6px 10px; font-size:13px}
+.hl-tbl{width:100%; border-collapse:collapse; font-size:12.5px; font-variant-numeric:tabular-nums}
+.hl-tbl th{font-size:11px; color:var(--dim); font-weight:600; text-align:right; padding:4px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
+.hl-tbl td{text-align:right; padding:5px 6px; border-bottom:1px solid var(--border); white-space:nowrap}
+.hl-tbl th:first-child, .hl-tbl td:first-child{text-align:left}
+.hl-tbl tr.sel td{background:var(--tint-accent)}
+.hl-tbl tbody tr{cursor:pointer}
+.hl-wrap{overflow-x:auto}
+.hl-star{border:none; background:transparent; cursor:pointer; font-size:15px; color:var(--dim); padding:0 4px}
+.hl-star.on{color:var(--warn)}
+.hl-charts{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr)); gap:10px; margin-top:8px}
+.hl-chart{background:var(--card2); border-radius:10px; padding:8px 10px; min-width:0}
+.hl-chart .t{font-size:12px; color:var(--muted); display:flex; justify-content:space-between; gap:6px}
+.hl-chart svg{width:100%; height:110px; display:block}
+.hl-coins{display:flex; flex-wrap:wrap; gap:6px}
+@media (max-width:420px){ .hl-sum{grid-template-columns:repeat(2,minmax(0,1fr))} }
+/* ---------- 米国のお金の流れ ---------- */
+.us-box{margin:6px 0 18px}
+.us-box h3{font-size:15px; margin:4px 2px 10px; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px}
+.us-box h3 .pm-info{font-size:12px; font-weight:400}
+.us-tbl tbody tr{cursor:default}
+.us-tbl td:nth-child(2){text-align:left}
+.us-tbl tr.us-weak td{background:var(--tint-danger)}
+.us-tbl tr.us-strong td{background:var(--tint-ok)}
+.pm-tag.us-bad{background:var(--danger); color:var(--card); font-weight:700}
+.pm-tag.us-good{background:var(--ok); color:var(--card); font-weight:700}
+.us-up{display:flex; gap:4px 10px; flex-wrap:wrap; align-items:baseline; font-size:13px; padding:5px 0; border-bottom:1px solid var(--border)}
+.us-up small{color:var(--muted)}
 /* ---------- オプション市場 ---------- */
 .op-sig{font-size:14px}
 .op-range{position:relative; height:6px; border-radius:3px; background:linear-gradient(90deg,var(--ok),var(--warn),var(--danger)); margin:8px 0 2px; opacity:.85}
@@ -543,7 +575,15 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
   <div id="mcWeather"></div>
   <div id="mcCal"></div>
   <div id="mcBody"></div>
-  <p class="hint" style="margin-top:10px">ソース: FRED (セントルイス連銀) / Hyperliquid / DefiLlama / alternative.me。信号 (🟢🟡🔴) は一般的な目安で、売買の判断ではありません。</p>
+  <section class="us-box" id="usBox">
+    <h3>🏛 米国のお金の流れ (日次) <span id="usInfo" class="pm-info"></span></h3>
+    <p class="hint" style="margin:0 0 10px">アメリカ政府の口座 (<span class="term" data-term="tga">TGA</span>)・FRB のリバースレポ・短期の金利・国債の入札を、財務省と NY連銀の公式データで毎日見ます。週ごとの数字より早く変化が分かります。</p>
+    <div id="usSum"></div>
+    <div class="mc-cal" id="usRead"></div>
+    <div class="mc-cal" id="usCharts"></div>
+    <div class="mc-cal" id="usAuc"></div>
+  </section>
+  <p class="hint" style="margin-top:10px">ソース: FRED (セントルイス連銀) / 米財務省 Fiscal Data / NY連銀 Markets / Hyperliquid / DefiLlama / alternative.me。信号 (🟢🟡🔴) は一般的な目安で、売買の判断ではありません。</p>
 </section>
 
 <!-- ============ Hyperliquid ============ -->
@@ -674,6 +714,12 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r">予想変動率 (DVOL) が24時間で ± <input type="number" data-ntf="dvol" step="1"> 以上 動いた</div>
       </div>
       <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="us" style="width:auto">🏛 米国のお金の流れ (財務省・NY連銀)</label>
+        <div class="ntf-r">常設レポ (SRF) の利用が <input type="number" data-ntf="srf" step="1"> ×10億ドル 以上 (5 なら 50億ドル)</div>
+        <div class="ntf-r">財務省口座 (TGA) が1営業日で ± <input type="number" data-ntf="tga" step="10"> ×10億ドル 以上 動いた (50 なら 500億ドル)</div>
+        <div class="ntf-r" style="color:var(--muted)">国債の入札が「不調」だった時も知らせます。同じ種類の通知は24時間に1回までです。</div>
+      </div>
+      <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="news" style="width:auto">📰 ニュースと公式発表</label>
         <div class="ntf-r">AI が付けた重要度が <select data-ntf="newsMin" style="width:auto"><option value="3">3 (いちばん大事) だけ</option><option value="2">2 以上</option></select> の記事を知らせる (1時間ごと・同じ記事は1回だけ)</div>
       </div>
@@ -685,6 +731,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r" style="color:var(--muted)">相場の天気図・これからの予定・動いた市場・ウォッチ・新しい市場 は、いつも入ります。</div>
         <label class="check"><input type="checkbox" data-ntf="dNews" style="width:auto">📰 ニュースと公式発表 (直近24時間の公式発表と、あなた向けの記事)</label>
         <label class="check"><input type="checkbox" data-ntf="dMacro" style="width:auto">📋 マクロ指標の一覧 (金利・お金の量・ドルと円・株・暗号資産などの数値と信号)</label>
+        <label class="check"><input type="checkbox" data-ntf="dUs" style="width:auto">🏛 米国のお金の流れ (財務省口座・リバースレポ・正味の流動性・SOFR・国債の入札)</label>
         <label class="check"><input type="checkbox" data-ntf="dOpt" style="width:auto">🎯 オプション市場 (予想変動率・プット/コール比率・スキュー・建玉の大きい満期)</label>
         <label class="check"><input type="checkbox" data-ntf="dFlow" style="width:auto">💧 お金の流れ (チェーンの預かり資産・ステーブルコインの増減・先物 DEX・エアドロップ候補)</label>
       </div>
@@ -799,6 +846,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       <label class="check"><input type="checkbox" value="llama" checked style="width:auto">💧 チェーンごとのお金の流れ・先物 DEX</label>
       <label class="check"><input type="checkbox" value="opt" checked style="width:auto">🎯 オプション市場 (予想変動率・P/C・満期ごとの建玉)</label>
       <label class="check"><input type="checkbox" value="news" checked style="width:auto">📰 ニュースと公式発表</label>
+      <label class="check"><input type="checkbox" value="us" checked style="width:auto">🏛 米国のお金の流れ (TGA・ON RRP・SRF・SOFR・国債の入札、日次)</label>
     </div>
     <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
     <div id="repOut"></div>
@@ -826,9 +874,9 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.05";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.06";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.05";
+const MIN_GAS_VERSION = "2026.12.06";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { settings: {} };
@@ -2102,6 +2150,83 @@ $("#tab-opt").addEventListener("click", ev=>{
   const tr = ev.target.closest("tr[data-opexp]"); if(tr){ OP.exp = tr.dataset.opexp; renderOptExps(); }
 });
 
+/* ================= 米国のお金の流れ (財務省・NY連銀、日次) ================= */
+/* マクロのタブの下の囲み。数字と読み取りの文はサーバー (usData_) が作る。金額はすべて10億ドル単位で届く */
+const US = { data: null, loading: false };
+const usSigned = bn => bn == null || isNaN(bn) ? "-" : (bn >= 0 ? "+" : "−") + mcMoney(Math.abs(bn));
+const usBp = x => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "−") + Math.abs(Math.round(x*100)) + "bp";
+const usPct = x => x == null || isNaN(x) ? "-" : Number(x).toFixed(2) + "%";
+const usMd = d => d ? `${Number(d.slice(5,7))}/${Number(d.slice(8,10))}` : "";
+const usLast = s => s && s.length ? s[s.length-1] : null;
+/** 最後と n 本前 (営業日) の差 */
+function usChg(s, n){ return s && s.length > n ? Math.round((s[s.length-1][1] - s[s.length-1-n][1])*1000)/1000 : null; }
+async function loadUs(force){
+  if(US.loading) return;
+  if(!state.settings.gasUrl){ $("#usSum").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると表示されます。</div>`; return; }
+  const cache = pmLS.get("us_cache_v1", null);
+  if(cache && !US.data){ US.data = cache; renderUs(); }
+  if(!US.data) $("#usSum").innerHTML = Array.from({length:2}, ()=>`<div class="pm-skel"></div>`).join("");
+  US.loading = true; $("#usInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=us" + (force === true ? "&force=1" : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !d.us) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    US.data = d.us; pmLS.set("us_cache_v1", d.us);
+    renderUs();
+  }catch(err){
+    if(!US.data) $("#usSum").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`;
+    else $("#usInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ US.loading = false; }
+}
+function renderUs(){
+  const u = US.data; if(!u) return;
+  const card = (n, t, s, v, sub) => { const l = usLast(s);
+    return `<div class="mc-card"><div class="mc-h"><span>${esc(n)}</span>${termBtn(t)}</div><div class="mc-v">${l ? esc(v(l)) : "-"}</div><div class="mc-sub">${l ? sub : "取得できませんでした"}</div>${l ? `<div class="mc-date">${esc(usMd(l[0]))} 時点</div>` : ""}</div>`; };
+  const money = (n, t, s) => card(n, t, s, l=>mcMoney(l[1]), `1日 ${esc(usSigned(usChg(s, 1)))} ／ 5日 ${esc(usSigned(usChg(s, 5)))}`);
+  const e = usLast(u.effr), srf = usLast(u.srf);
+  $("#usSum").innerHTML = `<div class="hl-sum">
+    ${money("財務省口座 (TGA)", "tga", u.tga)}
+    ${money("リバースレポ (ON RRP)", "rrp", u.rrp)}
+    ${money("正味の流動性 (日次)", "netliq", u.netliq)}
+    ${card("SOFR (短期の金利)", "sofr", u.sofr, l=>usPct(l[1]), `1日 ${esc(usBp(usChg(u.sofr, 1)))} ／ 5日 ${esc(usBp(usChg(u.sofr, 5)))}<br>EFFR ${esc(usPct(e && e[1]))} ・ SRF ${srf && srf[1] > 0 ? `<b class="down">${esc(mcMoney(srf[1]))} 利用</b>` : "利用なし"} ${termBtn("srf")}`)}
+  </div>`;
+  $("#usRead").innerHTML = `<div class="mc-w-h" style="margin-top:0">🔎 いまの読み取り</div>`
+    + ((u.read || []).length ? `<ul class="op-read">${u.read.map(x=>`<li>${linkTerms(esc(x))}</li>`).join("")}</ul>` : `<div class="hint">読み取れる材料がありません</div>`)
+    + `<div class="hint">「1日」「5日」は営業日で数えた変化です。公式の数字から読み取った目安で、売買の判断ではありません。</div>`;
+  renderUsCharts(); renderUsAuc();
+  const t = u.at ? new Date(u.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+  $("#usInfo").textContent = (t ? t + " 時点" : "") + ((u.errors || []).length ? " ・ 一部取得できず (" + u.errors.join("、") + ")" : "");
+}
+function renderUsCharts(){
+  const u = US.data; if(!u) return;
+  const pts = (s, i) => (s || []).slice(-120).map(r=>[r[0] + "T00", r[i == null ? 1 : i]]);
+  const box = (title, t, s, fmt, extra) => { const l = usLast(s);
+    return `<div class="hl-chart"><div class="t"><span>${title} ${termBtn(t)}</span><b>${l ? esc(fmt(l[1])) : "-"}</b></div>${(s || []).length >= 2 ? hlLine(pts(s), extra || {}) : `<div class="hint">データが2日分以上そろうと描きます</div>`}</div>`; };
+  const effrAt = {}; (u.effr || []).forEach(r=>{ effrAt[r[0]] = r[1]; });
+  const sofr = (u.sofr || []).slice(-120);
+  $("#usCharts").innerHTML = `<div class="mc-w-h" style="margin-top:0">📈 推移 (約120日・営業日ごと)</div><div class="hl-charts">
+      ${box("財務省口座 (TGA)", "tga", u.tga, mcMoney)}
+      ${box("リバースレポ (ON RRP)", "rrp", u.rrp, mcMoney)}
+      ${box("正味の流動性 (日次)", "netliq", u.netliq, mcMoney)}
+      ${box(`SOFR — <span style="color:var(--warn)">点線: EFFR</span>`, "sofr", sofr, usPct, { second: sofr.map(r=>[r[0] + "T00", effrAt[r[0]] == null ? null : effrAt[r[0]]]) })}
+    </div>`;
+}
+function renderUsAuc(){
+  const u = US.data; if(!u) return;
+  const A = u.auctions || {}, rec = A.recent || [], up = A.upcoming || [];
+  const dow = d => "日月火水木金土"[new Date(d + "T00:00:00Z").getUTCDay()];
+  const tag = a => a.weak ? ` <span class="pm-tag us-bad">不調</span>` : a.strong ? ` <span class="pm-tag us-good">好調</span>` : "";
+  const cmp = a => a.btcAvg == null ? "" : ` <small>(平均 ${a.btcAvg}倍 ${a.btc >= a.btcAvg ? "より上" : "より下"})</small>`;
+  $("#usAuc").innerHTML = `<div class="mc-w-h" style="margin-top:0">🏦 国債の入札の結果 ${termBtn("auction")}</div>`
+    + (rec.length ? `<div class="hl-wrap"><table class="hl-tbl us-tbl"><thead><tr><th>入札日</th><th>種類</th><th>発行額</th><th>応札倍率 ${termBtn("bidcover")}</th><th>利回り</th><th>海外などの間接入札 ${termBtn("indirect")}</th></tr></thead><tbody>`
+      + rec.map(a=>`<tr class="${a.weak ? "us-weak" : a.strong ? "us-strong" : ""}"><td>${esc(usMd(a.d))}</td><td><b>${esc(a.n)}</b>${tag(a)}</td><td>${a.amt == null ? "-" : esc(mcMoney(a.amt))}</td><td>${a.btc == null ? "-" : esc(String(a.btc)) + "倍"}${cmp(a)}</td><td>${a.rate == null ? "-" : esc(String(a.rate)) + "%"}</td><td>${a.ind == null ? "-" : esc(String(a.ind)) + "%"}</td></tr>`).join("")
+      + `</tbody></table></div><div class="hint">応札倍率 = 買いたい額 ÷ 売る額。同じ年限の前の回 (最大6回) と比べ、前の3回以上のどれよりも低いと「不調」、高いと「好調」。不調だと金利が上がりやすくなります。</div>`
+      : `<div class="hint">入札の結果を取得できませんでした</div>`)
+    + `<div class="mc-w-h">📅 これからの入札 (10日以内)</div>`
+    + (up.length ? up.map(a=>`<div class="us-up"><b>${esc(usMd(a.d))} (${dow(a.d)})</b><span>${esc(a.n)}</span><small>${a.amt == null ? "発行額は未発表" : "発行額 " + esc(mcMoney(a.amt))}</small></div>`).join("") : `<div class="hint">10日以内の予定はありません</div>`);
+}
+
 /* ================= ニュースと公式発表 ================= */
 /* サーバー (newsRecord_) が1時間ごとに RSS を取り込み、AI が日本語の題・一行の要約・重要度 (0〜3)・分野を付けたもの */
 const NW_FILTERS = [["rel", "✨ あなた向け"], ["off", "🏛 公式発表"], ["all", "すべて"]];
@@ -2417,6 +2542,11 @@ const GLOSS = {
   walcl: { n:"FRB 総資産 (バランスシート)", a:["FRB総資産","FRB 総資産","バランスシート","B/S"], s:"FRB が持っている国債などの合計。量的緩和で増え、量的引き締めで減ります。", w:"FRB が市場に出しているお金の量の目安です。", u:"量的緩和。お金が増え、リスク資産に追い風になりやすいです。", d:"量的引き締め (QT)。お金が減り、逆風になりやすいです。", r:["qt","netliq","reserves"] },
   qt: { n:"量的緩和 (QE)・量的引き締め (QT)", a:["量的引き締め","量的緩和","QT","QE"], s:"FRB が国債などを買ってお金を増やすのが QE、持っている国債を減らしてお金を減らすのが QT です。", w:"金利と並ぶ、FRB のもう1つの道具。お金の量に直接効きます。", r:["walcl","netliq"] },
   tga: { n:"財務省口座 (TGA)", a:["財務省口座","TGA"], s:"アメリカ政府 (財務省) が FRB に持っている預金口座。税金や国債で集めたお金がここに入ります。", w:"ここにお金が貯まると、その分だけ市場からお金が吸い上げられます。", u:"市場のお金が減ります (国債の大量発行の時など)。", d:"政府の支払いで市場にお金が戻ります。", r:["netliq","rrp"] },
+  srf: { n:"常設レポ (SRF)", a:["常設レポファシリティ","常設レポ","SRF"], s:"金融機関が国債などを担保にして、FRB から一晩お金を借りられる仕組み (Standing Repo Facility)。その日の利用額です。", w:"ふだんはほとんど使われません。使われた日は、市場で短期のお金が足りなくなった合図です。", u:"短期のお金がひっ迫しています。続くと市場が不安定になりやすいです。", r:["sofr","rrp","reserves"] },
+  effr: { n:"EFFR (実効FF金利)", a:["EFFR","実効FF金利"], s:"銀行どうしが担保なしで一晩お金を貸し借りした時の、実際の金利の平均。FRB は政策金利の目標の幅に収まるように調整しています。", w:"SOFR が EFFR をはっきり上回ると、国債を担保にしたお金のやり取りがひっ迫しているサインです。", r:["ffrate","sofr","iorb"] },
+  auction: { n:"国債入札", a:["国債入札","国債の入札"], s:"アメリカ政府 (財務省) が国債を売って、お金を集めるための入札。短期国債は毎週、2年〜30年の国債はおよそ毎月あります。", w:"買い手が少ない (不調) と金利が上がりやすく、株や暗号資産の向かい風になることがあります。集めたお金は財務省口座 (TGA) に入ります。", r:["bidcover","indirect","yield","tga"] },
+  bidcover: { n:"応札倍率", a:["応札倍率","bid-to-cover"], s:"入札で「買いたい」と出された金額が、売る金額の何倍あったか。", w:"高いほど人気です。このアプリでは同じ年限の前の回 (最大6回) と比べ、前の3回以上のどれよりも低ければ「不調」、高ければ「好調」としています。", u:"国債の人気が高い (金利が下がりやすい)。", d:"国債の人気が低い (金利が上がりやすい)。", r:["auction","indirect"] },
+  indirect: { n:"間接入札", a:["間接入札","間接入札者"], s:"海外の中央銀行や投資家などが、銀行を通して入札に参加する分。落札された額のうちの割合で見ます。", w:"多いほど海外などからの需要が強いことになります。急に減ると、国債離れの心配材料になります。", r:["auction","bidcover"] },
   netliq: { n:"正味の流動性", a:["正味の流動性","ネット流動性","Net Liquidity"], s:"FRB 総資産 − 財務省口座 − リバースレポ。市場で実際に使えるお金の量の目安としてよく使われます。", w:"株や暗号資産の値動きと連動しやすいと言われ、多くの投資家が見ています (ただし必ず連動するわけではありません)。", u:"市場のお金が増え、リスク資産に追い風。", d:"市場のお金が減り、逆風。", r:["walcl","tga","rrp"] },
   yield: { n:"国債利回り", a:["国債利回り","利回り","長期金利"], s:"国にお金を貸した時にもらえる利息の割合。2年債は政策金利の予想、10年債は景気と物価の長い見通しを映します。", w:"10年債利回りは、住宅ローンや株の値段の計算の基準になります。", u:"借りる費用が上がり、株 (特に成長株) や暗号資産には逆風になりやすいです。", d:"追い風になりやすいですが、景気悪化の心配で下がっている時もあります。", r:["curve","ffrate"] },
   curve: { n:"長短金利差・逆イールド", a:["長短金利差","逆イールド","イールドカーブ","10年−2年"], s:"10年債と2年債の利回りの差。普通は長いほうが高い (プラス) ですが、逆になる (マイナス) のを逆イールドと言います。", w:"逆イールドは景気後退の前触れとして知られています。ただし、逆イールドが解消してプラスに戻る頃に景気後退が始まることも多いです。", u:"プラス幅が広がる = 普通の形に戻る動き。", d:"マイナス = 逆イールド。景気後退を心配する見方が強いサイン。", r:["yield","recession"] },
@@ -2546,6 +2676,11 @@ function mcNetLiq(f){
   const at = (s, d) => { let v = null; for(const x of s){ if(x[0] <= d) v = x[1]; else break; } return v; };
   return w.map(([d, v])=>{ const a = at(t, d), b = at(r, d); return a == null || b == null ? null : [d, v - a - b]; }).filter(Boolean);
 }
+/** 日次の系列 (財務省・NY連銀。サーバーが D.us に入れる)。4週間前と比べられる長さがある時だけ使い、無ければ null (週ごとの FRED に戻す) */
+function mcDaily(D, k){
+  const s = D && D.us && D.us[k];
+  return s && s.length >= 2 && Date.parse(mcLast(s)[0]) - Date.parse(s[0][0]) >= 30*86400000 ? s : null;
+}
 /* 指標の定義: id, テーマ, 名前, 用語, 計算 (データ → {v 値, sub 変化, s 推移, d 日付, sig 'g'|'y'|'r', why 理由}) */
 const MC_THEMES = [["rate","🏦 金利"],["money","💧 お金の量"],["fx","💱 ドルと円"],["fear","😨 不安の度合い"],["econ","📊 物価と景気"],["mkt","📈 株と商品"],["crypto","🪙 暗号資産"]];
 const MC_DEFS = [
@@ -2563,17 +2698,17 @@ const MC_DEFS = [
   { id:"curve", th:"rate", n:"長短金利差 (10年−2年)", t:"curve", f:D=>{ const s = D.fred.T10Y2Y, l = mcLast(s), a = mcAgo(s, 91); if(!l) return null;
       return { v: mcBp(l[1]).replace("+",""), sub: a ? `3か月前 ${Math.round(a[1]*100)}bp` : "", s, d: l[0],
         sig: l[1] < 0 ? "r" : l[1] < 0.5 ? "y" : "g", why: l[1] < 0 ? "逆イールド: 景気後退の前触れとされる形" : l[1] < 0.5 ? "差が小さい: 逆イールドからの戻り途中など、景気の転換点に注意" : "普通の形 (長期のほうが高い)" }; } },
-  { id:"netliq", th:"money", n:"正味の流動性", t:"netliq", f:D=>{ const s = mcNetLiq(D.fred), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
-      return { v: mcMoney(l[1]), sub: a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "", s, d: l[0],
+  { id:"netliq", th:"money", n:"正味の流動性", t:"netliq", f:D=>{ const dl = mcDaily(D, "netliq"), s = dl || mcNetLiq(D.fred), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: mcMoney(l[1]), sub: (a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "") + (dl ? " ・ 日次" : ""), s, d: l[0],
         sig: ch > 50 ? "g" : ch < -50 ? "r" : "y", why: ch > 50 ? "市場のお金が増えている: リスク資産に追い風" : ch < -50 ? "市場のお金が減っている: リスク資産に逆風" : "大きな変化はない" }; } },
   { id:"walcl", th:"money", n:"FRB 総資産", t:"walcl", f:D=>{ const s = mcBil(D.fred.WALCL), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null;
       return { v: mcMoney(l[1]), sub: a ? `4週 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < a[1] ? " (量的引き締め中)" : "") : "", s, d: l[0] }; } },
-  { id:"rrp", th:"money", n:"リバースレポ残高", t:"rrp", f:D=>{ const s = mcBil(D.fred.RRPONTSYD), l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
-      return { v: mcMoney(l[1]), sub: a ? `1か月 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < 50 ? " ・ ほぼ使い切り" : "") : "", s, d: l[0] }; } },
+  { id:"rrp", th:"money", n:"リバースレポ残高", t:"rrp", f:D=>{ const dl = mcDaily(D, "rrp"), s = dl || mcBil(D.fred.RRPONTSYD), l = mcLast(s), a = mcAgo(s, 30); if(!l) return null;
+      return { v: mcMoney(l[1]), sub: (a ? `1か月 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` + (l[1] < 50 ? " ・ ほぼ使い切り" : "") : "") + (dl ? " ・ 日次" : ""), s, d: l[0] }; } },
   { id:"res", th:"money", n:"準備預金", t:"reserves", f:D=>{ const s = mcBil(D.fred.WRESBAL), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null;
       return { v: mcMoney(l[1]), sub: a ? `4週 ${l[1]-a[1] >= 0 ? "+" : ""}${mcMoney(l[1]-a[1])}` : "", s, d: l[0] }; } },
-  { id:"tga", th:"money", n:"財務省口座 (TGA)", t:"tga", f:D=>{ const s = mcBil(D.fred.WTREGEN), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
-      return { v: mcMoney(l[1]), sub: a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "", s, d: l[0],
+  { id:"tga", th:"money", n:"財務省口座 (TGA)", t:"tga", f:D=>{ const dl = mcDaily(D, "tga"), s = dl || mcBil(D.fred.WTREGEN), l = mcLast(s), a = mcAgo(s, 28); if(!l) return null; const ch = a ? l[1]-a[1] : 0;
+      return { v: mcMoney(l[1]), sub: (a ? `4週 ${ch >= 0 ? "+" : ""}${mcMoney(ch)}` : "") + (dl ? " ・ 日次" : ""), s, d: l[0],
         sig: ch > 150 ? "r" : ch < -150 ? "g" : null, why: ch > 150 ? "政府の口座にお金が集まり、市場から吸い上げている" : ch < -150 ? "政府の支払いで市場にお金が戻っている" : "" }; } },
   { id:"dxy", th:"fx", n:"ドル指数 (広義)", t:"dxy", f:D=>{ const s = D.fred.DTWEXBGS, l = mcLast(s), a = mcAgo(s, 30); if(!l) return null; const ch = a ? (l[1]/a[1]-1)*100 : 0;
       return { v: mcNum(l[1], 1), sub: a ? `1か月 ${mcPct(ch)}` : "", s, d: l[0],
@@ -2932,7 +3067,7 @@ async function loadMacro(force){
     else $("#mcInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
   }finally{ MC.loading = false; }
 }
-$("#mcReload").addEventListener("click", ()=>loadMacro(true));
+$("#mcReload").addEventListener("click", ()=>{ loadMacro(true); loadUs(true); });
 
 /* ================= サーバー (Google Apps Script) ================= */
 /* 合言葉 (サーバーの API_SECRET) をすべての通信に付ける。未設定なら付けない */
@@ -3137,6 +3272,7 @@ function switchTab(t){
   if(t==="settings" && !loaded.settings){ loaded.settings=1; pmAiSettingsLoad(); }
   if(t==="poly" && !loaded.poly){ loaded.poly=1; pmLoad(); }
   if(t==="btc" && !loaded.btc){ loaded.btc=1; loadMacro(); }
+  if(t==="btc" && !loaded.us){ loaded.us=1; loadUs(); }
   if(t==="gloss"){ renderGloss(); }
   if(t==="hl" && !loaded.hl){ loaded.hl=1; loadHl(); }
   if(t==="opt" && !loaded.opt){ loaded.opt=1; loadOpt(); }
@@ -3266,6 +3402,7 @@ function loadTop(){
   if(!HEALTH.data) loadHealth();
   if(!loaded.poly){ loaded.poly = 1; pmLoad(); }
   if(!loaded.btc){ loaded.btc = 1; loadMacro(); }
+  if(!loaded.us){ loaded.us = 1; loadUs(); }
   if(!loaded.hl){ loaded.hl = 1; loadHl(); }
   if(!loaded.flow){ loaded.flow = 1; loadFlow(); }
   if(!loaded.opt){ loaded.opt = 1; loadOpt(); }
@@ -3379,6 +3516,15 @@ function renderTop(){
     nwBody = top.length ? top.map(x=>{ const f = nwFeed(x.s); return `<button class="hm-row hm-click" data-jump="news"><div class="hm-row-main"><b>${esc(nwTitle(x))}</b><small>${f.off ? "🏛 " : ""}${esc(f.n)} ・ ${esc(nwAgo(x.t))}${x.sum ? " ・ " + esc(x.sum) : ""}</small></div>${x.sc != null ? nwDots(x.sc) : ""}</button>`; }).join("")
       : `<div class="hint" style="margin:0">直近24時間に、公式発表やあなた向けのニュースはありませんでした</div>`;
   }
+  /* --- 米国のお金の流れ --- */
+  let usBody;
+  if(!US.data) usBody = !gas ? hmNoGas : US.tried ? hmFail : hmWait;
+  else{
+    const u = US.data, kp = (n, s) => { const l = usLast(s); return `<div><small>${n}</small><b>${l ? esc(mcMoney(l[1])) : "-"}</b><span>5日 ${esc(usSigned(usChg(s, 5)))}</span></div>`; };
+    const lines = (u.read || []).filter(x=>!/^(財務省口座|リバースレポ|正味の流動性)/.test(x)).slice(0, 3);
+    usBody = `<div class="hm-kpis">${kp("財務省口座 (TGA)", u.tga)}${kp("ON RRP", u.rrp)}${kp("正味の流動性", u.netliq)}</div>`
+      + lines.map(x=>`<div class="hm-row"><div class="hm-row-main"><small style="white-space:normal; color:var(--text)">${esc(x)}</small></div></div>`).join("");
+  }
   /* --- 記録の見張り --- */
   let healthTop = "";
   const hd = HEALTH.data;
@@ -3401,6 +3547,7 @@ function renderTop(){
     + topCard("🟢", "暗号資産の先物 (Hyperliquid)", "hl", hlBody)
     + topCard("🎯", "オプション市場 (Deribit)", "opt", opBody)
     + topCard("💧", "お金の流れ", "flow", flBody)
+    + topCard("🏛", "米国のお金の流れ", "btc", usBody, "hm-wide")
     + `</div>` + (hd && hd.ok ? healthTop : "");
 }
 $("#tab-top").addEventListener("click", ev=>{
@@ -3421,7 +3568,8 @@ $("#tab-top").addEventListener("click", ev=>{
   const done = (fn, obj) => async function(){ try{ return await fn.apply(this, arguments); } finally { obj.tried = true; try{ renderTop(); }catch(e){} relRefresh(); } };
   const pl = pmLoad; pmLoad = async function(){ await pl.apply(this, arguments); relRefresh(); };
   loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); loadOpt = done(loadOpt, OP); renderOpt = wrap("renderOpt", renderOpt);
-  loadNews = done(loadNews, NW); renderNews = wrap("renderNews", renderNews); }
+  loadNews = done(loadNews, NW); renderNews = wrap("renderNews", renderNews);
+  loadUs = done(loadUs, US); renderUs = wrap("renderUs", renderUs); }
 
 load();
 applyTheme();
