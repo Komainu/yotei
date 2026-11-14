@@ -443,6 +443,11 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 .hl-tbl tr.sel td{background:var(--tint-accent)}
 .hl-tbl tbody tr{cursor:pointer}
 .hl-wrap{overflow-x:auto}
+.fm-warn{background:var(--tint-danger); color:var(--danger); border-radius:10px; padding:8px 10px; font-weight:700; font-size:13.5px; margin:0 0 8px}
+.hl-tbl tr.fm-off td{background:var(--tint-danger)}
+.fm-two{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:10px}
+.fm-two > div{min-width:0}
+.hm-row.hm-warn b{color:var(--danger)}
 .hl-star{border:none; background:transparent; cursor:pointer; font-size:15px; color:var(--dim); padding:0 4px}
 .hl-star.on{color:var(--warn)}
 .hl-charts{display:grid; grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr)); gap:10px; margin-top:8px}
@@ -657,7 +662,14 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
     <div id="flPerps"></div>
     <div id="flPDetail"></div>
   </div>
-  <p class="hint">ソース: DefiLlama の公開データ (6時間ごとに更新)。先物 DEX の出来高は DefiLlama では有料のため、建玉を使っています。チェーン名は DefiLlama の表記です。</p>
+  <div id="fmArea">
+    <div class="mc-cal"><div class="hl-bar"><b>🔎 読み取り (ハッキング・ステーブルコイン・DEX・利回り)</b><span id="fmInfo" class="pm-info" style="margin-left:auto"></span></div><div id="fmRead"></div></div>
+    <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🚨 ハッキング被害 (この半年・100万ドル以上) <button class="gq" data-term="hack" aria-label="解説">?</button></div><div id="fmHacks"></div></div>
+    <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🪙 ステーブルコインのペッグ <button class="gq" data-term="peg" aria-label="解説">?</button></div><div id="fmPegs"></div></div>
+    <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🔄 DEX の出来高 <button class="gq" data-term="dex" aria-label="解説">?</button></div><div id="fmDex"></div></div>
+    <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🌾 ステーブルコインの利回り <button class="gq" data-term="apy" aria-label="解説">?</button></div><div id="fmYields"></div></div>
+  </div>
+  <p class="hint">ソース: DefiLlama の公開データ (チェーン・先物 DEX は6時間ごと、ステーブルコインの価格は1時間ごと、ハッキング・DEX の出来高は6時間ごと、利回りは1日1回に更新)。先物 DEX の出来高・資金調達ラウンド・ブリッジの流出入は DefiLlama では有料のため出していません。チェーン名は DefiLlama の表記です。</p>
 </section>
 
 <!-- ============ 用語集 ============ -->
@@ -720,6 +732,12 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r" style="color:var(--muted)">国債の入札が「不調」だった時も知らせます。同じ種類の通知は24時間に1回までです。</div>
       </div>
       <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="hack" style="width:auto">🚨 ハッキング被害 (DefiLlama)</label>
+        <div class="ntf-r"><input type="number" data-ntf="hackMin" step="5"> 百万ドル以上 の被害が新しく記録された (20 なら 2,000万ドル。同じ被害は1回だけ)</div>
+        <label class="check ntf-t"><input type="checkbox" data-ntf="peg" style="width:auto">🪙 ステーブルコインのペッグ外れ (DefiLlama)</label>
+        <div class="ntf-r">流通量1億ドル以上のステーブルコインが、1ドルから ± <input type="number" data-ntf="pegPct" step="0.1"> % 以上 ずれた (同じコインは12時間に1回まで)</div>
+      </div>
+      <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="news" style="width:auto">📰 ニュースと公式発表</label>
         <div class="ntf-r">AI が付けた重要度が <select data-ntf="newsMin" style="width:auto"><option value="3">3 (いちばん大事) だけ</option><option value="2">2 以上</option></select> の記事を知らせる (1時間ごと・同じ記事は1回だけ)</div>
       </div>
@@ -734,6 +752,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <label class="check"><input type="checkbox" data-ntf="dUs" style="width:auto">🏛 米国のお金の流れ (財務省口座・リバースレポ・正味の流動性・SOFR・国債の入札)</label>
         <label class="check"><input type="checkbox" data-ntf="dOpt" style="width:auto">🎯 オプション市場 (予想変動率・プット/コール比率・スキュー・建玉の大きい満期)</label>
         <label class="check"><input type="checkbox" data-ntf="dFlow" style="width:auto">💧 お金の流れ (チェーンの預かり資産・ステーブルコインの増減・先物 DEX・エアドロップ候補)</label>
+        <label class="check"><input type="checkbox" data-ntf="dDeals" style="width:auto">🚨 ハッキング・ステーブルコイン・DEX (この7日のハッキング被害・ペッグ外れ・DEX の出来高・利回り)</label>
       </div>
       <div class="row" style="margin-top:8px"><button class="btn small" id="ntfReset" type="button">初期値に戻す</button><span class="hint" style="margin:0">変えたあと、下の「保存」を押してください。数字を小さくすると通知が増え、大きくすると減ります。</span></div>
     </details>
@@ -847,6 +866,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       <label class="check"><input type="checkbox" value="opt" checked style="width:auto">🎯 オプション市場 (予想変動率・P/C・満期ごとの建玉)</label>
       <label class="check"><input type="checkbox" value="news" checked style="width:auto">📰 ニュースと公式発表</label>
       <label class="check"><input type="checkbox" value="us" checked style="width:auto">🏛 米国のお金の流れ (TGA・ON RRP・SRF・SOFR・国債の入札、日次)</label>
+      <label class="check"><input type="checkbox" value="deals" checked style="width:auto">🚨 ハッキング被害・ステーブルコインのペッグ・DEX の出来高・利回り (DefiLlama)</label>
     </div>
     <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
     <div id="repOut"></div>
@@ -874,9 +894,9 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.06";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.08";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.06";
+const MIN_GAS_VERSION = "2026.12.08";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { settings: {} };
@@ -2481,6 +2501,83 @@ $("#tab-flow").addEventListener("click", ev=>{
 $("#flPSort").addEventListener("change", renderFlowPerps);
 $("#flSort").addEventListener("change", renderFlowChains);
 $("#flReload").addEventListener("click", ()=>loadFlow(true));
+/* ---- DefiLlama その2: ハッキング・ステーブルコインのペッグ・DEX の出来高・利回り (サーバーの action=llama2) ---- */
+const FM = { data: null, hist: null, loading: false, shown: 20 };
+const fmMd = d => d ? Number(d.slice(5, 7)) + "/" + Number(d.slice(8, 10)) : "-";
+const fmJst = t => new Date(t + 9 * 3600000).toISOString().slice(0, 10);
+const fmDev = x => x == null ? "-" : `<span class="${Math.abs(x) >= 0.5 ? "down" : ""}">${x > 0 ? "+" : x < 0 ? "−" : "±"}${Math.abs(x).toFixed(2)}%</span>`;
+async function loadFlowMore(force){
+  if(FM.loading) return;
+  if(!state.settings.gasUrl){ $("#fmRead").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると表示されます。</div>`; return; }
+  const cache = pmLS.get("fm_cache_v1", null);
+  if(cache && cache.more && !FM.data){ FM.data = cache.more; FM.hist = cache.hist || {}; renderFlowMore(); }
+  if(!FM.data) $("#fmRead").innerHTML = `<div class="pm-skel"></div>`;
+  FM.loading = true; $("#fmInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=llama2" + (force === true ? "&force=1" : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !("more" in d)) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    if(!d.ok) throw new Error(d.error || "DefiLlama から取得できませんでした");
+    FM.data = d.more; FM.hist = d.hist || {}; pmLS.set("fm_cache_v1", { more: d.more, hist: FM.hist });
+    renderFlowMore();
+  }catch(err){
+    if(!FM.data){ $("#fmRead").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`; $("#fmInfo").textContent = ""; }
+    else $("#fmInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ FM.loading = false; }
+}
+function renderFlowMore(){
+  const d = FM.data; if(!d) return;
+  const wait = n => `<div class="hint">${d.errors && d.errors.includes(n) ? "取得できませんでした (次の回にもう一度取りに行きます)" : "取得中です (少し時間がかかります)"}</div>`;
+  $("#fmRead").innerHTML = (d.read || []).length ? `<ul class="op-read">${d.read.map(x=>`<li>${linkTerms(esc(x))}</li>`).join("")}</ul>` : `<div class="hint">読み取れる材料がまだありません</div>`;
+  const t = d.at ? new Date(d.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) + " 時点" : "";
+  $("#fmInfo").textContent = t + (d.errors && d.errors.length ? ` ・ 一部取得できず (${d.errors.join("・")})` : "");
+  /* 🚨 ハッキング被害 */
+  const H = d.hacks && d.hacks.list;
+  $("#fmHacks").innerHTML = !H ? wait("ハッキング被害") : !H.length ? `<div class="hm-ok">✅ この半年、100万ドル以上の被害の記録はありません</div>`
+    : `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>日付</th><th>名前</th><th>被害額</th><th>チェーン</th><th>手口</th><th>戻った額</th></tr></thead><tbody>`
+      + H.slice(0, FM.shown).map(h=>`<tr><td>${esc(fmMd(h.d))}</td><td><b>${esc(h.n)}</b>${h.br ? ` <span class="pm-tag">ブリッジ</span>` : ""}</td><td>${esc(flUsd(h.amt))}</td><td>${esc((h.ch || []).join("・") || "-")}</td><td>${esc(h.tech || "-")}${h.cls ? `<br><small style="color:var(--dim)">${esc(h.cls)}</small>` : ""}</td><td>${h.ret ? esc(flUsd(h.ret)) : "-"}</td></tr>`).join("")
+      + `</tbody></table></div>` + (H.length > FM.shown ? `<button class="btn small" data-fmmore="1">もっと見る (あと${H.length - FM.shown}件)</button>` : "")
+      + `<div class="hint">DefiLlama が集めている、DeFi やブリッジのハッキング・不正な引き出しの記録です (金額はその時のドル換算)。</div>`;
+  /* 🪙 ステーブルコインのペッグ */
+  const P = d.pegs;
+  if(!P) $("#fmPegs").innerHTML = wait("ステーブルコインの価格");
+  else{
+    const off = P.off || [], rest = (P.list || []).filter(x=>Math.abs(x.dev) < 0.5);
+    const row = (x, bad) => `<tr class="${bad ? "fm-off" : ""}"><td><b>${esc(x.sym)}</b>${bad ? ` <span class="pm-tag new">ペッグ外れ</span>` : ""}</td><td>${esc(x.n)}</td><td>${esc(x.px.toFixed(4))}ドル</td><td>${fmDev(x.dev)}</td><td>${esc(flUsd(x.circ))}</td></tr>`;
+    $("#fmPegs").innerHTML = (off.length ? `<div class="fm-warn">⚠ 1ドルから0.5%以上ずれているステーブルコインがあります (${off.length}種類)</div>` : `<div class="hm-ok">✅ 主なステーブルコインはすべて1ドル付近です</div>`)
+      + `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>銘柄</th><th>名前</th><th>価格</th><th>1ドルからのずれ</th><th>流通量</th></tr></thead><tbody>`
+      + off.map(x=>row(x, true)).join("") + rest.map(x=>row(x, false)).join("") + `</tbody></table></div>`
+      + `<div class="hint">流通量1億ドル以上のドル建てステーブルコインを見ています。1時間ごとに更新します。</div>`;
+  }
+  /* 🔄 DEX の出来高 */
+  const X = d.dex;
+  if(!X) $("#fmDex").innerHTML = wait("DEX の出来高");
+  else{
+    const card = (n, v, sub) => `<div class="mc-card"><div class="mc-h"><span>${esc(n)}</span></div><div class="mc-v">${v}</div><div class="mc-sub">${sub}</div></div>`;
+    $("#fmDex").innerHTML = `<div class="hl-sum">${card("24時間", esc(flUsd(X.v24)), `前の日と比べて ${flPct(X.c1)}`)}${card("7日", esc(flUsd(X.v7)), `前の7日と比べて ${flPct(X.c7)}`)}${card("30日", esc(flUsd(X.v30)), `前の30日と比べて ${flPct(X.c30)}`)}</div>`
+      + `<div class="fm-two"><div><div class="hint" style="margin:0 0 4px">チェーンごと (24時間)</div><div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>チェーン</th><th>出来高</th><th>シェア</th></tr></thead><tbody>`
+      + (X.chains || []).map(c=>`<tr><td><b>${esc(c.n)}</b>${relBadge(c.n)}</td><td>${esc(flUsd(c.v24))}</td><td>${c.sh == null ? "-" : esc(c.sh.toFixed(1)) + "%"}</td></tr>`).join("") + `</tbody></table></div></div>`
+      + `<div><div class="hint" style="margin:0 0 4px">DEX ごと (24時間)</div><div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>名前</th><th>出来高</th><th>7日の変化</th><th>チェーン</th></tr></thead><tbody>`
+      + (X.protos || []).map(p=>`<tr><td><b>${esc(p.n)}</b>${relBadge(p.n)}</td><td>${esc(flUsd(p.v24))}</td><td>${flPct(p.c7)}</td><td>${esc((p.ch || []).join("・"))}</td></tr>`).join("") + `</tbody></table></div></div></div>`
+      + `<div class="hint">7日の変化 = 直近7日の合計を、その前の7日と比べたものです。出来高が増えるのは、取引が活発になっている目安です。</div>`;
+  }
+  /* 🌾 ステーブルコインの利回り */
+  const Y = d.yields;
+  if(!Y) $("#fmYields").innerHTML = wait("ステーブルコインの利回り");
+  else{
+    const hist = Object.keys(FM.hist || {}).sort().filter(k=>FM.hist[k] && FM.hist[k].ymed != null).map(k=>[k + "T00:00", FM.hist[k].ymed]);
+    $("#fmYields").innerHTML = `<div class="hl-charts"><div class="hl-chart"><div class="t"><span>利回りの中央値 (年・${esc(String(Y.n))}件)</span><b>${esc(String(Y.med))}%</b></div>`
+      + (hist.length >= 2 ? hlLine(hist, {}) : `<div class="hint">記録が2日分以上たまると推移を描きます</div>`) + `</div></div>`
+      + `<div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>サービス</th><th>銘柄</th><th>チェーン</th><th>預かり</th><th>利回り (年)</th><th>内訳</th></tr></thead><tbody>`
+      + (Y.top || []).map(p=>`<tr><td><b>${esc(p.proj)}</b></td><td>${esc(p.sym)}</td><td>${esc(p.ch)}</td><td>${esc(flUsd(p.tvl))}</td><td>${p.apy == null ? "-" : esc(String(p.apy)) + "%"}</td><td><small>${p.base != null ? "基本 " + esc(String(p.base)) + "%" : ""}${p.rew ? " ＋ 報酬 " + esc(String(p.rew)) + "%" : ""}</small></td></tr>`).join("")
+      + `</tbody></table></div><div class="hint">ステーブルコインだけを預ける (値下がりの心配が少ない) 預かり1億ドル以上のサービスです。利回りが高い時は、借りてでも投資したい人が多い (強気) 目安、低い時は落ち着いている目安です。お金を預けるすすめではありません。</div>`;
+  }
+}
+$("#fmArea").addEventListener("click", ev=>{
+  if(ev.target.closest("[data-fmmore]")){ FM.shown += 30; renderFlowMore(); }
+});
+$("#flReload").addEventListener("click", ()=>loadFlowMore(true));
 /* ================= 記録を AI に渡す ================= */
 const REP_COPY_MAX = 30000;   /* これより長い時はファイルで渡すのをすすめる (貼り付けると長すぎることがあるため) */
 let repText = "";
@@ -2589,6 +2686,10 @@ const GLOSS = {
   mcap: { n:"時価総額", a:["時価総額","market cap"], s:"トークン (株) の値段 × 出回っている枚数。", w:"FDV との差が大きいと、今後出回る分 (売り圧力) が多いことになります。", r:["fdv"] },
   tge: { n:"TGE (トークン生成イベント)", a:["TGE","トークン発行","トークン生成"], s:"プロジェクトが自分のトークンを初めて発行し、取引できるようにすること。", w:"多くの場合エアドロップと同時に行われます。「いつ TGE するか」「初日の FDV は」が Polymarket でよく賭けられます。", r:["fdv","airdrop"] },
   airdrop: { n:"エアドロップ", a:["エアドロップ","airdrop"], s:"プロジェクトが、使ってくれた人などにトークンを無料で配ること。", r:["tge"] },
+  peg: { n:"ペッグ (ペッグ外れ)", a:["ペッグ外れ","ペッグ","デペッグ"], s:"ステーブルコインの値段を1ドルなどに結びつけておく仕組み。1ドルから大きく離れることを「ペッグ外れ (デペッグ)」と言います。", w:"ステーブルコインは「いつでも1ドルに戻せる」という信用で成り立っています。値段が1ドルを下回り続けると、売りが売りを呼んで、そのコインを使うサービスにも影響が広がることがあります。", d:"1ドルを下回るのは、売りたい人が多い (信用が揺らいでいる) 合図です。", r:["stable","hack"] },
+  dex: { n:"DEX (分散型取引所)", a:["DEX","分散型取引所"], s:"会社が間に入らず、ブロックチェーン上のプログラムで暗号資産を交換する取引所 (Uniswap・PancakeSwap など)。", w:"DEX の出来高は、チェーンの上でどれだけ売り買いが行われているかの目安です。新しいトークンが盛り上がる時や、相場が大きく動く時に増えます。", u:"取引が活発になっています。", d:"取引が落ち着いています。", r:["tvl","perpdex","pmvol"] },
+  apy: { n:"利回り (APY)", a:["APY","年利回り"], s:"お金を1年預けた時に増える割合 (複利で計算したもの)。ここではステーブルコインを DeFi のサービスに預けた時の利回りです。", w:"ステーブルコインの利回りは「借りたい人がどれだけいるか」で決まります。借りてでも暗号資産に投資したい人が多いと上がり、相場が落ち着くと下がります。米国の短期金利 (SOFR など) とも比べられます。", u:"借りたい人が多い (強気の人が多い) 目安です。", d:"借りたい人が少なく、落ち着いている目安です。", r:["stable","tvl","sofr"] },
+  hack: { n:"ハッキング・エクスプロイト", a:["ハッキング","エクスプロイト","exploit"], s:"プログラムの欠陥や秘密鍵の流出などを突いて、DeFi やブリッジからお金を抜き取られること。", w:"大きな被害が出ると、そのチェーンやトークンの値段が下がったり、似たサービスからお金が引き上げられたりします。戻ってくるお金 (返還) があることもあります。", r:["tvl","peg"] },
   median: { n:"中央値と50%の範囲", a:["中央値"], s:"「それより上と下が半々」になる値。50%の範囲は、その値の間に入る確率が50%という幅です。", w:"このアプリでは、Polymarket の「○○を上回るか」の各選択肢の確率をつないで計算しています。ローンチしないと全部「いいえ」になる市場は、ローンチした場合に直しています。", r:["fdv","pm"] },
 };
 const GLOSS_ALIAS = (()=>{   /* 本文の自動リンク用: 長い言葉から先に */
@@ -3278,6 +3379,7 @@ function switchTab(t){
   if(t==="opt" && !loaded.opt){ loaded.opt=1; loadOpt(); }
   if(t==="news" && !loaded.news){ loaded.news=1; loadNews(); }
   if(t==="flow" && !loaded.flow){ loaded.flow=1; loadFlow(); }
+  if(t==="flow" && !loaded.fm){ loaded.fm=1; loadFlowMore(); }
   if(t==="top") loadTop();
 }
 $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
@@ -3357,6 +3459,7 @@ function relRefresh(){
   try{
     pmRenderRelated();
     if(FL.data && loaded.flow){ renderFlowChains(); renderFlowPerps(); }
+    if(FM.data && loaded.fm) renderFlowMore();
     if(HL.data && loaded.hl) renderHlSpot();
   }catch(e){}
 }
@@ -3405,9 +3508,19 @@ function loadTop(){
   if(!loaded.us){ loaded.us = 1; loadUs(); }
   if(!loaded.hl){ loaded.hl = 1; loadHl(); }
   if(!loaded.flow){ loaded.flow = 1; loadFlow(); }
+  if(!loaded.fm){ loaded.fm = 1; loadFlowMore(); }
   if(!loaded.opt){ loaded.opt = 1; loadOpt(); }
   if(!loaded.news){ loaded.news = 1; loadNews(); }
   renderTop();
+}
+/** ホームの「お金の流れ」に足す行: 14日以内の2,000万ドル以上のハッキング・ペッグ外れ */
+function fmTopRows(){
+  const d = FM.data; if(!d) return "";
+  const since = fmJst(Date.now() - 14 * 86400000);
+  const h = ((d.hacks && d.hacks.list) || []).filter(x=>x.d >= since && x.amt >= 2e7)[0];
+  const off = (d.pegs && d.pegs.off) || [];
+  return (h ? `<div class="hm-row"><div class="hm-row-main"><b>🚨 ハッキング被害: ${esc(h.n)}</b><small>${esc(fmMd(h.d))} ・ ${esc((h.ch || []).join("・"))}${h.tech ? " ・ " + esc(h.tech) : ""}</small></div><span class="hm-num down">${esc(flUsd(h.amt))}</span></div>` : "")
+    + (off.length ? `<div class="hm-row hm-warn"><div class="hm-row-main"><b>⚠ ペッグ外れ: ${off.slice(0, 3).map(x=>esc(x.sym)).join("・")}</b><small>1ドルから0.5%以上ずれています</small></div><span class="hm-num down">${esc(off[0].px.toFixed(3))}ドル</span></div>` : "");
 }
 function topCard(icon, title, tab, body, extra){
   return `<section class="hm-card ${extra || ""}"><header><span class="hm-ic">${icon}</span><h3>${title}</h3><button class="hm-more" data-jump="${tab}">くわしく →</button></header>${body}</section>`;
@@ -3506,6 +3619,7 @@ function renderTop(){
     flBody = (big.length ? `<div class="hm-sub">TVL が伸びているチェーン (30日)</div>` + big.map(c=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(c.n)}</b><small>TVL ${esc(flUsd(c.tvl))}</small></div><span class="hm-num">${flPct(c.c30)}</span></div>`).join("") : "")
       + (st ? `<div class="hm-row"><div class="hm-row-main"><b>ステーブルコインの流入が最大: ${esc(st.n)}</b><small>30日の増加額</small></div><span class="hm-num up">+${esc(flUsd(st.s30d))}</span></div>` : "")
       + (cand.length ? `<div class="hm-sub">🪂 エアドロップ候補 (トークン未発行の先物 DEX)</div>` + cand.map(x=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(x.n)}${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}</b><small>建玉 ${esc(flUsd(x.oi))} ・ ${esc((x.ch||[]).join("・"))}</small></div><span class="hm-num">${flPct(x.c30)}</span></div>`).join("") : "")
+      + fmTopRows()
       || `<div class="hint" style="margin:0">データを取得中です</div>`;
   }
   /* --- ニュースと公式発表 --- */
@@ -3569,7 +3683,8 @@ $("#tab-top").addEventListener("click", ev=>{
   const pl = pmLoad; pmLoad = async function(){ await pl.apply(this, arguments); relRefresh(); };
   loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); loadOpt = done(loadOpt, OP); renderOpt = wrap("renderOpt", renderOpt);
   loadNews = done(loadNews, NW); renderNews = wrap("renderNews", renderNews);
-  loadUs = done(loadUs, US); renderUs = wrap("renderUs", renderUs); }
+  loadUs = done(loadUs, US); renderUs = wrap("renderUs", renderUs);
+  loadFlowMore = done(loadFlowMore, FM); renderFlowMore = wrap("renderFlowMore", renderFlowMore); }
 
 load();
 applyTheme();

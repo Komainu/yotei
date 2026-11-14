@@ -8,14 +8,15 @@ const { createClock } = require('./helpers/clock');
 const { deribitFetch } = require('./helpers/deribit');
 const { newsFetch } = require('./helpers/news');
 const { usFetch } = require('./helpers/usflow');
+const { llama2Fetch } = require('./helpers/llama2');
 
 function world() {
   const clock = createClock('2026-11-12T10:00:00+09:00');
   const st = { hlDown: false };
   const ok = o => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify(o) });
-  const deribit = deribitFetch(clock), news = newsFetch(clock), us = usFetch(clock, { auctions: [] });   // 不調な入札の通知は出さない
+  const deribit = deribitFetch(clock), news = newsFetch(clock), us = usFetch(clock, { auctions: [] }), l2 = llama2Fetch(clock);   // 不調な入札の通知は出さない
   const fetch = (url, params) => {
-    const dr = deribit(url) || news(url, params) || us(url); if (dr) return dr;
+    const dr = deribit(url) || news(url, params) || us(url) || l2(url); if (dr) return dr;
     if (/gamma-api\.polymarket\.com\/markets/.test(url)) return ok(Number(new URL(url).searchParams.get('offset')) === 0 ? [{ id: '1', question: 'Q', outcomes: '["Yes","No"]', outcomePrices: '["0.5","0.5"]', volume24hr: 1, closed: false, events: [{ id: 'e', title: 'E', slug: 'e' }] }] : []);
     if (/gamma-api/.test(url)) return ok({ events: [] });
     if (/kalshi/.test(url)) return ok({ events: [] });
@@ -24,6 +25,7 @@ function world() {
   };
   const gas = loadGas({ clock, fetch, props: { MAIL_TO: 'muse@example.com' } });
   gas.ctx.setup();
+  for (let i = 0; i < 4; i++) gas.ctx.pmSideJobs_();   // 定期の取得 (オプション・ニュース・米国・DefiLlama その2) は pmAlert の後に1つずつ動く
   return { clock, gas, st };
 }
 const byKey = h => Object.fromEntries(h.jobs.map(j => [j.k, j]));
@@ -88,7 +90,7 @@ test('アプリ: ホームに記録の状態 (正常/止まっている)、設�
     app.doc.querySelector('#gasCheck').click();
     for (let i = 0; i < 4; i++) await app.settle();
     const rows = [...app.doc.querySelectorAll('#gasResult .hc-tbl tbody tr')];
-    assert.equal(rows.length, 13);
+    assert.equal(rows.length, 14);
     assert.match(rows.map(r => r.textContent).join('\n'), /オプション市場.*✅ 動いています/);
     assert.match(rows[0].textContent, /Polymarket の確率・出来高1時間ごと.*✅ 動いています/);
   } finally { app.close(); }

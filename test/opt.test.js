@@ -180,9 +180,10 @@ test('レポート: 「## 8. オプション市場」に満期の表、記録が
   assert.match(t, /\| 2026-11-14 \| \$100,000 \| 40 \| 0\.64 \| 0\.32 \|.*\| 9 \| 100000 \(2026-12-25\) \|/);
 });
 
-test('見張り: pmRecord の後、オプション市場の記録は ok', () => {
+test('見張り: 定期の取得 (pmAlert の後) で、オプション市場の記録は ok', () => {
   const { gas } = world({ pm: true });
   gas.ctx.pmRecord();
+  for (let i = 0; i < 4; i++) gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
   const j = gas.get({ action: 'health' }).health.jobs.find(x => x.k === 'opt');
   assert.equal(j.st, 'ok');
   assert.equal(j.n, 'オプション市場 (Deribit)');

@@ -16,7 +16,7 @@
  */
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.12.06';
+const GAS_VERSION = '2026.12.08';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -163,6 +163,11 @@ function doGetInner_(e) {
   if (action === 'opt') {
     const od = optData_(e.parameter.force === '1');
     return json({ ok: true, version: GAS_VERSION, opt: od, hist: optHist_(120) });
+  }
+  if (action === 'llama2') {
+    const more = llamaMore_(e.parameter.force === '1');
+    const ok = llama2Has_(more);
+    return json({ ok: ok, version: GAS_VERSION, error: ok ? null : 'DefiLlama から取得できませんでした (' + (more.errors || []).join('・') + ')', more: more, hist: llama2Hist_(120) });
   }
   if (action === 'us') {
     return json({ ok: true, version: GAS_VERSION, us: usData_(e.parameter.force === '1') });
@@ -412,9 +417,7 @@ function pmRecord() {
   hbRun_('macro', function () { macroData_(false); });   // マクロの指標も1時間ごとに取り直しておく (アプリを開いた時にすぐ出るように)
   hbRun_('fed', fedCompareRecord_);
   hbRun_('hl', hlRecord_);
-  hbRun_('opt', optRecord_);
-  hbRun_('news', newsRecord_);
-  hbRun_('us', usRecord_);
+  // オプション・ニュース・米国のお金の流れ・DefiLlama その2 は pmAlert (10分おき) の最後に1つずつ (SIDE_JOBS・pmSideJobs_)。6分の制限に近づかないように
   try { pmHealthMail_(); } catch (e) { Logger.log('記録の見張りに失敗: ' + e); }
 }
 
@@ -853,8 +856,16 @@ function pmLabelJa_(r, ja) {
 }
 function pmYesJa_(r, ja) { const o = r.o[0] || 'Yes'; return o === 'Yes' ? 'はい' : (ja[o] || o); }
 
-/** 10分おき: 大きな動きがあればメール */
+/** 10分おき: 大きな動きがあればメール。そのあと、時間になった定期の取得 (SIDE_JOBS) を1つだけ動かす */
 function pmAlert() {
+  PM_RUN_T0 = Date.now();   // DefiLlama その2 の重い取得の目安 (この回の始まり)
+  try { pmAlertInner_(); }
+  finally {
+    try { pmSideJobs_(); } catch (e) { Logger.log('定期の取得に失敗: ' + e); }
+    PM_RUN_T0 = 0;
+  }
+}
+function pmAlertInner_() {
   const props = PropertiesService.getScriptProperties();
   const to = pmMailTo_();
   if (!to || !pmMailOn_('PM_ALERT_ON')) return;
@@ -1035,19 +1046,20 @@ function pmDigest() {
     const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
     let mac = null;
     try { mac = pmMacroSection_(); } catch (e) { Logger.log('天気図をまとめに入れられません: ' + e); }
-    let ml = null, flow = null, optS = null, newsS = null, usS = null;
+    let ml = null, flow = null, optS = null, newsS = null, usS = null, deals = null;
     if (ntf_().dNews) { try { newsS = pmNewsSection_(); } catch (e) { Logger.log('ニュースをまとめに入れられません: ' + e); } }
     if (ntf_().dOpt) { try { optS = pmOptSection_(); } catch (e) { Logger.log('オプション市場をまとめに入れられません: ' + e); } }
     if (ntf_().dMacro) { try { ml = mac ? pmMacroList_(mac.res) : null; } catch (e) { Logger.log('マクロ指標の一覧をまとめに入れられません: ' + e); } }
     if (ntf_().dUs) { try { usS = pmUsSection_(); } catch (e) { Logger.log('米国のお金の流れをまとめに入れられません: ' + e); } }
     if (ntf_().dFlow) { try { flow = pmFlowSection_(); } catch (e) { Logger.log('お金の流れをまとめに入れられません: ' + e); } }
+    if (ntf_().dDeals) { try { deals = pmDealsSection_(); } catch (e) { Logger.log('ハッキング・ペッグ・DEX をまとめに入れられません: ' + e); } }
     const text = day + ' のまとめ\n\n' + (mac ? mac.text + '\n' : '')
       + '■■ ポリマーケット (あなた向け・ウォッチ中の市場)\n\n'
       + sec('24時間で大きく動いた市場', movers, '大きな動きはありませんでした') + '\n'
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
       + (newsS ? newsS.text + '\n' : '')
-      + (ml ? ml.text + '\n' : '') + (usS ? usS.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '')
+      + (ml ? ml.text + '\n' : '') + (usS ? usS.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '') + (deals ? deals.text + '\n' : '')
       + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + pmHealthLine_() + '\n\n'
       + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
     const h = function (title, list, empty) {
@@ -1062,7 +1074,7 @@ function pmDigest() {
       to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (mac ? ' ' + mac.sky[1] + mac.sky[2] : '') + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
       htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', (mac ? '<tr><td style="padding:6px 0 2px;font-weight:700;font-size:15px">🌐 相場の天気図</td></tr>' + mac.html : '') + h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')
-        + (newsS ? newsS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '')),
+        + (newsS ? newsS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '') + (deals ? deals.html : '')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
     hbOk_('digest');
@@ -1550,7 +1562,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us', 'deals'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -1714,6 +1726,7 @@ function pmReport_(opt) {
   if (parts.indexOf('news') >= 0) { try { newsReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 9. ニュースと公式発表', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('opt') >= 0) { try { optReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 8. オプション市場', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('us') >= 0) { try { usReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 10. 米国のお金の流れ', '(読み出せませんでした: ' + e + ')', ''); } }
+  if (parts.indexOf('deals') >= 0) { try { llama2ReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 11. ハッキング被害・ペッグ・DEX・利回り', '(読み出せませんでした: ' + e + ')', ''); } }
   const text = lines.join('\n');
   return { ok: true, text: text, chars: text.length, from: from, to: to };
 }
@@ -2122,6 +2135,266 @@ function llamaFeesHist_(slug) {
 /** エアドロップ候補: トークン未発行の先物 DEX (予測市場・取引所の外のものは除く) */
 function llamaIsCand_(x) { return x.token === false && !/prediction/i.test(x.cat || '') && (x.ch || []).indexOf('Off Chain') < 0; }
 
+/* ---- DefiLlama その2: ハッキング・ペッグ・DEX・利回り ----
+   llama2-latest.json … { at, pegs:{at, list, off}, hacks:{at, list}, dex:{at, ...}, yields:{at, ...}, errors:[名前], skipped:[k], read }
+   llama2-YYYY-MM.json … 日ごとの記録 { 日付: { ymed, dexv24, pegOff } }
+   部分ごとに別々に取り、取り直す間隔も別 (ペッグ1時間・ハッキング6時間・DEX 6時間・利回り24時間)。落ちた部分は前回の値のまま errors に名前
+   ※ 資金調達 (/raises) とブリッジ (bridges.llama.fi) は有料になり取れないので使わない (2026-11 に確認) */
+const LLAMA2_PARTS = [
+  { k: 'pegs',   n: 'ステーブルコインの価格',   ttl: 1 * 3600000 },
+  { k: 'hacks',  n: 'ハッキング被害',           ttl: 6 * 3600000 },
+  { k: 'dex',    n: 'DEX の出来高',             ttl: 6 * 3600000, heavy: true },    // 応答が数MB (プロトコルごとのチェーン別の内訳つき)
+  { k: 'yields', n: 'ステーブルコインの利回り', ttl: 24 * 3600000, heavy: true },   // 応答が10MB以上 (全部のプール)
+];
+const LLAMA2_SLACK = 5 * 60000;            // 1時間ごとのトリガーのずれ (少し早くても取り直す)
+const LLAMA2_HEAVY_AFTER = 3.5 * 60000;    // 定期の取得の回 (pmAlert) の始まりからこれ以上たっていたら、重い部分は次の回に回す
+const LLAMA2_PEG_MIN = 1e8;                // 見張るステーブルコイン: 流通量1億ドル以上
+const LLAMA2_PEG_OFF = 0.5;                // 画面で「ペッグ外れ」とする1ドルからのずれ (%)
+const LLAMA2_HACK_DAYS = 180, LLAMA2_HACK_MIN = 1e6, LLAMA2_HACK_N = 80;
+const LLAMA2_YIELD_TVL = 1e8;
+const LLAMA2_PEG_COOL = 12 * 3600000;
+const LLAMA2_CHAIN_JA = { xdai: 'Gnosis', optimism: 'OP Mainnet', hyperliquid: 'Hyperliquid L1', avax: 'Avalanche', era: 'ZKsync Era', bsc: 'BSC', ethereum: 'Ethereum' };
+var PM_RUN_T0 = 0;        // 定期の取得 (pmAlert → pmSideJobs_) が始まった時刻 (重い取得を飛ばす目安。それ以外では 0)
+var LLAMA2_RUN = null;    // 直前の llamaMore_ で取りに行ったもの { due, ok, failed, skipped }
+
+const llama2R_ = function (x, n) { if (x == null || x === '' || isNaN(Number(x))) return null; const p = Math.pow(10, n == null ? 1 : n); return Math.round(Number(x) * p) / p; };
+function llama2Pegs_(now) {
+  const d = llamaJson_('https://stablecoins.llama.fi/stablecoins?includePrices=true');
+  const list = (d.peggedAssets || []).filter(function (a) { return a.pegType === 'peggedUSD'; }).map(function (a) {
+    const circ = Number((a.circulating || {}).peggedUSD) || 0, px = Number(a.price);
+    if (circ < LLAMA2_PEG_MIN || a.price == null || !(px > 0)) return null;   // 価格が無いものは見ない
+    return { sym: String(a.symbol || ''), n: String(a.name || ''), px: llama2R_(px, 4), circ: Math.round(circ), dev: llama2R_((px - 1) * 100, 2) };
+  }).filter(Boolean).sort(function (a, b) { return b.circ - a.circ; });
+  if (!list.length) throw new Error('ステーブルコインの価格がありません');
+  return { at: now, list: list, off: list.filter(function (x) { return Math.abs(x.dev) >= LLAMA2_PEG_OFF; }) };
+}
+function llama2Hacks_(now) {
+  const a = llamaJson_('https://api.llama.fi/hacks');
+  if (!Array.isArray(a)) throw new Error('ハッキングの一覧の形が違います');
+  const from = now / 1000 - LLAMA2_HACK_DAYS * 86400;
+  const list = a.filter(function (h) { return Number(h.date) >= from && Number(h.amount) >= LLAMA2_HACK_MIN; })
+    .sort(function (x, y) { return Number(y.date) - Number(x.date) || Number(y.amount) - Number(x.amount); }).slice(0, LLAMA2_HACK_N)
+    .map(function (h) {
+      const ch = Array.isArray(h.chain) ? h.chain : h.chain ? [h.chain] : [];
+      return { d: llamaDay_(h.date), n: String(h.name || ''), amt: Math.round(Number(h.amount)), ch: ch.slice(0, 3).map(String),
+        cls: String(h.classification || ''), tech: String(h.technique || ''), ret: h.returnedFunds == null || isNaN(Number(h.returnedFunds)) ? null : Math.round(Number(h.returnedFunds)), br: !!h.bridgeHack };
+    });
+  return { at: now, list: list };
+}
+function llama2ChainName_(slug, all) {
+  if (LLAMA2_CHAIN_JA[slug]) return LLAMA2_CHAIN_JA[slug];
+  const key = function (s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); };
+  const hit = (all || []).filter(function (n) { return key(n) === key(slug); })[0];
+  return hit || (String(slug).charAt(0).toUpperCase() + String(slug).slice(1));
+}
+function llama2Dex_(now) {
+  const d = llamaJson_('https://api.llama.fi/overview/dexs?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true');
+  if (!(Number(d.total24h) > 0)) throw new Error('DEX の出来高がありません');
+  const P = (d.protocols || []).filter(function (p) { return Number(p.total24h) > 0; });
+  const byChain = {};
+  P.forEach(function (p) {
+    const b = p.breakdown24h || {};
+    Object.keys(b).forEach(function (c) {
+      const o = b[c], v = typeof o === 'number' ? o : Object.keys(o || {}).reduce(function (n, k) { return n + (Number(o[k]) || 0); }, 0);
+      byChain[c] = (byChain[c] || 0) + v;
+    });
+  });
+  const tot = Number(d.total24h);
+  const chg7 = function (o) { return llama2R_(o.change_7dover7d != null ? o.change_7dover7d : o.change_7d); };
+  return { at: now, v24: Math.round(tot), v7: Math.round(Number(d.total7d) || 0), v30: Math.round(Number(d.total30d) || 0),
+    c1: llama2R_(d.change_1d), c7: chg7(d), c30: llama2R_(d.change_30dover30d != null ? d.change_30dover30d : d.change_1m), n: P.length,
+    chains: Object.keys(byChain).filter(function (c) { return byChain[c] > 0; }).sort(function (a, b) { return byChain[b] - byChain[a]; }).slice(0, 12)
+      .map(function (c) { return { n: llama2ChainName_(c, d.allChains), v24: Math.round(byChain[c]), sh: llama2R_(byChain[c] / tot * 100) }; }),
+    protos: P.slice().sort(function (a, b) { return b.total24h - a.total24h; }).slice(0, 15)
+      .map(function (p) { return { n: String(p.displayName || p.name || ''), v24: Math.round(p.total24h), c7: chg7(p), ch: (p.chains || []).slice(0, 3).map(String) }; }) };
+}
+function llama2Yields_(now) {
+  const d = llamaJson_('https://yields.llama.fi/pools');
+  const P = (d.data || []).filter(function (p) {
+    return p.stablecoin === true && p.exposure === 'single' && p.ilRisk === 'no' && Number(p.tvlUsd) >= LLAMA2_YIELD_TVL && p.apy != null && isFinite(Number(p.apy));
+  });
+  if (!P.length) throw new Error('ステーブルコインの利回りがありません');
+  const a = P.map(function (p) { return Number(p.apy); }).sort(function (x, y) { return x - y; }), m = Math.floor(a.length / 2);
+  return { at: now, n: P.length, med: llama2R_(a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2, 2),
+    top: P.slice().sort(function (x, y) { return y.tvlUsd - x.tvlUsd; }).slice(0, 15).map(function (p) {
+      return { proj: String(p.project || ''), sym: String(p.symbol || ''), ch: String(p.chain || ''), tvl: Math.round(p.tvlUsd), apy: llama2R_(p.apy, 2), base: llama2R_(p.apyBase, 2), rew: llama2R_(p.apyReward, 2) };
+    }) };
+}
+const LLAMA2_FN = { pegs: llama2Pegs_, hacks: llama2Hacks_, dex: llama2Dex_, yields: llama2Yields_ };
+
+/** 読み取りの文 (やさしい日本語。売買のすすめはしない) */
+function llama2Read_(o, now) {
+  const out = [];
+  if (o.hacks) {
+    const L = o.hacks.list || [], h = L[0], from = pmJstDay_(now - 30 * 86400000);
+    const m30 = L.filter(function (x) { return x.d >= from; }), sum = m30.reduce(function (n, x) { return n + x.amt; }, 0);
+    if (h) out.push('直近の大きなハッキング被害は ' + h.n + ' (' + usMd_(h.d) + (h.ch.length ? '・' + h.ch.join('・') : '') + ') で ' + pmMoneyJa_(h.amt)
+      + (h.ret ? ' (うち ' + pmMoneyJa_(h.ret) + ' は戻りました)' : '') + '。この30日では ' + m30.length + '件・合計 ' + pmMoneyJa_(sum) + ' です');
+    else out.push('この半年、100万ドル以上のハッキング被害の記録はありません');
+  }
+  if (o.pegs) {
+    const off = o.pegs.off || [];
+    if (off.length) out.push('1ドルからずれているステーブルコインがあります: ' + off.slice(0, 4).map(function (x) { return x.sym + ' ' + x.px.toFixed(4) + 'ドル (' + (x.dev >= 0 ? '+' : '−') + Math.abs(x.dev) + '%)'; }).join('、')
+      + '。1ドルとの連動 (ペッグ) が揺らぐと、そのコインを使うサービスにも影響が出ることがあります');
+    else out.push('主なステーブルコインはすべて1ドル付近です (流通量1億ドル以上の ' + (o.pegs.list || []).length + '種類)');
+  }
+  if (o.dex) {
+    const x = o.dex;
+    out.push('DEX の出来高は24時間で ' + pmMoneyJa_(x.v24) + '。直近7日 (' + pmMoneyJa_(x.v7) + ') は前の7日より ' + (x.c7 == null ? '-' : pmSigned_(x.c7))
+      + (x.c7 == null ? '' : x.c7 >= 15 ? ': 取引が活発になっています' : x.c7 <= -15 ? ': 取引が落ち着いてきています' : ': 大きな変化はありません'));
+  }
+  if (o.yields && o.yields.med != null) {
+    const y = o.yields.med;
+    out.push('ステーブルコインを預けた時の利回り (預かり1億ドル以上の ' + o.yields.n + '件) の中央値は 年' + y + '%'
+      + (y >= 8 ? ': 高めです。借りてでも投資したい人が多い (強気の人が多い) 目安です' : y <= 3 ? ': 低めです。お金を借りたい人が少なく、相場は落ち着いています' : ': ふつうの水準です'));
+  }
+  return out;
+}
+function llama2Cache_() { try { return JSON.parse(pmRead_('llama2-latest.json') || 'null'); } catch (e) { return null; } }
+/** 最新 (古くなった部分だけ取り直す)。重い部分は定期の取得の時間が足りない時は飛ばし、1回に1つまで */
+function llamaMore_(force) {
+  const cur = llama2Cache_() || { at: 0, errors: [] };
+  const now = Date.now(), elapsed = PM_RUN_T0 ? now - PM_RUN_T0 : 0;
+  const age = function (p) { return cur[p.k] ? cur[p.k].at : 0; };
+  const due = LLAMA2_PARTS.filter(function (p) { return force || !cur[p.k] || now - age(p) >= p.ttl - LLAMA2_SLACK; });
+  LLAMA2_RUN = null;
+  if (!due.length) return cur;
+  // 軽いものから。重いものは古い順に1つだけ
+  const order = due.filter(function (p) { return !p.heavy; }).concat(due.filter(function (p) { return p.heavy; }).sort(function (a, b) { return age(a) - age(b); }));
+  const run = { due: due.map(function (p) { return p.k; }), ok: [], failed: [], skipped: [] };
+  let heavy = 0;
+  const bad = (cur.errKeys || []).slice();
+  order.forEach(function (p) {
+    if (p.heavy && (heavy >= 1 || elapsed > LLAMA2_HEAVY_AFTER)) { run.skipped.push(p.k); return; }
+    if (p.heavy) heavy++;
+    try {
+      cur[p.k] = LLAMA2_FN[p.k](now); run.ok.push(p.k);
+      if (bad.indexOf(p.k) >= 0) bad.splice(bad.indexOf(p.k), 1);
+    } catch (e) {
+      run.failed.push(p.k); if (bad.indexOf(p.k) < 0) bad.push(p.k);
+      Logger.log('DefiLlama (その2) ' + p.k + ' に失敗: ' + e);
+    }
+  });
+  LLAMA2_RUN = run;
+  cur.errKeys = bad;
+  cur.errors = LLAMA2_PARTS.filter(function (p) { return bad.indexOf(p.k) >= 0; }).map(function (p) { return p.n; });
+  cur.skipped = run.skipped;
+  if (run.ok.length) cur.at = now;
+  cur.read = llama2Read_(cur, now);
+  try { pmWrite_('llama2-latest.json', JSON.stringify(cur)); } catch (e) { Logger.log('llama2-latest.json を保存できません: ' + e); }
+  return cur;
+}
+const llama2Has_ = function (d) { return !!d && LLAMA2_PARTS.some(function (p) { return !!d[p.k]; }); };
+const llama2HackId_ = function (h) { return h.d + '|' + h.n; };
+/** 日ごとの記録 (直近 days 日) → { 日付: { ymed, dexv24, pegOff } } */
+function llama2Hist_(days) {
+  const from = pmJstDay_(Date.now() - days * 86400000), out = {};
+  hlMonths_(Date.now(), Math.ceil(days / 28) + 1).forEach(function (m) {
+    const f = pmLoadJson_('llama2-' + m + '.json');
+    Object.keys(f).forEach(function (d) { if (d >= from) out[d] = f[d]; });
+  });
+  return out;
+}
+/** 1時間ごと (pmAlert の後の pmSideJobs_ から): 古い部分を取り直し、日ごとの行を残し、ハッキング・ペッグ外れを知らせる */
+function llamaMoreRecord_() {
+  const d = llamaMore_(false), run = LLAMA2_RUN;
+  if (run && run.failed.length && !run.ok.length && !llama2Has_(d)) throw new Error('DefiLlama (ハッキング・ペッグ・DEX・利回り) を取得できません (' + d.errors.join('・') + ')');
+  const now = Date.now(), day = pmJstDay_(now), name = 'llama2-' + day.slice(0, 7) + '.json';
+  const row = { ymed: d.yields ? d.yields.med : null, dexv24: d.dex ? d.dex.v24 : null, pegOff: d.pegs ? (d.pegs.off || []).length : null };
+  if (row.ymed != null || row.dexv24 != null || row.pegOff != null) {
+    const f = pmLoadJson_(name);
+    if (JSON.stringify(f[day]) !== JSON.stringify(row)) { f[day] = row; pmWrite_(name, JSON.stringify(f)); }
+  }
+  llama2Alert_(d, now);
+  return d;
+}
+/** 通知: 新しいハッキング被害 (基準 hackMin 百万ドル以上)・ペッグ外れ (pegPct % 以上、同じコインは12時間に1回)。1回の実行で1通 */
+function llama2Alert_(d, now) {
+  const props = PropertiesService.getScriptProperties(), to = pmMailTo_(), NT = ntf_();
+  if (!to || !pmMailOn_('PM_ALERT_ON')) return;
+  let sent = {};
+  try { sent = JSON.parse(props.getProperty('LLAMA2_SENT') || '{}') || {}; } catch (e) {}
+  const before = JSON.stringify(sent), hits = [];
+  if (d.hacks && d.hacks.list) {
+    const L = d.hacks.list;
+    if (!sent.h) sent.h = L.map(llama2HackId_);   // 初めての時は、今あるものを覚えるだけ (まとめて送らない)
+    else {
+      const fresh = L.filter(function (h) { return sent.h.indexOf(llama2HackId_(h)) < 0; });
+      if (NT.hack) fresh.filter(function (h) { return h.amt >= NT.hackMin * 1e6 && h.d >= pmJstDay_(now - 30 * 86400000); }).forEach(function (h) {
+        hits.push(h.n + ' でハッキング被害 (' + usMd_(h.d) + (h.ch.length ? '・' + h.ch.join('・') : '') + '): ' + pmMoneyJa_(h.amt) + ' — '
+          + [h.cls ? '分類: ' + h.cls : '', h.tech ? '手口: ' + h.tech : '', h.ret ? '戻った額: ' + pmMoneyJa_(h.ret) : '', h.br ? 'ブリッジ (チェーンをまたぐ仕組み) の被害' : ''].filter(Boolean).join(' ／ ')
+          + ' (基準 ' + pmMoneyJa_(NT.hackMin * 1e6) + ' 以上)');
+      });
+      sent.h = fresh.map(llama2HackId_).concat(sent.h).slice(0, 300);
+    }
+  }
+  sent.p = sent.p || {};
+  Object.keys(sent.p).forEach(function (k) { if (now - sent.p[k] > 7 * 86400000) delete sent.p[k]; });
+  if (NT.peg && d.pegs) (d.pegs.list || []).filter(function (x) { return Math.abs(x.dev) >= NT.pegPct; }).forEach(function (x) {
+    const k = x.sym + '|' + x.n;
+    if (sent.p[k] && now - sent.p[k] < LLAMA2_PEG_COOL) return;
+    hits.push(x.sym + ' (' + x.n + ') が ' + x.px.toFixed(4) + 'ドル — 1ドルから ' + (x.dev >= 0 ? '+' : '−') + Math.abs(x.dev) + '% ずれています (流通量 ' + pmMoneyJa_(x.circ) + '、基準 ±' + NT.pegPct + '%)。'
+      + (x.dev < 0 ? '売られて1ドルを下回っています' : '買いが集まり1ドルを上回っています'));
+    sent.p[k] = now;
+  });
+  if (hits.length) {
+    MailApp.sendEmail({ to: to, subject: '【ポリマーケット】DefiLlama: ' + hits[0].split(' — ')[0].slice(0, 44),
+      body: 'DefiLlama で気になる動きがありました (' + Utilities.formatDate(new Date(now), 'Asia/Tokyo', 'M/d HH:mm') + ')。\n\n・' + hits.join('\n\n・')
+        + '\n\n■ いまの読み取り\n' + (d.read || []).map(function (x) { return '・' + x; }).join('\n')
+        + '\n\n※ ポリマーケット記録アプリからの自動通知です。売買はしていません。' });
+  }
+  if (JSON.stringify(sent) !== before) props.setProperty('LLAMA2_SENT', JSON.stringify(sent));
+}
+/** 毎朝のまとめに入れる欄 */
+function pmDealsSection_() {
+  const d = llamaMore_(false);
+  if (!llama2Has_(d)) return null;
+  const since = pmJstDay_(Date.now() - 7 * 86400000);
+  const hk = d.hacks ? (d.hacks.list || []).filter(function (h) { return h.d >= since; }).slice(0, 8) : null;
+  const off = d.pegs ? d.pegs.off || [] : null;
+  const hl = function (h) { return usMd_(h.d) + ' ' + h.n + ': ' + pmMoneyJa_(h.amt) + (h.ch.length ? ' (' + h.ch.join('・') + ')' : '') + (h.tech ? ' ／ 手口: ' + h.tech : '') + (h.ret ? ' ／ 戻った額 ' + pmMoneyJa_(h.ret) : ''); };
+  const pl = function (x) { return x.sym + ' (' + x.n + '): ' + x.px.toFixed(4) + 'ドル (' + (x.dev >= 0 ? '+' : '−') + Math.abs(x.dev) + '%) ／ 流通量 ' + pmMoneyJa_(x.circ); };
+  const x = d.dex, y = d.yields;
+  const dexLine = x ? '24時間 ' + pmMoneyJa_(x.v24) + ' ／ 7日 ' + pmMoneyJa_(x.v7) + (x.c7 != null ? ' (前の7日比 ' + pmSigned_(x.c7) + ')' : '') + ' ／ 上位: ' + (x.protos || []).slice(0, 3).map(function (p) { return p.n + ' ' + pmMoneyJa_(p.v24); }).join('、') : null;
+  const yLine = y ? '中央値 年' + y.med + '% (' + y.n + '件) ／ 預かりが大きいところ: ' + (y.top || []).slice(0, 3).map(function (p) { return p.proj + ' ' + p.sym + ' ' + p.apy + '%'; }).join('、') : null;
+  let text = '■■ ハッキング・ステーブルコイン・DEX (DefiLlama)\n' + (d.read || []).map(function (s) { return '・' + s; }).join('\n') + '\n';
+  let html = pmMailHead_('🚨 ハッキング・ステーブルコイン・DEX (DefiLlama)') + (d.read || []).map(function (s) { return pmMailRow_(esc(s)); }).join('');
+  if (hk) {
+    text += '\n■ この7日のハッキング被害 (100万ドル以上)\n' + (hk.length ? hk.map(function (h) { return '・' + hl(h); }).join('\n') : '・ありませんでした') + '\n';
+    html += pmMailSub_('この7日のハッキング被害 (100万ドル以上)') + (hk.length ? hk.map(function (h) { return pmMailRow_(esc(hl(h))); }).join('') : pmMailRow_('ありませんでした'));
+  }
+  if (off) {
+    text += '\n■ ステーブルコインのペッグ (1ドルから0.5%以上ずれているもの)\n' + (off.length ? off.map(function (p) { return '・' + pl(p); }).join('\n') : '・主なステーブルコインはすべて1ドル付近です') + '\n';
+    html += pmMailSub_('ステーブルコインのペッグ (1ドルから0.5%以上ずれているもの)') + (off.length ? off.map(function (p) { return pmMailRow_('<span style="color:#b91c1c">' + esc(pl(p)) + '</span>'); }).join('') : pmMailRow_('主なステーブルコインはすべて1ドル付近です'));
+  }
+  if (dexLine) { text += '\n■ DEX の出来高\n・' + dexLine + '\n'; html += pmMailSub_('DEX の出来高') + pmMailRow_(esc(dexLine)); }
+  if (yLine) { text += '\n■ ステーブルコインの利回り (預かり1億ドル以上)\n・' + yLine + '\n'; html += pmMailSub_('ステーブルコインの利回り (預かり1億ドル以上)') + pmMailRow_(esc(yLine)); }
+  if ((d.errors || []).length) text += '・一部取得できませんでした: ' + d.errors.join('、') + '\n';
+  return { text: text, html: html };
+}
+/** AI に渡すレポートの節 */
+function llama2ReportLines_(from) {
+  const d = llamaMore_(false), lines = ['## 11. ハッキング被害・ステーブルコインのペッグ・DEX の出来高・利回り (DefiLlama)'];
+  lines.push('金額はドル。ずれ = ステーブルコインの価格の1ドルからの差 (%)。利回りの中央値 = ステーブルコインだけを預ける (値下がりの心配が少ない) 預かり1億ドル以上のプールの年利回り (APY) の中央値で、高いほど借りてでも投資したい人が多い。');
+  if ((d.read || []).length) lines.push('いまの読み取り: ' + d.read.join(' ／ '));
+  const v = function (x) { return x == null || x === '' ? '-' : x; };
+  const hk = d.hacks ? (d.hacks.list || []).filter(function (h) { return h.d >= from; }) : [];
+  lines.push('### この期間のハッキング被害 (100万ドル以上)');
+  lines.push(hk.length ? pmMdTable_(['日付', '名前', '被害額', 'チェーン', '分類', '手口', '戻った額'], hk.map(function (h) { return [h.d, h.n, h.amt, h.ch.join('・') || '-', v(h.cls), v(h.tech), v(h.ret)]; })) : '(ありません)');
+  lines.push('### いまのペッグ外れ (1ドルから0.5%以上)');
+  const off = d.pegs ? d.pegs.off || [] : [];
+  lines.push(!d.pegs ? '(取得できていません)' : off.length ? pmMdTable_(['銘柄', '名前', '価格', 'ずれ (%)', '流通量'], off.map(function (x) { return [x.sym, x.n, x.px, x.dev, x.circ]; })) : '(ありません。主なステーブルコインはすべて1ドル付近です)');
+  const h = llama2Hist_(400), ds = Object.keys(h).filter(function (x) { return x >= from; }).sort();
+  lines.push('### 日ごとの記録');
+  lines.push(ds.length ? pmMdTable_(['日付', 'DEX 出来高 (24時間)', 'ステーブル利回りの中央値 (%)', 'ペッグ外れの数'], ds.map(function (x) { return [x, v(h[x].dexv24), v(h[x].ymed), v(h[x].pegOff)]; })) : '(この期間の記録はありません)');
+  if (d.dex && (d.dex.protos || []).length) {
+    lines.push('### DEX の出来高の上位 (いま)');
+    lines.push(pmMdTable_(['名前', '24時間', '7日の変化 (%)', 'チェーン'], d.dex.protos.slice(0, 10).map(function (p) { return [p.n, p.v24, v(p.c7), p.ch.join('・')]; })));
+  }
+  lines.push('');
+  return lines;
+}
+
 // =====================================================================
 //  オプション市場 (Deribit の公開データ) — BTC・ETH
 //    予想変動率 (DVOL)・プット/コール比率・満期ごとの建玉・スキュー・マックスペイン
@@ -2253,7 +2526,7 @@ function optData_(force) {
   return cur;
 }
 
-/** 1時間ごと (pmRecord から): 最新を取り直し、その日の値を残す。DVOL が大きく動いたら知らせる */
+/** 1時間ごと (pmAlert の後の pmSideJobs_ から): 最新を取り直し、その日の値を残す。DVOL が大きく動いたら知らせる */
 function optRecord_() {
   const d = optData_(true);
   const now = Date.now();
@@ -2447,7 +2720,7 @@ function newsPrompt_() {
     + '・用語集 (原文 → 訳):\n' + PM_GLOSSARY.map(function (g) { return '  ' + g[0] + ' → ' + g[1]; }).join('\n');
 }
 
-/** 1時間ごと (pmRecord から): フィードを取り込み、和訳・判定し、大事なものを知らせる。全部のフィードが失敗した時だけ投げる */
+/** 1時間ごと (pmAlert の後の pmSideJobs_ から): フィードを取り込み、和訳・判定し、大事なものを知らせる。全部のフィードが失敗した時だけ投げる */
 function newsRecord_() {
   const now = Date.now(), cut = now - NEWS_KEEP_H * 3600000;
   const got = [], errors = [], desc = {};
@@ -2792,7 +3065,7 @@ function usForMacro_() {
   } catch (e) { return null; }
 }
 
-/** 1時間ごと (pmRecord から): 3時間ごとに取り直し、SRF の利用・TGA の大きな動き・不調な入札を知らせる */
+/** 1時間ごと (pmAlert の後の pmSideJobs_ から): 3時間ごとに取り直し、SRF の利用・TGA の大きな動き・不調な入札を知らせる */
 function usRecord_() {
   const d = usData_(false);
   const props = PropertiesService.getScriptProperties(), to = pmMailTo_(), NT = ntf_(), now = Date.now();
@@ -2894,6 +3167,7 @@ const HEALTH_JOBS = [
   { k: 'opt',      n: 'オプション市場 (Deribit)',           every: '1時間ごと', max: 3 },
   { k: 'news',     n: 'ニュースと公式発表',                 every: '1時間ごと', max: 3 },
   { k: 'us',       n: '米国のお金の流れ (財務省・NY連銀)',  every: '1時間ごと', max: 6 },
+  { k: 'llama2',   n: 'ハッキング・ペッグ・DEX (DefiLlama)', every: '1時間ごと', max: 6 },
   { k: 'resolve',  n: '決着の取り込み',                    every: '毎日5時',   max: 30 },
   { k: 'daily',    n: '日ごとの要約',                      every: '毎日5時',   max: 30 },
   { k: 'macrolog', n: 'マクロの日誌 (天気図)',             every: '毎日5時',   max: 30 },
@@ -2902,6 +3176,39 @@ const HEALTH_JOBS = [
   { k: 'digest',   n: '毎朝のまとめメール',                every: '毎日8時',   max: 30, mail: 'PM_DIGEST_ON' },
 ];
 const HEALTH_TRIGGERS = ['pmRecord', 'pmResolve', 'pmAlert', 'pmDigest'];
+
+/** 定期の取得 (every = 分)。pmRecord が6分の制限に近づかないように、pmAlert (10分おき) の最後に1回1つずつ動かす。
+ *  新しい定期の取得はここに足す (pmRecord には足さない)。HEALTH_JOBS にも足す */
+const SIDE_JOBS = [
+  { k: 'opt',    fn: optRecord_,        every: 60 },
+  { k: 'news',   fn: newsRecord_,       every: 60 },
+  { k: 'us',     fn: usRecord_,         every: 60 },
+  { k: 'llama2', fn: llamaMoreRecord_,  every: 60 },
+];
+const SIDE_SLACK = 60000;   // 1分早くても動かす (トリガーの時刻のずれ)
+/** 時間になったもののうち一番待っているもの (まだ一度も動いていないものは並び順) を1つだけ動かす。動かした名前 (無ければ null) を返す。
+ *  始める前に SIDE_LAST に時刻を控えるので、落ちたり時間切れになったりしても10分ごとに取り直し続けることはない */
+function pmSideJobs_() {
+  const p = PropertiesService.getScriptProperties();
+  let last = {};
+  try { last = JSON.parse(p.getProperty('SIDE_LAST') || '{}') || {}; } catch (e) {}
+  const now = Date.now(), at = function (j) { return Number(last[j.k]) || 0; };
+  let pick = null;
+  SIDE_JOBS.forEach(function (j) {
+    if (at(j) && now - at(j) < j.every * 60000 - SIDE_SLACK) return;
+    if (!pick || at(j) < at(pick)) pick = j;
+  });
+  if (!pick) return null;
+  const keep = {};
+  SIDE_JOBS.forEach(function (j) { if (last[j.k]) keep[j.k] = last[j.k]; });
+  keep[pick.k] = now;
+  p.setProperty('SIDE_LAST', JSON.stringify(keep));
+  const own = !PM_RUN_T0;
+  if (own) PM_RUN_T0 = now;
+  try { hbRun_(pick.k, pick.fn); }
+  finally { if (own) PM_RUN_T0 = 0; }
+  return pick.k;
+}
 const HEALTH_MAIL_EVERY = 24 * 3600000;
 
 function hbOk_(k) {
@@ -2980,8 +3287,9 @@ const NTF_SPEC = {
   opt: [true], dvol: [8, 2, 50],   // オプション: DVOL が24時間でこれだけ動いたら知らせる
   news: [true], newsMin: [3, 2, 3],   // ニュース: AI の重要度がこれ以上なら知らせる
   us: [true], srf: [5, 1, 200], tga: [50, 10, 500],   // 米国のお金の流れ: SRF の利用額・TGA の1営業日の増減 (どちらも10億ドル単位)
+  hack: [true], hackMin: [20, 1, 1000], peg: [true], pegPct: [1, 0.3, 10],   // DefiLlama: ハッキング被害 (百万ドル以上)・ステーブルコインの1ドルからのずれ (%)
   health: [true],
-  dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true], dUs: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
+  dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true], dUs: [true], dDeals: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
 };
 function ntfDefaults_() { const o = {}; Object.keys(NTF_SPEC).forEach(function (k) { o[k] = NTF_SPEC[k][0]; }); return o; }
 function ntf_() {

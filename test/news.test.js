@@ -354,9 +354,10 @@ test('doGet action=news: 既定は3日・最大7日。フィードの一覧を�
   assert.equal(gas.get({ action: 'news', key: 'secret-pass-12345' }).news.items.length, 1);
 });
 
-test('見張り: pmRecord の後、ニュースの記録は ok', () => {
+test('見張り: 定期の取得 (pmAlert の後) で、ニュースの記録は ok', () => {
   const { gas } = world({ key: false, markets: () => ok([{ id: '1', question: 'Q', outcomes: '["Yes","No"]', outcomePrices: '["0.5","0.5"]', volume24hr: 1, closed: false, active: true, events: [{ id: 'e', title: 'E', slug: 'e' }] }]) });
   gas.ctx.pmRecord();
+  for (let i = 0; i < 4; i++) gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
   const j = gas.get({ action: 'health' }).health.jobs.find(x => x.k === 'news');
   assert.equal(j.st, 'ok');
   assert.equal(latest(gas).items.length, 10);

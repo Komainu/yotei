@@ -100,7 +100,7 @@ test('サーバー: 3時間は取り直さない。1つが落ちても他は新�
   const r2 = z.gas.get({ action: 'us' });
   assert.equal(r2.ok, false);
   assert.match(r2.error, /米国のお金の流れを取得できません/);
-  z.gas.ctx.pmRecord();
+  for (let i = 0; i < 4; i++) z.gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
   const j = z.gas.get({ action: 'health' }).health.jobs.find(x => x.k === 'us');
   assert.equal(j.st, 'error');
   assert.equal(j.n, '米国のお金の流れ (財務省・NY連銀)');
@@ -263,7 +263,7 @@ test('レポート: 「## 10. 米国のお金の流れ」に日ごとの表と�
   assert.doesNotMatch(t, /\| 2026-11-06 \|/, '7日より前は入れない');
   assert.match(t, /\| 2026-11-12 \| 10年国債 \| 42 \| 2\.3 \| 2\.5 \| 4\.16 \| 75 \| 不調 \|/);
   assert.match(t, /### これからの国債入札/);
-  assert.equal(gas.C.GAS_VERSION, '2026.12.06');
+  assert.equal(gas.C.GAS_VERSION, '2026.12.08');
   const all = gas.get({ action: 'report', days: '7' }).text;
   assert.match(all, /## 10\. 米国のお金の流れ/);
 });
@@ -307,9 +307,10 @@ test('天気図: 日次のデータがあれば「正味の流動性」「TGA」
   assert.equal(JSON.parse(f.content).us, undefined);
 });
 
-test('見張り: pmRecord の後、米国のお金の流れは ok (1時間ごと・6時間まで)', () => {
+test('見張り: 定期の取得 (pmAlert の後) で、米国のお金の流れは ok (1時間ごと・6時間まで)', () => {
   const { gas } = world({ pm: true, world: { auctions: [] } });
   gas.ctx.pmRecord();
+  for (let i = 0; i < 4; i++) gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
   const h = gas.get({ action: 'health' }).health;
   const j = h.jobs.find(x => x.k === 'us');
   assert.equal(j.st, 'ok');
