@@ -16,7 +16,7 @@
  */
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.12.08';
+const GAS_VERSION = '2026.12.10';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -171,6 +171,9 @@ function doGetInner_(e) {
   }
   if (action === 'us') {
     return json({ ok: true, version: GAS_VERSION, us: usData_(e.parameter.force === '1') });
+  }
+  if (action === 'hl2') {
+    return json(hl2Get_(e.parameter.force === '1'));
   }
   if (action === 'news') {
     const days = Math.max(1, Math.min(NEWS_LATEST_DAYS, Number(e.parameter.days) || 3));
@@ -417,7 +420,7 @@ function pmRecord() {
   hbRun_('macro', function () { macroData_(false); });   // マクロの指標も1時間ごとに取り直しておく (アプリを開いた時にすぐ出るように)
   hbRun_('fed', fedCompareRecord_);
   hbRun_('hl', hlRecord_);
-  // オプション・ニュース・米国のお金の流れ・DefiLlama その2 は pmAlert (10分おき) の最後に1つずつ (SIDE_JOBS・pmSideJobs_)。6分の制限に近づかないように
+  // オプション・ニュース・米国のお金の流れ・DefiLlama その2・Hyperliquid その2 は pmAlert (10分おき) の最後に1つずつ (SIDE_JOBS・pmSideJobs_)。6分の制限に近づかないように
   try { pmHealthMail_(); } catch (e) { Logger.log('記録の見張りに失敗: ' + e); }
 }
 
@@ -733,6 +736,7 @@ function pmDoPost_(data) {
     PropertiesService.getScriptProperties().setProperty('HL_WATCH', JSON.stringify(coins));
     return { ok: true, watch: coins };
   }
+  if (data.action === 'pmHlWallets') return hl2SaveWallets_(data);
   return { ok: false, error: '不明な操作です' };
 }
 
@@ -1046,8 +1050,9 @@ function pmDigest() {
     const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
     let mac = null;
     try { mac = pmMacroSection_(); } catch (e) { Logger.log('天気図をまとめに入れられません: ' + e); }
-    let ml = null, flow = null, optS = null, newsS = null, usS = null, deals = null;
+    let ml = null, flow = null, optS = null, newsS = null, usS = null, deals = null, hl2S = null;
     if (ntf_().dNews) { try { newsS = pmNewsSection_(); } catch (e) { Logger.log('ニュースをまとめに入れられません: ' + e); } }
+    if (ntf_().dHl2) { try { hl2S = pmHl2Section_(); } catch (e) { Logger.log('Hyperliquid の金庫・大口をまとめに入れられません: ' + e); } }
     if (ntf_().dOpt) { try { optS = pmOptSection_(); } catch (e) { Logger.log('オプション市場をまとめに入れられません: ' + e); } }
     if (ntf_().dMacro) { try { ml = mac ? pmMacroList_(mac.res) : null; } catch (e) { Logger.log('マクロ指標の一覧をまとめに入れられません: ' + e); } }
     if (ntf_().dUs) { try { usS = pmUsSection_(); } catch (e) { Logger.log('米国のお金の流れをまとめに入れられません: ' + e); } }
@@ -1059,7 +1064,7 @@ function pmDigest() {
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
       + (newsS ? newsS.text + '\n' : '')
-      + (ml ? ml.text + '\n' : '') + (usS ? usS.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '') + (deals ? deals.text + '\n' : '')
+      + (ml ? ml.text + '\n' : '') + (usS ? usS.text + '\n' : '') + (hl2S ? hl2S.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '') + (deals ? deals.text + '\n' : '')
       + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + pmHealthLine_() + '\n\n'
       + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
     const h = function (title, list, empty) {
@@ -1074,7 +1079,7 @@ function pmDigest() {
       to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (mac ? ' ' + mac.sky[1] + mac.sky[2] : '') + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
       htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', (mac ? '<tr><td style="padding:6px 0 2px;font-weight:700;font-size:15px">🌐 相場の天気図</td></tr>' + mac.html : '') + h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')
-        + (newsS ? newsS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '') + (deals ? deals.html : '')),
+        + (newsS ? newsS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (hl2S ? hl2S.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '') + (deals ? deals.html : '')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
     hbOk_('digest');
@@ -1562,7 +1567,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us', 'deals'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us', 'deals', 'hl2'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -1727,6 +1732,7 @@ function pmReport_(opt) {
   if (parts.indexOf('opt') >= 0) { try { optReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 8. オプション市場', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('us') >= 0) { try { usReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 10. 米国のお金の流れ', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('deals') >= 0) { try { llama2ReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 11. ハッキング被害・ペッグ・DEX・利回り', '(読み出せませんでした: ' + e + ')', ''); } }
+  if (parts.indexOf('hl2') >= 0) { try { hl2ReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 12. Hyperliquid の金庫・大口・買い戻し', '(読み出せませんでした: ' + e + ')', ''); } }
   const text = lines.join('\n');
   return { ok: true, text: text, chars: text.length, from: from, to: to };
 }
@@ -1990,6 +1996,391 @@ function hlSeries_(hours) {
     Object.keys(all[k]).forEach(function (c) { const x = all[k][c]; (out[c] = out[c] || []).push([k, x[0], x[1], x[2], x[3] != null ? x[3] : null, x[4] != null ? x[4] : null, x[5] != null ? x[5] : null, x[6] != null ? x[6] : null]); });
   });
   return out;
+}
+
+// =====================================================================
+//  Hyperliquid その2: HLP 金庫・大口のポジション・HYPE の買い戻し・上場オークション
+//    hl2-latest.json … 最新 (55分) { at, hlp, whales, af, auction, read, errors, lb (大口の候補・6時間), snap (見張るアドレスの前回のポジション) }
+//    hl2-YYYY-MM.json … 日ごとの最後の値 { 日付: { hlp:[預かり, 1日の損益], af:[HYPE, ドル], gas, net:{ BTC: 買い越し額, ... } } }
+//    使う API (公式の説明で確かめた形): info の vaultDetails・clearinghouseState・spotClearinghouseState・allMids・spotDeployState・perpDeployAuctionStatus
+//    大口の一覧は stats-data の leaderboard (GET。大きいので6時間に1回だけ取り、選んだ20人を控える)
+//    売買は一切しない。大口のポジションは公開されているものだけ (他の取引所でのヘッジは見えない)
+// =====================================================================
+
+const HL2_TTL = 55 * 60000;
+const HL2_LB_TTL = 6 * 3600000;
+const HL2_HLP = '0xdfc24b077bc1425ad1dea75bcb6f8158e10df303';   // HLP (Hyperliquidity Provider) の金庫
+const HL2_AF = '0xfefefefefefefefefefefefefefefefefefefefe';    // 支援基金 (Assistance Fund。手数料で HYPE を買い戻している)
+const HL2_LB_URL = 'https://stats-data.hyperliquid.xyz/Mainnet/leaderboard';
+const HL2_TOP = 20;            // 大口として見る人数 (口座の大きい順・今月の出来高あり)
+const HL2_WALLETS_MAX = 10;    // 自分で見張るアドレスの上限
+const HL2_POS_KEEP = 6;        // 1人につき見せるポジションの数
+const HL2_NET_COINS = ['BTC', 'ETH', 'SOL', 'HYPE'];
+const HL2_NET_EXTRA = 6;
+const HL2_ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
+const HL2_PARTS = { hlp: 'HLP 金庫', whales: '大口のポジション', af: '買い戻し基金', auction: '上場オークション' };
+
+function hl2N_(v) { const x = Number(v); return v == null || v === '' || isNaN(x) ? null : x; }
+/** [[期間, {...}], ...] か { 期間: {...} } のどちらでも → { 期間: {...} } */
+function hl2Pairs_(p) {
+  const o = {};
+  if (Array.isArray(p)) p.forEach(function (x) { if (Array.isArray(x) && x.length >= 2) o[String(x[0])] = x[1] || {}; });
+  else if (p && typeof p === 'object') Object.keys(p).forEach(function (k) { o[k] = p[k] || {}; });
+  return o;
+}
+function hl2Short_(a) { a = String(a || ''); return a.length > 12 ? a.slice(0, 6) + '…' + a.slice(-4) : a; }
+/** 金庫・支援基金・同じ文字の繰り返しのアドレス (仕組みのアドレス) */
+function hl2System_(a) { return a === HL2_HLP || a === HL2_AF || /^0x([0-9a-f]{2})\1{19}$/.test(a) || /^0x([0-9a-f])\1{39}$/.test(a); }
+/** 数 (枚など) を日本の単位で */
+function hl2Num_(v) {
+  v = Number(v) || 0;
+  const a = Math.abs(v), s = v < 0 ? '−' : '';
+  if (a >= 1e8) return s + (Math.round(a / 1e7) / 10) + '億';
+  if (a >= 1e4) return s + (Math.round(a / 1e3) / 10) + '万';
+  return s + (Math.round(a * 10) / 10).toLocaleString();
+}
+function hl2Signed_(v) { return v == null ? '-' : (v >= 0 ? '+' : '−') + pmMoneyJa_(Math.abs(v)); }
+function hl2Who_(w) { return (w.name ? w.name + ' ' : '') + '(' + hl2Short_(w.a) + ')'; }
+
+/** 自分で見張るアドレス: [{ a (小文字), n (名前・20文字まで) }] */
+function hl2Wallets_() {
+  try {
+    const l = JSON.parse(PropertiesService.getScriptProperties().getProperty('HL_WALLETS') || '[]');
+    return Array.isArray(l) ? l.filter(function (w) { return w && HL2_ADDR_RE.test(String(w.a)); }).map(function (w) { return { a: String(w.a).toLowerCase(), n: String(w.n || '') }; }) : [];
+  } catch (e) { return []; }
+}
+/** doPost pmHlWallets: { wallets: [{a, n}] } を確かめて保存 (形の違うアドレスがあれば何も保存しない) */
+function hl2SaveWallets_(data) {
+  const list = Array.isArray(data.wallets) ? data.wallets : null;
+  if (!list) return { ok: false, error: 'アドレスの一覧が届きませんでした' };
+  const out = [], seen = {};
+  for (let i = 0; i < list.length; i++) {
+    const w = list[i] || {}, a = String(typeof w === 'string' ? w : w.a || '').trim();
+    if (!HL2_ADDR_RE.test(a)) return { ok: false, error: 'アドレスの形が正しくありません (0x で始まる42文字): ' + a.slice(0, 50) };
+    const k = a.toLowerCase();
+    if (seen[k]) continue;
+    seen[k] = 1;
+    out.push({ a: k, n: String(w.n || '').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 20) });
+  }
+  const saved = out.slice(0, HL2_WALLETS_MAX);
+  PropertiesService.getScriptProperties().setProperty('HL_WALLETS', JSON.stringify(saved));
+  return { ok: true, wallets: saved, cut: out.length > saved.length };
+}
+
+/** HLP 金庫: 預かり・期間ごとの損益・年率・30日の推移 (60点まで) */
+function hl2Hlp_() {
+  const v = macroHl_({ type: 'vaultDetails', vaultAddress: HL2_HLP });
+  if (!v || typeof v !== 'object') throw new Error('HLP の応答が空です');
+  const pf = hl2Pairs_(v.portfolio);
+  const pnl = function (k) {
+    const h = (pf[k] || {}).pnlHistory;
+    if (!Array.isArray(h) || !h.length) return null;
+    const last = hl2N_((h[h.length - 1] || [])[1]), first = hl2N_((h[0] || [])[1]);
+    return last == null ? null : Math.round(last - (first || 0));
+  };
+  const avOf = function (k) { const h = (pf[k] || {}).accountValueHistory; return Array.isArray(h) && h.length ? hl2N_((h[h.length - 1] || [])[1]) : null; };
+  const tvl = avOf('day') != null ? avOf('day') : avOf('week') != null ? avOf('week') : avOf('allTime');
+  if (tvl == null) throw new Error('HLP の預かり資産が読めません');
+  const mo = pf.month || {}, avh = Array.isArray(mo.accountValueHistory) ? mo.accountValueHistory : [], ph = Array.isArray(mo.pnlHistory) ? mo.pnlHistory : [];
+  const p0 = ph.length ? hl2N_((ph[0] || [])[1]) || 0 : 0, pmap = {};
+  ph.forEach(function (x) { if (Array.isArray(x)) pmap[x[0]] = hl2N_(x[1]); });
+  let series = avh.map(function (x) {
+    if (!Array.isArray(x)) return null;
+    const t = Math.round(Number(x[0])), av = hl2N_(x[1]), p = pmap[x[0]];
+    return t && av != null ? [t, Math.round(av), p == null ? null : Math.round(p - p0)] : null;
+  }).filter(Boolean);
+  if (series.length > 60) { const step = (series.length - 1) / 59, s2 = []; for (let i = 0; i < 60; i++) s2.push(series[Math.round(i * step)]); series = s2; }
+  const fol = v.followers;
+  return { at: Date.now(), tvl: Math.round(tvl), pnlD: pnl('day'), pnlW: pnl('week'), pnlM: pnl('month'), pnlA: pnl('allTime'),
+    apr: hl2N_(v.apr) == null ? null : Math.round(hl2N_(v.apr) * 1000) / 10,
+    followers: Array.isArray(fol) ? fol.length : hl2N_(fol),
+    kids: ((((v.relationship || {}).data || {}).childAddresses) || []).map(function (a) { return String(a).toLowerCase(); }),
+    series: series };
+}
+
+/** 大口の候補 (stats-data の leaderboard): 口座の大きい順・今月の出来高あり・金庫や仕組みのアドレスは除く */
+function hl2Leaderboard_(skip) {
+  const j = JSON.parse(macroFetchText_(HL2_LB_URL));
+  const rows = Array.isArray(j) ? j : (j && (j.leaderboardRows || j.rows)) || [];
+  if (!rows.length) throw new Error('大口の一覧が空です');
+  return rows.map(function (r) {
+    r = r || {};
+    const a = String(r.ethAddress || r.address || r.user || '').toLowerCase();
+    const w = hl2Pairs_(r.windowPerformances), m = w.month || {}, d = w.day || {};
+    return { a: a, name: r.displayName ? String(r.displayName).slice(0, 40) : null, av: hl2N_(r.accountValue), pnlD: hl2N_(d.pnl), pnlM: hl2N_(m.pnl), vlm: hl2N_(m.vlm) };
+  }).filter(function (r) { return HL2_ADDR_RE.test(r.a) && r.av > 0 && r.vlm > 0 && !hl2System_(r.a) && skip.indexOf(r.a) < 0; })
+    .sort(function (x, y) { return y.av - x.av; }).slice(0, HL2_TOP)
+    .map(function (r) { return { a: r.a, name: r.name, av: Math.round(r.av), pnlD: r.pnlD == null ? null : Math.round(r.pnlD), pnlM: r.pnlM == null ? null : Math.round(r.pnlM) }; });
+}
+/** 1つの口座の先物のポジション (全部) → { av, all: [{c, side, v, lev, upnl, entry, liq, sz}] } */
+function hl2Account_(a) {
+  const s = macroHl_({ type: 'clearinghouseState', user: a });
+  if (!s || typeof s !== 'object') throw new Error('空の応答');
+  const all = (s.assetPositions || []).map(function (x) {
+    const p = (x && x.position) || x || {}, sz = hl2N_(p.szi);
+    if (!p.coin || !sz) return null;
+    const v = Math.abs(hl2N_(p.positionValue) || 0), lev = p.leverage && typeof p.leverage === 'object' ? hl2N_(p.leverage.value) : hl2N_(p.leverage);
+    const up = hl2N_(p.unrealizedPnl);
+    return { c: String(p.coin), side: sz > 0 ? 'L' : 'S', v: Math.round(v), lev: lev, upnl: up == null ? null : Math.round(up), entry: hl2N_(p.entryPx), liq: hl2N_(p.liquidationPx), sz: Math.abs(sz) };
+  }).filter(Boolean).sort(function (x, y) { return y.v - x.v; });
+  return { av: hl2N_((s.marginSummary || s.crossMarginSummary || {}).accountValue), all: all };
+}
+/** 買い越し・売り越しの集計 (大口の一覧の人だけ。見張るアドレスだけの人は入れない) */
+function hl2Net_(accts) {
+  const m = {};
+  accts.forEach(function (w) {
+    const seen = {};
+    w.all.forEach(function (p) {
+      const x = m[p.c] = m[p.c] || { c: p.c, long: 0, short: 0, net: 0, nL: 0, nS: 0 };
+      if (p.side === 'L') { x.long += p.v; if (!seen[p.c + 'L']) { x.nL++; seen[p.c + 'L'] = 1; } }
+      else { x.short += p.v; if (!seen[p.c + 'S']) { x.nS++; seen[p.c + 'S'] = 1; } }
+      x.net = x.long - x.short;
+    });
+  });
+  const fixed = HL2_NET_COINS.map(function (c) { return m[c] || { c: c, long: 0, short: 0, net: 0, nL: 0, nS: 0 }; });
+  const extra = Object.keys(m).filter(function (c) { return HL2_NET_COINS.indexOf(c) < 0; }).map(function (c) { return m[c]; })
+    .sort(function (x, y) { return (y.long + y.short) - (x.long + x.short); }).slice(0, HL2_NET_EXTRA);
+  return fixed.concat(extra);
+}
+/** 大口のポジション。lbPrev = 前回の大口の一覧の控え (6時間使い回す)、skip = 除くアドレス (HLP の子金庫) */
+function hl2Whales_(lbPrev, skip) {
+  const now = Date.now(), wl = hl2Wallets_(), out = { at: now, list: [], net: [], top: [], lbDown: false, failed: 0, nLb: 0 };
+  let lb = lbPrev && lbPrev.list ? lbPrev : null;
+  if (!lb || now - lb.at > HL2_LB_TTL - 5 * 60000) {
+    try { lb = { at: now, list: hl2Leaderboard_(skip || []) }; }
+    catch (e) { Logger.log('大口の一覧を取れません: ' + e); out.lbDown = true; }
+  }
+  out.lb = lb;
+  const targets = [], seen = {};
+  (lb ? lb.list : []).forEach(function (r) { seen[r.a] = targets.length; targets.push({ a: r.a, name: r.name, av: r.av, pnlD: r.pnlD, pnlM: r.pnlM, lb: true }); });
+  wl.forEach(function (w) {
+    if (seen[w.a] != null) { const t = targets[seen[w.a]]; t.w = true; if (w.n) t.name = w.n; return; }
+    seen[w.a] = targets.length; targets.push({ a: w.a, name: w.n || null, av: null, pnlD: null, pnlM: null, lb: false, w: true });
+  });
+  const done = [];
+  targets.slice(0, HL2_TOP + HL2_WALLETS_MAX).forEach(function (t) {   // 1回に30口座まで
+    try {
+      const r = hl2Account_(t.a);
+      done.push(Object.assign(t, { av: r.av != null ? Math.round(r.av) : t.av, all: r.all }));
+    } catch (e) { out.failed++; Logger.log('口座を読めません ' + t.a + ': ' + e); }
+  });
+  if (!done.length) throw new Error('どの口座も読めませんでした');
+  const big = done.filter(function (w) { return w.lb; });
+  out.net = hl2Net_(big);
+  const tops = [];
+  big.forEach(function (w) { w.all.forEach(function (p) { tops.push({ a: w.a, name: w.name, c: p.c, side: p.side, v: p.v, lev: p.lev }); }); });
+  out.top = tops.sort(function (x, y) { return y.v - x.v; }).slice(0, 5);
+  out.nLb = big.length;
+  out.list = done.map(function (w) {
+    return { a: w.a, name: w.name, av: w.av, pnlD: w.pnlD, pnlM: w.pnlM, w: !!w.w, lb: !!w.lb, n: w.all.length,
+      ntl: w.all.reduce(function (s, p) { return s + p.v; }, 0), pos: w.all.slice(0, HL2_POS_KEEP) };
+  });
+  out.snap = {};
+  done.filter(function (w) { return w.w; }).forEach(function (w) { const o = {}; w.all.forEach(function (p) { o[p.c] = [p.side, p.v, p.lev]; }); out.snap[w.a] = o; });
+  return out;
+}
+/** 支援基金 (HYPE の買い戻し): HYPE の量と評価額 */
+function hl2Af_() {
+  const s = macroHl_({ type: 'spotClearinghouseState', user: HL2_AF });
+  const b = ((s && s.balances) || []).filter(function (x) { return x && String(x.coin) === 'HYPE'; })[0];
+  if (!b || hl2N_(b.total) == null) throw new Error('支援基金の HYPE が読めません');
+  let px = null;
+  try { px = hl2N_((macroHl_({ type: 'allMids' }) || {}).HYPE); } catch (e) { Logger.log('HYPE の価格を取れません: ' + e); }
+  const hype = hl2N_(b.total);
+  return { at: Date.now(), hype: Math.round(hype), px: px, usd: px != null ? Math.round(hype * px) : null, d1: null, d7: null, d1usd: null, d7usd: null };
+}
+/** 上場オークション: 新しいトークン (現物) と HIP-3 の先物市場の登録料 (どちらも HYPE) */
+function hl2Gas_(g) {
+  if (!g || typeof g !== 'object') return null;
+  const s = hl2N_(g.startTimeSeconds), d = hl2N_(g.durationSeconds);
+  return { start: s != null ? s * 1000 : null, end: s != null && d != null ? (s + d) * 1000 : null, startGas: hl2N_(g.startGas), currentGas: hl2N_(g.currentGas), endGas: hl2N_(g.endGas) };
+}
+function hl2Auction_() {
+  const sp = hl2Gas_((macroHl_({ type: 'spotDeployState', user: '0x0000000000000000000000000000000000000000' }) || {}).gasAuction);
+  if (!sp) throw new Error('上場オークションが読めません');
+  let perp = null;
+  try { perp = hl2Gas_(macroHl_({ type: 'perpDeployAuctionStatus' })); } catch (e) { Logger.log('HIP-3 のオークションを取れません: ' + e); }
+  return { at: Date.now(), spot: sp, perp: perp };
+}
+function hl2Open_(g, now) { return !!(g && g.currentGas != null && g.end && g.end > now); }
+/** 読み取りの文 (売買のすすめはしない) */
+function hl2Read_(d, now) {
+  const out = [], h = d.hlp, w = d.whales, af = d.af, au = d.auction;
+  if (h && h.tvl != null) {
+    out.push('HLP 金庫の預かりは ' + pmMoneyJa_(h.tvl) + '。損益は1日で ' + hl2Signed_(h.pnlD) + '、7日で ' + hl2Signed_(h.pnlW)
+      + (h.pnlW != null ? (h.pnlW >= 0 ? ' (HLP がもうかっている = 取引する人たちが全体として損をしています)' : ' (HLP が損をしている = 取引する人たちが全体としてもうけています)') : ''));
+  }
+  if (w && w.nLb) {
+    (w.net || []).filter(function (x) { return ['BTC', 'ETH', 'HYPE'].indexOf(x.c) >= 0 && (x.nL || x.nS); }).forEach(function (x) {
+      out.push('大口' + w.nLb + '人のうち' + x.nL + '人が ' + x.c + ' を買い持ち、' + x.nS + '人が売り持ち。合計で ' + pmMoneyJa_(Math.abs(x.net)) + 'の' + (x.net >= 0 ? '買い越し' : '売り越し'));
+    });
+    const t = (w.top || [])[0];
+    if (t) out.push('いちばん大きいポジションは ' + hl2Who_(t) + ' の ' + t.c + ' ' + (t.side === 'L' ? '買い' : '売り') + ' ' + pmMoneyJa_(t.v) + (t.lev ? ' (レバレッジ ' + t.lev + '倍)' : ''));
+    out.push('※ 大口は他の取引所で反対の取引をして損を抑えている (ヘッジ) こともあるので、ここだけで向きは決められません');
+  }
+  if (af && af.hype != null) {
+    out.push('買い戻し基金 (支援基金) は HYPE を ' + hl2Num_(af.hype) + '枚' + (af.usd != null ? ' (約 ' + pmMoneyJa_(af.usd) + ')' : '') + ' 持っています'
+      + (af.d1 != null ? '。1日で ' + (af.d1 >= 0 ? '+' : '') + hl2Num_(af.d1) + '枚' + (af.d1usd != null ? ' (約 ' + pmMoneyJa_(Math.abs(af.d1usd)) + ')' : '') : '')
+      + (af.d7 != null ? '、7日で ' + (af.d7 >= 0 ? '+' : '') + hl2Num_(af.d7) + '枚' : '') + (af.d1 != null || af.d7 != null ? ' 増えました' : ''));
+  }
+  if (au && au.spot) {
+    const s = au.spot;
+    if (hl2Open_(s, now)) out.push('新しいトークンの上場オークションは今 ' + hl2Num_(s.currentGas) + ' HYPE' + (af && af.px ? ' (約 ' + pmMoneyJa_(s.currentGas * af.px) + ')' : '') + '。あと ' + Math.max(1, Math.round((s.end - now) / 3600000)) + '時間で ' + hl2Num_(s.endGas != null ? s.endGas : 500) + ' HYPE まで下がります (高いほど上場したい人が多い)');
+    else out.push('新しいトークンの上場オークションは今は開かれていません' + (s.endGas != null ? ' (前回の値段 ' + hl2Num_(s.endGas) + ' HYPE)' : ''));
+  }
+  return out;
+}
+
+function hl2Has_(d) { return !!(d && (d.hlp || d.whales || d.af || d.auction)); }
+function hl2Load_() { try { return JSON.parse(pmRead_('hl2-latest.json') || 'null'); } catch (e) { return null; } }
+/** 最新 (55分保存)。部分ごとに別々に取り、落ちた部分は前回の値のまま errors に名前 */
+function hl2Data_(force) {
+  const cur = hl2Load_();
+  if (!force && cur && Date.now() - cur.at < HL2_TTL) return cur;
+  const now = Date.now(), prev = cur || {}, d = { at: now, errors: [] };
+  const run = function (k, fn) {
+    try { d[k] = fn(); } catch (e) { d.errors.push(HL2_PARTS[k]); d[k] = prev[k] || null; Logger.log('Hyperliquid その2 ' + k + ' に失敗: ' + e); }
+  };
+  run('hlp', hl2Hlp_);
+  const kids = d.hlp && d.hlp.kids ? d.hlp.kids : [];
+  run('whales', function () { return hl2Whales_(prev.lb, kids); });
+  run('af', hl2Af_);
+  run('auction', hl2Auction_);
+  if (d.errors.length === 4 && !hl2Has_(prev)) throw new Error('Hyperliquid から取得できませんでした (' + d.errors.join('・') + ')');
+  // 大口の一覧の控えと、見張るアドレスの前回のポジション (通知用) は whales とは別に持つ
+  d.lb = prev.lb || null;
+  d.prevSnap = prev.snap || null;
+  d.snap = Object.assign({}, prev.snap || {});
+  if (d.whales && d.whales.at === now) {
+    if (d.whales.lb) d.lb = d.whales.lb;
+    if (d.whales.lbDown) d.errors.push('大口の一覧');
+    Object.keys(d.whales.snap || {}).forEach(function (a) { d.snap[a] = d.whales.snap[a]; });
+    delete d.whales.snap; delete d.whales.lb;
+  }
+  const wl = hl2Wallets_().map(function (w) { return w.a; });
+  Object.keys(d.snap).forEach(function (a) { if (wl.indexOf(a) < 0) delete d.snap[a]; });
+  if (d.af && d.af.at === now) hl2AfDelta_(d.af, now);
+  d.read = hl2Read_(d, now);
+  const save = Object.assign({}, d); delete save.prevSnap;
+  try { pmWrite_('hl2-latest.json', JSON.stringify(save)); } catch (e) { Logger.log('hl2-latest.json を保存できません: ' + e); }
+  return d;
+}
+/** 日ごとの記録から 1日・7日の増え方 (HYPE の量。ドルは増えた量 × 今の価格) */
+function hl2AfDelta_(af, now) {
+  const hist = hl2Hist_(10), today = pmJstDay_(now);
+  const at = function (n) { const r = hist[pmDayAdd_(today, -n)]; return r && r.af && r.af[0] != null ? r.af[0] : null; };
+  const p1 = at(1), p7 = at(7);
+  af.d1 = p1 == null ? null : af.hype - p1;
+  af.d7 = p7 == null ? null : af.hype - p7;
+  af.d1usd = af.d1 != null && af.px != null ? Math.round(af.d1 * af.px) : null;
+  af.d7usd = af.d7 != null && af.px != null ? Math.round(af.d7 * af.px) : null;
+}
+/** 日ごとの記録 (直近 days 日) */
+function hl2Hist_(days) {
+  const from = pmJstDay_(Date.now() - days * 86400000), out = {};
+  hlMonths_(Date.now(), Math.ceil(days / 28) + 1).forEach(function (m) {
+    const f = pmLoadJson_('hl2-' + m + '.json');
+    Object.keys(f).forEach(function (k) { if (k >= from) out[k] = f[k]; });
+  });
+  return out;
+}
+/** 見張るアドレスのポジションの変化 (初めて見たアドレスは覚えるだけ)。min = ドル */
+function hl2Changes_(prevSnap, snap, min) {
+  const hits = [], names = {};
+  hl2Wallets_().forEach(function (w) { names[w.a] = w.n; });
+  Object.keys(snap || {}).forEach(function (a) {
+    if (!prevSnap || !prevSnap[a]) return;
+    const p = prevSnap[a], n = snap[a], who = (names[a] ? names[a] + ' ' : '') + '(' + hl2Short_(a) + ')';
+    const lev = function (x) { return x[2] ? ' (レバレッジ ' + x[2] + '倍)' : ''; }, sd = function (s) { return s === 'L' ? '買い持ち' : '売り持ち'; };
+    Object.keys(p).concat(Object.keys(n)).filter(function (c, i, l) { return l.indexOf(c) === i; }).forEach(function (c) {
+      const x = p[c], y = n[c];
+      if (!x && y && y[1] >= min) hits.push('⭐ ' + who + ': ' + c + ' を新しく' + sd(y[0]) + ' ' + pmMoneyJa_(y[1]) + lev(y));
+      else if (x && !y && x[1] >= min) hits.push('⭐ ' + who + ': ' + c + ' の' + sd(x[0]) + ' (' + pmMoneyJa_(x[1]) + ') を閉じました');
+      else if (x && y && x[0] !== y[0] && Math.max(x[1], y[1]) >= min) hits.push('⭐ ' + who + ': ' + c + ' を' + sd(x[0]) + 'から' + sd(y[0]) + 'に変えました ' + pmMoneyJa_(y[1]) + lev(y));
+    });
+  });
+  return hits;
+}
+/** 1時間ごと (SIDE_JOBS): 取り直して日ごとの行を残し、見張るアドレスの変化を知らせる */
+function hl2Record_() {
+  const d = hl2Data_(true), now = Date.now(), day = pmJstDay_(now), name = 'hl2-' + day.slice(0, 7) + '.json';
+  const net = {};
+  if (d.whales && d.whales.nLb) (d.whales.net || []).filter(function (x) { return HL2_NET_COINS.indexOf(x.c) >= 0; }).forEach(function (x) { net[x.c] = Math.round(x.net); });
+  const row = { hlp: d.hlp ? [d.hlp.tvl, d.hlp.pnlD] : null, af: d.af ? [d.af.hype, d.af.usd] : null,
+    gas: d.auction && hl2Open_(d.auction.spot, now) ? d.auction.spot.currentGas : null, net: Object.keys(net).length ? net : null };
+  const file = pmLoadJson_(name); file[day] = row; pmWrite_(name, JSON.stringify(file));
+  const to = pmMailTo_(), NT = ntf_();
+  if (!to || !pmMailOn_('PM_ALERT_ON') || !NT.hlw || !d.whales || d.whales.at !== now) return row;
+  const hits = hl2Changes_(d.prevSnap, d.snap, NT.hlwMin * 1e6);
+  if (hits.length) {
+    MailApp.sendEmail({ to: to, subject: '【ポリマーケット】Hyperliquid: 見張っているアドレスのポジションが変わりました',
+      body: 'Hyperliquid で、見張っているアドレスのポジションが変わりました (' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M/d HH:mm') + ')。\n\n' + hits.map(function (h) { return '・' + h; }).join('\n')
+        + '\n\n' + pmMoneyJa_(NT.hlwMin * 1e6) + '以上のポジションだけ知らせています (1時間ごとの確認)。\n※ ポリマーケット記録アプリからの自動通知です。売買はしていません。' });
+  }
+  return row;
+}
+/** doGet ?action=hl2 */
+function hl2Get_(force) {
+  let d = null, err = null;
+  try { d = hl2Data_(force); } catch (e) { err = String(e); }
+  const wallets = hl2Wallets_();
+  if (!d) return { ok: false, version: GAS_VERSION, error: err, wallets: wallets };
+  const out = {};
+  Object.keys(d).forEach(function (k) { if (['snap', 'prevSnap', 'lb'].indexOf(k) < 0) out[k] = d[k]; });
+  return { ok: hl2Has_(d), version: GAS_VERSION, hl2: out, hist: hl2Hist_(120), wallets: wallets };
+}
+function hl2PosLine_(p) { return p.c + ' ' + (p.side === 'L' ? '買い' : '売り') + ' ' + pmMoneyJa_(p.v) + (p.lev ? ' ×' + p.lev : ''); }
+/** 毎朝のまとめに入れる欄 */
+function pmHl2Section_() {
+  const d = hl2Load_();
+  if (!hl2Has_(d)) return null;
+  const w = d.whales || {}, h = d.hlp, af = d.af, au = d.auction, now = Date.now();
+  const netL = w.nLb ? (w.net || []).filter(function (x) { return HL2_NET_COINS.indexOf(x.c) >= 0; }).map(function (x) {
+    if (!x.nL && !x.nS) return x.c + ': 大口のポジションはありません';
+    return x.c + ': 買い ' + pmMoneyJa_(x.long) + ' (' + x.nL + '人) ／ 売り ' + pmMoneyJa_(x.short) + ' (' + x.nS + '人) → ' + (x.net >= 0 ? '買い越し ' : '売り越し ') + pmMoneyJa_(Math.abs(x.net));
+  }) : [];
+  const topL = (w.top || []).map(function (t) { return hl2Who_(t) + ' ' + hl2PosLine_(t); });
+  const wl = (w.list || []).filter(function (x) { return x.w; }).map(function (x) { return '⭐ ' + hl2Who_(x) + ' 口座 ' + pmMoneyJa_(x.av) + ': ' + (x.pos.length ? x.pos.slice(0, 4).map(hl2PosLine_).join('、') : 'ポジションなし'); });
+  const nums = [];
+  if (h) nums.push('HLP 金庫: 預かり ' + pmMoneyJa_(h.tvl) + ' ／ 損益 1日 ' + hl2Signed_(h.pnlD) + '・7日 ' + hl2Signed_(h.pnlW) + '・30日 ' + hl2Signed_(h.pnlM) + (h.apr != null ? ' ／ 年率 ' + h.apr + '%' : ''));
+  if (af) nums.push('買い戻し基金: HYPE ' + hl2Num_(af.hype) + '枚' + (af.usd != null ? ' (' + pmMoneyJa_(af.usd) + ')' : '') + (af.d1 != null ? ' ／ 1日 ' + (af.d1 >= 0 ? '+' : '') + hl2Num_(af.d1) + '枚' : '') + (af.d7 != null ? ' ／ 7日 ' + (af.d7 >= 0 ? '+' : '') + hl2Num_(af.d7) + '枚' : ''));
+  if (au && au.spot) nums.push('上場オークション: ' + (hl2Open_(au.spot, now) ? '今 ' + hl2Num_(au.spot.currentGas) + ' HYPE (下限 ' + hl2Num_(au.spot.endGas != null ? au.spot.endGas : 500) + ' HYPE)' : '開かれていません'));
+  const bl = function (t, l) { return l.length ? '\n■ ' + t + '\n' + l.map(function (x) { return '・' + x; }).join('\n') + '\n' : ''; };
+  const text = '■■ Hyperliquid の金庫・大口・買い戻し\n' + (d.read || []).map(function (x) { return '・' + x; }).join('\n') + '\n'
+    + bl('大口の買い越し・売り越し (' + (w.nLb || 0) + '人)', netL) + bl('大きいポジション (上位5つ)', topL) + bl('見張っているアドレス', wl) + bl('数字', nums)
+    + ((d.errors || []).length ? '・一部取得できませんでした: ' + d.errors.join('、') + '\n' : '');
+  const hb = function (t, l) { return l.length ? pmMailSub_(t) + l.map(function (x) { return pmMailRow_(esc(x)); }).join('') : ''; };
+  const html = pmMailHead_('🐋 Hyperliquid の金庫・大口・買い戻し') + (d.read || []).map(function (x) { return pmMailRow_(esc(x)); }).join('')
+    + hb('大口の買い越し・売り越し (' + (w.nLb || 0) + '人)', netL) + hb('大きいポジション (上位5つ)', topL) + hb('見張っているアドレス', wl) + hb('数字', nums);
+  return { text: text, html: html };
+}
+/** AI に渡すレポートの節 */
+function hl2ReportLines_(from) {
+  const lines = ['## 12. Hyperliquid の HLP 金庫・大口のポジション・HYPE の買い戻し・上場オークション'];
+  lines.push('HLP = 取引する人の反対側に立つ、みんなで出し合った金庫 (清算も引き受ける)。HLP がもうかる = 取引する人たちが全体として損をしている。買い戻し基金 (支援基金) = 手数料で HYPE を買い続けている仕組みのアドレス。上場オークション = 新しいトークンを上場する権利の値段 (HYPE、31時間で下がっていく)。大口 = 口座の大きい上位' + HL2_TOP + '人 (今月の出来高あり)。大口は他の取引所でヘッジしていることもある。');
+  const hist = hl2Hist_(400), ds = Object.keys(hist).filter(function (k) { return k >= from; }).sort();
+  if (ds.length) {
+    lines.push(pmMdTable_(['日付', 'HLP の預かり', 'HLP の1日の損益', '買い戻し基金の HYPE', 'その評価額', '上場オークションの価格 (HYPE)', '大口の買い越し額 BTC', 'ETH', 'SOL', 'HYPE'], ds.map(function (k) {
+      const r = hist[k] || {}, n = r.net || {}, m = function (v) { return v == null ? '-' : hl2Signed_(v); };
+      return [k, r.hlp ? pmMoneyJa_(r.hlp[0]) : '-', r.hlp ? m(r.hlp[1]) : '-', r.af ? hl2Num_(r.af[0]) : '-', r.af && r.af[1] != null ? pmMoneyJa_(r.af[1]) : '-', r.gas == null ? '-' : r.gas, m(n.BTC), m(n.ETH), m(n.SOL), m(n.HYPE)];
+    })));
+  } else lines.push('(日ごとの記録はまだありません)');
+  const d = hl2Load_();
+  if (d && d.whales) {
+    const w = d.whales;
+    lines.push('### いまの大口の買い越し・売り越し (' + (w.nLb || 0) + '人)');
+    lines.push(pmMdTable_(['銘柄', '買い持ちの合計', '人数', '売り持ちの合計', '人数', '差し引き'], (w.net || []).map(function (x) { return [x.c, pmMoneyJa_(x.long), x.nL, pmMoneyJa_(x.short), x.nS, hl2Signed_(x.net)]; })));
+    const wl = (w.list || []).filter(function (x) { return x.w; });
+    if (wl.length) {
+      lines.push('### 見張っているアドレスのポジション');
+      const rows = [];
+      wl.forEach(function (x) { x.pos.forEach(function (p) { rows.push([hl2Who_(x), p.c, p.side === 'L' ? '買い' : '売り', pmMoneyJa_(p.v), p.lev == null ? '-' : p.lev + '倍', hl2Signed_(p.upnl), p.entry == null ? '-' : p.entry, p.liq == null ? '-' : p.liq]); }); });
+      lines.push(pmMdTable_(['アドレス', '銘柄', '向き', '大きさ', 'レバレッジ', '含み損益', '建値', '清算価格'], rows));
+    }
+    if ((d.read || []).length) lines.push('いまの読み取り: ' + d.read.join(' ／ '));
+  }
+  lines.push('');
+  return lines;
 }
 
 // =====================================================================
@@ -2330,7 +2721,7 @@ function llama2Alert_(d, now) {
   }
   sent.p = sent.p || {};
   Object.keys(sent.p).forEach(function (k) { if (now - sent.p[k] > 7 * 86400000) delete sent.p[k]; });
-  if (NT.peg && d.pegs) (d.pegs.list || []).filter(function (x) { return Math.abs(x.dev) >= NT.pegPct; }).forEach(function (x) {
+  if (NT.peg && d.pegs) (d.pegs.list || []).filter(function (x) { return x.circ >= 5e8 && Math.abs(x.dev) >= NT.pegPct; })   /* 通知は流通量5億ドル以上だけ (小さいコインはいつも少しずれているため) */.forEach(function (x) {
     const k = x.sym + '|' + x.n;
     if (sent.p[k] && now - sent.p[k] < LLAMA2_PEG_COOL) return;
     hits.push(x.sym + ' (' + x.n + ') が ' + x.px.toFixed(4) + 'ドル — 1ドルから ' + (x.dev >= 0 ? '+' : '−') + Math.abs(x.dev) + '% ずれています (流通量 ' + pmMoneyJa_(x.circ) + '、基準 ±' + NT.pegPct + '%)。'
@@ -3168,6 +3559,7 @@ const HEALTH_JOBS = [
   { k: 'news',     n: 'ニュースと公式発表',                 every: '1時間ごと', max: 3 },
   { k: 'us',       n: '米国のお金の流れ (財務省・NY連銀)',  every: '1時間ごと', max: 6 },
   { k: 'llama2',   n: 'ハッキング・ペッグ・DEX (DefiLlama)', every: '1時間ごと', max: 6 },
+  { k: 'hl2',      n: 'Hyperliquid の金庫・大口・買い戻し', every: '1時間ごと', max: 6 },
   { k: 'resolve',  n: '決着の取り込み',                    every: '毎日5時',   max: 30 },
   { k: 'daily',    n: '日ごとの要約',                      every: '毎日5時',   max: 30 },
   { k: 'macrolog', n: 'マクロの日誌 (天気図)',             every: '毎日5時',   max: 30 },
@@ -3184,6 +3576,7 @@ const SIDE_JOBS = [
   { k: 'news',   fn: newsRecord_,       every: 60 },
   { k: 'us',     fn: usRecord_,         every: 60 },
   { k: 'llama2', fn: llamaMoreRecord_,  every: 60 },
+  { k: 'hl2',    fn: hl2Record_,        every: 60 },
 ];
 const SIDE_SLACK = 60000;   // 1分早くても動かす (トリガーの時刻のずれ)
 /** 時間になったもののうち一番待っているもの (まだ一度も動いていないものは並び順) を1つだけ動かす。動かした名前 (無ければ null) を返す。
@@ -3229,14 +3622,21 @@ function pmHealth_() {
   if (!since) { since = now; p.setProperty('HB_SINCE', String(now)); }
   const mailTo = pmMailTo_();
   const jobs = HEALTH_JOBS.map(function (j) {
+    let jobSince = since;
     const t = p.getProperty('HB_' + j.k), err = p.getProperty('HBE_' + j.k);
     let st;
     if (j.mail && (!mailTo || !pmMailOn_(j.mail))) st = 'off';
     else if (err && (!t || err.slice(0, 24) > t)) st = 'error';
-    else if (!t) st = now - since > j.max * 3600000 ? 'stale' : 'never';
+    else if (!t) {
+      // まだ1回も動いていない記録は、その記録を見張り始めた時刻から数える (あとから足した記録が、足した直後に「止まっている」と出ないように)
+      let s0 = Number(p.getProperty('HBS_' + j.k) || 0);
+      if (!s0) { s0 = now; p.setProperty('HBS_' + j.k, String(now)); }
+      jobSince = Math.max(since, s0);
+      st = now - jobSince > j.max * 3600000 ? 'stale' : 'never';
+    }
     else st = now - Date.parse(t) > j.max * 3600000 ? 'stale' : 'ok';
     // late = 決まった間隔を過ぎても成功していない (1回だけの失敗ではメールしないための印)
-    const late = (st === 'stale') || (st === 'error' && now - (t ? Date.parse(t) : since) > j.max * 3600000);
+    const late = (st === 'stale') || (st === 'error' && now - (t ? Date.parse(t) : jobSince) > j.max * 3600000);
     return { k: j.k, n: j.n, every: j.every, t: t || null, st: st, err: st === 'error' ? err.slice(25) : null, late: late };
   });
   let have = [];
@@ -3288,7 +3688,9 @@ const NTF_SPEC = {
   news: [true], newsMin: [3, 2, 3],   // ニュース: AI の重要度がこれ以上なら知らせる
   us: [true], srf: [5, 1, 200], tga: [50, 10, 500],   // 米国のお金の流れ: SRF の利用額・TGA の1営業日の増減 (どちらも10億ドル単位)
   hack: [true], hackMin: [20, 1, 1000], peg: [true], pegPct: [1, 0.3, 10],   // DefiLlama: ハッキング被害 (百万ドル以上)・ステーブルコインの1ドルからのずれ (%)
+  hlw: [true], hlwMin: [1, 0.1, 100],   // Hyperliquid: 見張っているアドレスのポジションの変化 (百万ドル以上)
   health: [true],
+  dHl2: [true],   // 毎朝のまとめ: Hyperliquid の金庫・大口・買い戻し
   dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true], dUs: [true], dDeals: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
 };
 function ntfDefaults_() { const o = {}; Object.keys(NTF_SPEC).forEach(function (k) { o[k] = NTF_SPEC[k][0]; }); return o; }

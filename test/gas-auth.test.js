@@ -7,7 +7,7 @@ const { createClock } = require('./helpers/clock');
 
 const SECRET = 'test-secret-ABCDEFG-123';
 const CONTENT_KEYS = ['count', 'projects', 'deleted', 'pm', 'locked', 'macro', 'health', 'llama', 'snap', 'series', 'md'];
-const GET_ACTIONS = [undefined, 'load', 'report', 'macro', 'hl', 'llama', 'llamaFees', 'health', 'compare', 'opt', 'news', 'us', 'llama2'];
+const GET_ACTIONS = [undefined, 'load', 'report', 'macro', 'hl', 'llama', 'llamaFees', 'health', 'compare', 'opt', 'news', 'us', 'llama2', 'hl2'];
 
 function withData(opts) {
   const clock = createClock('2026-11-02T10:00:00+09:00');
@@ -55,6 +55,7 @@ test('合言葉: POST は「なし/違う」だと設定を変えられない。
     { action: 'pmConfig', mailTo: 'evil@example.com', geminiKey: 'evil' },
     { action: 'pmWatch', ids: ['1'] },
     { action: 'pmHlWatch', coins: ['DOGE'] },
+    { action: 'pmHlWallets', wallets: [{ a: '0x1111222233334444555566667777888899990000', n: 'x' }] },
     { action: 'pmMailTest' },
     { action: 'setSecret', newKey: 'attacker-key-123456' },
     { all: [], force: true },
@@ -69,6 +70,7 @@ test('合言葉: POST は「なし/違う」だと設定を変えられない。
   assert.equal(gas.props.getProperty('MAIL_TO'), 'me@example.com');
   assert.equal(gas.props.getProperty('GEMINI_KEY'), 'AIza-secret-gemini');
   assert.equal(gas.props.getProperty('API_SECRET'), SECRET, '合言葉は乗っ取られない');
+  assert.equal(gas.props.getProperty('HL_WALLETS'), null, '見張るアドレスも変えられない');
   assert.equal(gas.mails.length, 0, 'テスト送信もされない');
 
   // 正しい合言葉 (JSON の key / フォーム送信) なら変えられる

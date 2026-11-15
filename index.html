@@ -443,6 +443,25 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 .hl-tbl tr.sel td{background:var(--tint-accent)}
 .hl-tbl tbody tr{cursor:pointer}
 .hl-wrap{overflow-x:auto}
+/* Hyperliquid その2 (HLP 金庫・大口・買い戻し・上場オークション) */
+.h2-addr{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--muted)}
+.h2-copy{border:0; background:none; cursor:pointer; padding:0 3px; font-size:12px; color:var(--dim)}
+.h2-chips{white-space:normal !important; text-align:left !important}
+.h2-chip{display:inline-block; font-size:11.5px; padding:1px 7px; margin:1px 3px 1px 0; border-radius:99px; background:var(--card2); border:1px solid var(--border); white-space:nowrap}
+.h2-chip.h2-l{background:var(--tint-ok)} .h2-chip.h2-s{background:var(--tint-danger)}
+.h2-detail td{background:var(--card2); cursor:default; white-space:normal}
+.h2-net{display:flex; flex-direction:column; gap:8px; margin:8px 0 12px}
+.h2-net-row{display:grid; grid-template-columns:4.5em 1fr; gap:2px 8px; align-items:center}
+.h2-net-row small{grid-column:2; color:var(--muted); font-size:12px}
+.h2-bar{display:flex; height:12px; background:var(--card2); border-radius:6px; overflow:hidden}
+.h2-half{flex:1; display:flex}
+.h2-half-s{justify-content:flex-end; border-right:1px solid var(--border)}
+.h2-half-s span{background:var(--danger)} .h2-half-l span{background:var(--ok)}
+.h2-form{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+.h2-form input{flex:1 1 180px; min-width:0}
+.h2-del{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+.h2-wait{display:flex; flex-direction:column; gap:4px; margin-top:6px; font-size:13px}
+.h2-need{font-size:12px; color:var(--dim); font-weight:400}
 .fm-warn{background:var(--tint-danger); color:var(--danger); border-radius:10px; padding:8px 10px; font-weight:700; font-size:13.5px; margin:0 0 8px}
 .hl-tbl tr.fm-off td{background:var(--tint-danger)}
 .fm-two{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:10px}
@@ -601,6 +620,39 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
   </div>
   <div id="hlSum"></div>
   <div class="mc-cal" id="hlChartBox"></div>
+  <div id="h2Area">
+    <div class="mc-cal">
+      <div class="mc-w-h" style="margin-top:0">🔎 読み取り (HLP 金庫・大口・買い戻し) <span id="h2Info" class="pm-info"></span></div>
+      <div id="h2Read"></div>
+    </div>
+    <div class="mc-cal">
+      <div class="mc-w-h" style="margin-top:0">🐋 大口のポジション <button class="gq" data-term="longshort" aria-label="解説">?</button></div>
+      <div id="h2Net"></div>
+      <div id="h2Whales"></div>
+    </div>
+    <div class="mc-cal">
+      <div class="mc-w-h" style="margin-top:0">⭐ 自分で見張るアドレス (10件まで)</div>
+      <div id="h2Watch"></div>
+      <div class="h2-form">
+        <input id="h2Addr" placeholder="アドレス (0x で始まる42文字)" autocomplete="off" spellcheck="false" maxlength="42">
+        <input id="h2Label" placeholder="名前 (なくても可・20文字まで)" autocomplete="off" maxlength="20">
+        <button class="btn small" id="h2Add">⭐ 追加</button>
+      </div>
+      <div id="h2Msg" class="hint"></div>
+    </div>
+    <div class="mc-cal">
+      <div class="mc-w-h" style="margin-top:0">🏦 HLP 金庫 <button class="gq" data-term="hlp" aria-label="解説">?</button></div>
+      <div id="h2Hlp"></div>
+    </div>
+    <div class="mc-cal">
+      <div class="mc-w-h" style="margin-top:0">🔥 HYPE の買い戻し (支援基金) <button class="gq" data-term="afund" aria-label="解説">?</button></div>
+      <div id="h2Af"></div>
+    </div>
+    <div class="mc-cal">
+      <div class="mc-w-h" style="margin-top:0">🔨 上場オークション <button class="gq" data-term="listauc" aria-label="解説">?</button></div>
+      <div id="h2Auc"></div>
+    </div>
+  </div>
   <div class="mc-cal">
     <div class="mc-w-h" style="margin-top:0">⚖️ ファンディングの差 (Binance・Bybit と比べて大きい順) <button class="gq" data-term="fundarb" aria-label="解説">?</button></div>
     <div id="hlArb"></div>
@@ -720,6 +772,8 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r">建玉が24時間で ± <input type="number" data-ntf="oi" step="5"> % 以上 動いた</div>
         <div class="ntf-r">ファンディング (8時間) が <input type="number" data-ntf="fhi" step="0.01"> % 以上 (買いの過熱)</div>
         <div class="ntf-r">ファンディング (8時間) が <input type="number" data-ntf="flo" step="0.01"> % 以下 (売りが優勢)</div>
+        <label class="check ntf-t"><input type="checkbox" data-ntf="hlw" style="width:auto">⭐ 見張っているアドレスのポジションが変わった (Hyperliquid)</label>
+        <div class="ntf-r">新しく持った・閉じた・向きを変えたポジションが <input type="number" data-ntf="hlwMin" step="0.5"> 百万ドル 以上</div>
       </div>
       <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="opt" style="width:auto">🎯 オプション市場 (Deribit)</label>
@@ -735,7 +789,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <label class="check ntf-t"><input type="checkbox" data-ntf="hack" style="width:auto">🚨 ハッキング被害 (DefiLlama)</label>
         <div class="ntf-r"><input type="number" data-ntf="hackMin" step="5"> 百万ドル以上 の被害が新しく記録された (20 なら 2,000万ドル。同じ被害は1回だけ)</div>
         <label class="check ntf-t"><input type="checkbox" data-ntf="peg" style="width:auto">🪙 ステーブルコインのペッグ外れ (DefiLlama)</label>
-        <div class="ntf-r">流通量1億ドル以上のステーブルコインが、1ドルから ± <input type="number" data-ntf="pegPct" step="0.1"> % 以上 ずれた (同じコインは12時間に1回まで)</div>
+        <div class="ntf-r">流通量5億ドル以上のステーブルコインが、1ドルから ± <input type="number" data-ntf="pegPct" step="0.1"> % 以上 ずれた (同じコインは12時間に1回まで)</div>
       </div>
       <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="news" style="width:auto">📰 ニュースと公式発表</label>
@@ -749,6 +803,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r" style="color:var(--muted)">相場の天気図・これからの予定・動いた市場・ウォッチ・新しい市場 は、いつも入ります。</div>
         <label class="check"><input type="checkbox" data-ntf="dNews" style="width:auto">📰 ニュースと公式発表 (直近24時間の公式発表と、あなた向けの記事)</label>
         <label class="check"><input type="checkbox" data-ntf="dMacro" style="width:auto">📋 マクロ指標の一覧 (金利・お金の量・ドルと円・株・暗号資産などの数値と信号)</label>
+        <label class="check"><input type="checkbox" data-ntf="dHl2" style="width:auto">🐋 Hyperliquid の金庫・大口・買い戻し (HLP の損益・大口の買い越し・見張っているアドレス・上場オークション)</label>
         <label class="check"><input type="checkbox" data-ntf="dUs" style="width:auto">🏛 米国のお金の流れ (財務省口座・リバースレポ・正味の流動性・SOFR・国債の入札)</label>
         <label class="check"><input type="checkbox" data-ntf="dOpt" style="width:auto">🎯 オプション市場 (予想変動率・プット/コール比率・スキュー・建玉の大きい満期)</label>
         <label class="check"><input type="checkbox" data-ntf="dFlow" style="width:auto">💧 お金の流れ (チェーンの預かり資産・ステーブルコインの増減・先物 DEX・エアドロップ候補)</label>
@@ -867,6 +922,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       <label class="check"><input type="checkbox" value="news" checked style="width:auto">📰 ニュースと公式発表</label>
       <label class="check"><input type="checkbox" value="us" checked style="width:auto">🏛 米国のお金の流れ (TGA・ON RRP・SRF・SOFR・国債の入札、日次)</label>
       <label class="check"><input type="checkbox" value="deals" checked style="width:auto">🚨 ハッキング被害・ステーブルコインのペッグ・DEX の出来高・利回り (DefiLlama)</label>
+      <label class="check"><input type="checkbox" value="hl2" checked style="width:auto">🐋 Hyperliquid の金庫・大口・買い戻し</label>
     </div>
     <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
     <div id="repOut"></div>
@@ -894,9 +950,9 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.08";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.10";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.08";
+const MIN_GAS_VERSION = "2026.12.10";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { settings: {} };
@@ -2054,13 +2110,189 @@ $("#tab-hl").addEventListener("click", ev=>{
   const st = ev.target.closest("[data-hlstar]"); if(st){ ev.stopPropagation(); hlToggleWatch(st.dataset.hlstar); return; }
   const sel = ev.target.closest("[data-hlsel]"); if(sel){ HL.sel = sel.dataset.hlsel; renderHlChart(); return; }
   if(ev.target.id === "hlMoreBtn"){ HL.shown += 40; renderHlPerps(); return; }
-  if(ev.target.id === "hlReload"){ loadHl(); return; }
+  if(ev.target.id === "hlReload"){ loadHl(); loadHl2(true); return; }
   const tr = ev.target.closest("tr[data-coin]");
   if(tr && hlTracked().includes(tr.dataset.coin)){ HL.sel = tr.dataset.coin; renderHlChart(); renderHlPerps(); $("#hlChartBox").scrollIntoView && $("#hlChartBox").scrollIntoView({ behavior:"smooth", block:"start" }); }
   else if(tr) toast(tr.dataset.coin + " はまだ記録していません (☆ を押すと記録を始めます)");
 });
 $("#hlQ").addEventListener("input", ()=>{ HL.shown = 40; renderHlPerps(); });
 $("#hlSort").addEventListener("change", ()=>{ HL.shown = 40; renderHlPerps(); });
+/* ================= Hyperliquid その2: HLP 金庫・大口のポジション・HYPE の買い戻し・上場オークション ================= */
+/* 数字と読み取りの文はサーバー (hl2Data_) が作る。名前・ラベル・アドレスは外から来た文字なので、必ず esc を通す */
+const H2 = { data: null, hist: null, wallets: [], loading: false, sel: null, tried: false };
+const H2_RE = /^0x[0-9a-fA-F]{40}$/;
+const H2_MAX = 10;
+const h2Short = a => { a = String(a || ""); return a.length > 12 ? a.slice(0, 6) + "…" + a.slice(-4) : a; };
+const h2Signed = x => x == null || isNaN(x) ? "-" : (x >= 0 ? "+" : "−") + hlUsd(Math.abs(x));
+const h2Cls = x => x == null ? "" : x >= 0 ? "up" : "down";
+const h2Side = s => s === "L" ? "買い" : "売り";
+function h2Num(v){
+  v = Number(v) || 0;
+  const a = Math.abs(v), s = v < 0 ? "−" : "";
+  if(a >= 1e8) return s + (Math.round(a / 1e7) / 10) + "億";
+  if(a >= 1e4) return s + (Math.round(a / 1e3) / 10) + "万";
+  return s + (Math.round(a * 10) / 10).toLocaleString();
+}
+const h2Key = t => new Date(t + 9 * 3600000).toISOString().slice(0, 13);   /* 日本時間の "YYYY-MM-DDTHH" (hlLine の目盛り用) */
+function h2Addr(a){ return `<span class="h2-addr" title="${esc(a)}">${esc(h2Short(a))}</span><button class="h2-copy" data-h2copy="${esc(a)}" title="アドレスをコピー" aria-label="アドレスをコピー">📋</button>`; }
+function h2Who(w){ return (w.w ? "⭐ " : "") + (w.name ? `<b>${esc(w.name)}</b> ` : "") + h2Addr(w.a); }
+const h2Chip = p => `<span class="h2-chip ${p.side === "L" ? "h2-l" : "h2-s"}">${esc(p.c)} ${h2Side(p.side)} ${esc(hlUsd(p.v))}${p.lev ? " ×" + esc(String(p.lev)) : ""}</span>`;
+
+async function loadHl2(force){
+  if(H2.loading) return;
+  if(!state.settings.gasUrl){ $("#h2Read").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると、HLP 金庫・大口のポジション・買い戻しが表示されます。</div>`; return; }
+  const cache = pmLS.get("h2_cache_v1", null);
+  if(cache && cache.hl2 && !H2.data){ H2.data = cache.hl2; H2.hist = cache.hist || {}; H2.wallets = cache.wallets || []; renderHl2(); }
+  if(!H2.data) $("#h2Read").innerHTML = `<div class="pm-skel"></div>`;
+  H2.loading = true; $("#h2Info").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=hl2" + (force === true ? "&force=1" : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !("wallets" in d)) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    H2.wallets = d.wallets || [];
+    if(!d.ok || !d.hl2) throw new Error(d.error || "Hyperliquid から取得できませんでした");
+    H2.data = d.hl2; H2.hist = d.hist || {}; pmLS.set("h2_cache_v1", { hl2: d.hl2, hist: H2.hist, wallets: H2.wallets });
+    renderHl2();
+  }catch(err){
+    if(!H2.data){ $("#h2Read").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`; $("#h2Info").textContent = ""; renderHl2Watch(); }
+    else $("#h2Info").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ H2.loading = false; }
+}
+function renderHl2(){
+  const d = H2.data; if(!d) return;
+  const t = d.at ? new Date(d.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) + " 時点" : "";
+  $("#h2Info").textContent = t + (d.errors && d.errors.length ? ` ・ 一部取得できず (${d.errors.join("・")})` : "");
+  $("#h2Read").innerHTML = (d.read || []).length ? `<ul class="op-read">${d.read.map(x=>`<li>${linkTerms(esc(x))}</li>`).join("")}</ul>` : `<div class="hint">読み取れる材料がまだありません</div>`;
+  renderHl2Whales(); renderHl2Watch(); renderHl2Hlp(); renderHl2Af(); renderHl2Auc();
+}
+const h2Wait = (d, name) => `<div class="hint">${d.errors && d.errors.includes(name) ? "取得できませんでした (次の回にもう一度取りに行きます)" : "まだ取得できていません (サーバーが1時間ごとに取りに行きます)"}</div>`;
+/** 口座の表 (大口の一覧・見張るアドレスで共通)。行を押すとポジションを開く */
+function h2AcctTable(list){
+  const rows = list.map(w=>{
+    const open = H2.sel === w.a;
+    const head = `<tr class="h2-acct ${open ? "sel" : ""}" data-h2acct="${esc(w.a)}"><td>${h2Who(w)}</td><td>${esc(hlUsd(w.av))}</td><td class="${h2Cls(w.pnlM)}">${esc(h2Signed(w.pnlM))}</td>
+      <td class="h2-chips">${(w.pos || []).slice(0, 3).map(h2Chip).join("") || `<span class="hint" style="margin:0">ポジションなし</span>`}</td></tr>`;
+    if(!open) return head;
+    const pos = w.pos || [];
+    return head + `<tr class="h2-detail"><td colspan="4">${pos.length ? `<div class="hl-wrap"><table class="hl-tbl h2-pos"><thead><tr><th>銘柄</th><th>向き</th><th>大きさ</th><th>レバレッジ ${termBtn("lev")}</th><th>含み損益</th><th>建値</th><th>清算価格 ${termBtn("liq")}</th></tr></thead><tbody>`
+      + pos.map(p=>`<tr><td><b>${esc(p.c)}</b></td><td class="${p.side === "L" ? "up" : "down"}">${h2Side(p.side)}</td><td>${esc(hlUsd(p.v))}</td><td>${p.lev ? esc(String(p.lev)) + "倍" : "-"}</td><td class="${h2Cls(p.upnl)}">${esc(h2Signed(p.upnl))}</td><td>${esc(hlPx(p.entry))}</td><td>${esc(hlPx(p.liq))}</td></tr>`).join("")
+      + `</tbody></table></div>${w.n > pos.length ? `<div class="hint">ほかに小さいポジションが ${w.n - pos.length}件あります</div>` : ""}` : `<div class="hint">いま先物のポジションはありません</div>`}</td></tr>`;
+  }).join("");
+  return `<div class="hl-wrap"><table class="hl-tbl h2-tbl"><thead><tr><th>名前・アドレス</th><th>口座の大きさ</th><th>今月の損益</th><th>主なポジション</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function renderHl2Whales(){
+  const d = H2.data, w = d && d.whales;
+  if(!w){ $("#h2Net").innerHTML = h2Wait(d || {}, "大口のポジション"); $("#h2Whales").innerHTML = ""; return; }
+  const big = (w.list || []).filter(x=>x.lb);
+  if(!w.nLb){ $("#h2Net").innerHTML = `<div class="hint">大口の一覧を取得できませんでした。⭐ のアドレスだけ下に出しています</div>`; $("#h2Whales").innerHTML = ""; return; }
+  const net = (w.net || []).filter(x=>HL_FIXED.includes(x.c) || x.long + x.short > 0);
+  const max = Math.max(1, ...net.map(x=>Math.max(x.long, x.short)));
+  $("#h2Net").innerHTML = `<div class="hint" style="margin-top:0">口座の大きい上位 ${w.nLb}人 (今月取引した人) の先物のポジションを足したものです。左 (赤) が売り持ち、右 (緑) が買い持ち。</div>
+    <div class="h2-net">${net.map(x=>`<div class="h2-net-row" data-h2coin="${esc(x.c)}"><b class="h2-net-c">${esc(x.c)}</b>
+      <div class="h2-bar"><div class="h2-half h2-half-s"><span style="width:${(x.short / max * 100).toFixed(1)}%"></span></div><div class="h2-half h2-half-l"><span style="width:${(x.long / max * 100).toFixed(1)}%"></span></div></div>
+      <small>売り ${esc(hlUsd(x.short))} (${x.nS}人) ／ 買い ${esc(hlUsd(x.long))} (${x.nL}人) → <b class="${h2Cls(x.net)}">${x.net >= 0 ? "買い越し" : "売り越し"} ${esc(hlUsd(Math.abs(x.net)))}</b></small></div>`).join("")}</div>`;
+  $("#h2Whales").innerHTML = `<div class="mc-w-h">👥 大口の口座 (口座の大きい順) — 行を押すとポジションを開きます</div>` + h2AcctTable(big)
+    + `<div class="hint">大口は他の取引所で反対の取引をして損を抑えている (ヘッジ) こともあるので、ここだけで向きは決められません。${w.failed ? ` 読めなかった口座が ${w.failed}件ありました。` : ""}</div>`;
+}
+function renderHl2Watch(){
+  const d = H2.data, list = (d && d.whales && d.whales.list) || [];
+  const rows = H2.wallets.map(x=>{
+    const found = list.find(w=>w.a === x.a);
+    return found ? Object.assign({}, found, { w: true, name: x.n || found.name }) : { a: x.a, name: x.n, w: true, pending: true };
+  });
+  const ready = rows.filter(r=>!r.pending), wait = rows.filter(r=>r.pending);
+  $("#h2Watch").innerHTML = (rows.length ? (ready.length ? h2AcctTable(ready) : "")
+      + (wait.length ? `<div class="h2-wait">${wait.map(r=>`<div>⭐ ${r.name ? `<b>${esc(r.name)}</b> ` : ""}${h2Addr(r.a)} <span class="hint" style="margin:0">次の更新 (1時間以内) で表示されます</span></div>`).join("")}</div>` : "")
+      + `<div class="h2-del">${rows.map(r=>`<button class="btn small" data-h2del="${esc(r.a)}" title="見張るのをやめる">✕ ${esc(r.name || h2Short(r.a))}</button>`).join("")}</div>`
+    : `<div class="hint" style="margin-top:0">まだありません。気になるアドレスを入れると、ポジションを1時間ごとに確かめ、大きく変わったらメールで知らせます (設定の「通知の条件」)。</div>`);
+}
+async function h2SaveWallets(next, okMsg){
+  const msg = $("#h2Msg");
+  try{
+    const d = await pmGasPost({ action:"pmHlWallets", wallets: next });
+    if(!d || !d.ok) throw new Error((d && d.error) || "保存できませんでした");
+    H2.wallets = d.wallets || [];
+    const c = pmLS.get("h2_cache_v1", null); if(c){ c.wallets = H2.wallets; pmLS.set("h2_cache_v1", c); }
+    msg.textContent = okMsg; renderHl2Watch(); return true;
+  }catch(err){ msg.textContent = "❌ " + err.message; return false; }
+}
+async function h2AddWallet(){
+  const a = ($("#h2Addr").value || "").trim(), n = ($("#h2Label").value || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 20), msg = $("#h2Msg");
+  if(!H2_RE.test(a)){ msg.textContent = "❌ アドレスの形が違います。0x で始まる42文字 (0〜9 と a〜f) を入れてください"; return; }
+  if(H2.wallets.some(w=>w.a === a.toLowerCase())){ msg.textContent = "このアドレスはもう入っています"; return; }
+  if(H2.wallets.length >= H2_MAX){ msg.textContent = `❌ 見張れるのは ${H2_MAX}件までです。どれかを外してから入れてください`; return; }
+  if(!state.settings.gasUrl){ msg.textContent = "❌ 設定でサーバー (Apps Script) の URL を入れてください"; return; }
+  if(await h2SaveWallets(H2.wallets.concat([{ a, n }]), "⭐ 追加しました。次の更新 (1時間以内) でポジションが出ます")){ $("#h2Addr").value = ""; $("#h2Label").value = ""; }
+}
+function renderHl2Hlp(){
+  const d = H2.data, h = d && d.hlp;
+  if(!h){ $("#h2Hlp").innerHTML = h2Wait(d || {}, "HLP 金庫"); return; }
+  const card = (n, v, sub, cls) => `<div class="mc-card"><div class="mc-h"><span>${esc(n)}</span></div><div class="mc-v ${cls || ""}">${v}</div><div class="mc-sub">${sub}</div></div>`;
+  const s = h.series || [];
+  $("#h2Hlp").innerHTML = `<div class="hl-sum">
+      ${card("預かり資産", esc(hlUsd(h.tvl)), h.followers != null ? `預けている人 ${esc(String(h.followers))}人以上` : "みんなで出し合ったお金")}
+      ${card("1日の損益", esc(h2Signed(h.pnlD)), "プラス = 取引する人たちが全体として損", h2Cls(h.pnlD))}
+      ${card("7日の損益", esc(h2Signed(h.pnlW)), "", h2Cls(h.pnlW))}
+      ${card("30日の損益", esc(h2Signed(h.pnlM)), "", h2Cls(h.pnlM))}
+      ${card("全期間の損益", esc(h2Signed(h.pnlA)), h.apr != null ? `年率 ${esc(String(h.apr))}% (金庫が出している目安)` : "", h2Cls(h.pnlA))}
+    </div>
+    <div class="hl-charts">
+      <div class="hl-chart"><div class="t"><span>預かり資産 (30日)</span><b>${esc(hlUsd(h.tvl))}</b></div>${hlLine(s.map(p=>[h2Key(p[0]), p[1]]), {})}</div>
+      <div class="hl-chart"><div class="t"><span>損益の累計 (30日)</span><b class="${h2Cls(h.pnlM)}">${esc(h2Signed(h.pnlM))}</b></div>${hlLine(s.map(p=>[h2Key(p[0]), p[2]]), { zero:true })}</div>
+    </div>
+    <div class="hint">HLP は、取引する人の反対側に立って売り買いを引き受け、清算も受け持つ金庫です。HLP がもうかっている時は、取引する人たちが全体として損をしています。</div>`;
+}
+function h2HistPts(f){ const H = H2.hist || {}; return Object.keys(H).sort().map(k=>[k + "T00", f(H[k] || {})]).filter(p=>p[1] != null); }
+function renderHl2Af(){
+  const d = H2.data, af = d && d.af;
+  if(!af){ $("#h2Af").innerHTML = h2Wait(d || {}, "買い戻し基金"); return; }
+  const card = (n, v, sub) => `<div class="mc-card"><div class="mc-h"><span>${esc(n)}</span></div><div class="mc-v">${v}</div><div class="mc-sub">${sub}</div></div>`;
+  const inc = (x, usd, need) => x == null ? `<span class="h2-need">${need}</span>` : esc((x >= 0 ? "+" : "") + h2Num(x) + "枚");
+  const pts = h2HistPts(r=>r.af ? r.af[0] : null);
+  $("#h2Af").innerHTML = `<div class="hl-sum">
+      ${card("持っている HYPE", esc(h2Num(af.hype) + "枚"), af.px != null ? `HYPE ${esc(hlPx(af.px))}` : "")}
+      ${card("評価額", esc(hlUsd(af.usd)), "いまの価格で計算")}
+      ${card("1日で増えた量", inc(af.d1, af.d1usd, "記録が2日分たまると出ます"), af.d1usd != null ? `約 ${esc(hlUsd(Math.abs(af.d1usd)))}` : "")}
+      ${card("7日で増えた量", inc(af.d7, af.d7usd, "記録が8日分たまると出ます"), af.d7usd != null ? `約 ${esc(hlUsd(Math.abs(af.d7usd)))}` : "")}
+    </div>
+    <div class="hl-charts"><div class="hl-chart"><div class="t"><span>持っている HYPE (日ごと)</span><b>${esc(h2Num(af.hype))}</b></div>${pts.length >= 2 ? hlLine(pts, {}) : `<div class="hint">記録が2日分以上たまると描きます</div>`}</div></div>
+    <div class="hint">支援基金は、取引の手数料で HYPE を毎日買い続けている仕組みのアドレスです (売ることはない前提)。増え方が速いほど、取引が多く手数料が多いことになります。</div>`;
+}
+function renderHl2Auc(){
+  const d = H2.data, au = d && d.auction;
+  if(!au || !au.spot){ $("#h2Auc").innerHTML = h2Wait(d || {}, "上場オークション"); return; }
+  const s = au.spot, now = Date.now(), open = s.currentGas != null && s.end && s.end > now, px = d.af && d.af.px;
+  const left = open ? Math.max(1, Math.round((s.end - now) / 3600000)) : null;
+  const usd = g => px && g != null ? ` (約 ${esc(hlUsd(g * px))})` : "";
+  const pts = h2HistPts(r=>r.gas);
+  const p = au.perp;
+  $("#h2Auc").innerHTML = `<div class="hl-sum">
+      <div class="mc-card"><div class="mc-h"><span>いまの値段</span></div><div class="mc-v">${open ? esc(h2Num(s.currentGas)) + " HYPE" : "開かれていません"}</div><div class="mc-sub">${open ? usd(s.currentGas) : "次のオークションを待っています"}</div></div>
+      <div class="mc-card"><div class="mc-h"><span>残り時間</span></div><div class="mc-v">${left != null ? "あと " + left + "時間" : "-"}</div><div class="mc-sub">${s.end ? esc(new Date(s.end).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" })) + " まで" : ""}</div></div>
+      <div class="mc-card"><div class="mc-h"><span>始まりの値段 → 下限</span></div><div class="mc-v">${esc(h2Num(s.startGas))} → ${esc(h2Num(s.endGas != null ? s.endGas : 500))}</div><div class="mc-sub">HYPE ・ 31時間で少しずつ下がります</div></div>
+    </div>
+    ${p ? `<div class="hint">先物市場の登録 (HIP-3) のオークション: ${p.currentGas != null && p.end > now ? "今 " + esc(h2Num(p.currentGas)) + " HYPE" : "開かれていません"}</div>` : ""}
+    <div class="hl-charts"><div class="hl-chart"><div class="t"><span>記録した値段 (日ごと・HYPE)</span><b>${open ? esc(h2Num(s.currentGas)) : "-"}</b></div>${pts.length >= 2 ? hlLine(pts, {}) : `<div class="hint">記録が2日分以上たまると描きます</div>`}</div></div>
+    <div class="hint">新しいトークンを Hyperliquid に上場する権利の値段です。値段は時間とともに下がり、誰かが買うと次の回は2倍から始まります。高いほど、上場したい人が多いことになります。</div>`;
+}
+/** ホームの Hyperliquid のカードに足す行 (大口の BTC の向き・HLP の1日の損益) */
+function h2TopRows(){
+  const d = H2.data; if(!d) return "";
+  const w = d.whales, btc = w && w.nLb ? (w.net || []).find(x=>x.c === "BTC") : null, h = d.hlp;
+  return (btc && (btc.nL || btc.nS) ? `<div class="hm-row"><div class="hm-row-main"><b>🐋 大口${w.nLb}人の BTC: ${btc.nL}人が買い・${btc.nS}人が売り</b><small>公開されているポジションの合計 (他でヘッジしていることも)</small></div><span class="hm-badge ${h2Cls(btc.net)}">${btc.net >= 0 ? "買い越し" : "売り越し"} ${esc(hlUsd(Math.abs(btc.net)))}</span></div>` : "")
+    + (h && h.pnlD != null ? `<div class="hm-row"><div class="hm-row-main"><b>🏦 HLP 金庫の1日の損益</b><small>プラス = 取引する人たちが全体として損</small></div><span class="hm-badge ${h2Cls(h.pnlD)}">${esc(h2Signed(h.pnlD))}</span></div>` : "");
+}
+$("#h2Area").addEventListener("click", ev=>{
+  if(ev.target.closest("[data-term]")) return;
+  const cp = ev.target.closest("[data-h2copy]"); if(cp){ copyText(cp.dataset.h2copy, "アドレスをコピーしました"); return; }
+  const del = ev.target.closest("[data-h2del]");
+  if(del){ const a = del.dataset.h2del; h2SaveWallets(H2.wallets.filter(w=>w.a !== a), "見張るのをやめました"); return; }
+  if(ev.target.id === "h2Add"){ h2AddWallet(); return; }
+  const tr = ev.target.closest("tr[data-h2acct]");
+  if(tr){ H2.sel = H2.sel === tr.dataset.h2acct ? null : tr.dataset.h2acct; renderHl2Whales(); renderHl2Watch(); }
+});
+$("#h2Addr").addEventListener("keydown", ev=>{ if(ev.key === "Enter") h2AddWallet(); });
 /* ================= オプション市場 (Deribit) ================= */
 /* BTC・ETH のオプションから「市場が何に備えているか」を読む。数字と読み取りの文はサーバー (optData_) が作る */
 const OP = { data: null, loading: false, cur: "BTC", exp: null };
@@ -2690,6 +2922,12 @@ const GLOSS = {
   dex: { n:"DEX (分散型取引所)", a:["DEX","分散型取引所"], s:"会社が間に入らず、ブロックチェーン上のプログラムで暗号資産を交換する取引所 (Uniswap・PancakeSwap など)。", w:"DEX の出来高は、チェーンの上でどれだけ売り買いが行われているかの目安です。新しいトークンが盛り上がる時や、相場が大きく動く時に増えます。", u:"取引が活発になっています。", d:"取引が落ち着いています。", r:["tvl","perpdex","pmvol"] },
   apy: { n:"利回り (APY)", a:["APY","年利回り"], s:"お金を1年預けた時に増える割合 (複利で計算したもの)。ここではステーブルコインを DeFi のサービスに預けた時の利回りです。", w:"ステーブルコインの利回りは「借りたい人がどれだけいるか」で決まります。借りてでも暗号資産に投資したい人が多いと上がり、相場が落ち着くと下がります。米国の短期金利 (SOFR など) とも比べられます。", u:"借りたい人が多い (強気の人が多い) 目安です。", d:"借りたい人が少なく、落ち着いている目安です。", r:["stable","tvl","sofr"] },
   hack: { n:"ハッキング・エクスプロイト", a:["ハッキング","エクスプロイト","exploit"], s:"プログラムの欠陥や秘密鍵の流出などを突いて、DeFi やブリッジからお金を抜き取られること。", w:"大きな被害が出ると、そのチェーンやトークンの値段が下がったり、似たサービスからお金が引き上げられたりします。戻ってくるお金 (返還) があることもあります。", r:["tvl","peg"] },
+  hlp: { n:"HLP (Hyperliquid の金庫)", a:["HLP 金庫","HLP","Hyperliquidity Provider"], s:"Hyperliquid の利用者がお金を出し合った金庫。取引する人の反対側に立って売り買いを引き受け、清算されたポジションも引き取ります。", w:"HLP がもうかっている時は、取引する人たちが全体として損をしています。逆に HLP が大きく損をした日は、取引する人たちが大きく勝った (一方向に大きく動いた) 日です。", u:"取引する人たちが負けている。", d:"取引する人たちが勝っている (急な値動き・清算の引き受けで損をすることも)。", r:["liq","oi","perpdex"] },
+  liq: { n:"清算・清算価格", a:["清算価格","強制決済","ロスカット"], s:"借りたお金で取引している人の損が大きくなり、預けたお金で支えられなくなった時に、ポジションを強制的に閉じられること。その価格が清算価格です。", w:"清算価格の近くに大きなポジションが集まっていると、そこまで値段が動いた時に清算が続いて、値動きが一気に大きくなることがあります。", r:["lev","longshort","hlp"] },
+  lev: { n:"レバレッジ", a:["レバレッジ"], s:"預けたお金の何倍の大きさで取引しているか。5倍なら、100万円を預けて500万円分の取引をしています。", w:"倍率が高いほど、少しの値動きで大きくもうかったり損をしたりし、清算されやすくなります。", r:["liq","longshort"] },
+  longshort: { n:"買い持ち・売り持ち (ロング・ショート)", a:["買い持ち","売り持ち","ロング","ショート","買い越し","売り越し"], s:"買い持ち (ロング) は値上がりで、売り持ち (ショート) は値下がりでもうかるポジション。買い越し = 買い持ちの合計が売り持ちより多いこと。", w:"大口がどちらに傾いているかの目安になります。ただし大口は他の取引所や現物で反対の取引をして損を抑えている (ヘッジ) こともあるので、それだけで向きは決められません。", r:["lev","liq","oi"] },
+  afund: { n:"支援基金 (HYPE の買い戻し)", a:["支援基金","買い戻し基金","Assistance Fund"], s:"Hyperliquid の手数料で HYPE を市場から買い続けている仕組みのアドレス。買った HYPE は持ち続けます。", w:"増え方が速いほど、取引が多く手数料が多いことになります。市場で買い続けるので、HYPE の値段を下から支える力になります。", u:"取引と手数料が増えている。", d:"(ふつうは減りません)", r:["hlp","listauc"] },
+  listauc: { n:"上場オークション (トークンの上場の権利)", a:["上場オークション","ティッカーオークション"], s:"新しいトークンを Hyperliquid に上場する権利を決めるオークション。値段 (HYPE) は31時間かけて下がり、誰かが買うと次の回は2倍から始まります。", w:"値段が高いほど、上場したい人 (新しいトークンを出したい人) が多いことになります。", u:"上場したい人が多い (新しいトークンが続きそう)。", d:"上場したい人が少ない。", r:["afund","tge"] },
   median: { n:"中央値と50%の範囲", a:["中央値"], s:"「それより上と下が半々」になる値。50%の範囲は、その値の間に入る確率が50%という幅です。", w:"このアプリでは、Polymarket の「○○を上回るか」の各選択肢の確率をつないで計算しています。ローンチしないと全部「いいえ」になる市場は、ローンチした場合に直しています。", r:["fdv","pm"] },
 };
 const GLOSS_ALIAS = (()=>{   /* 本文の自動リンク用: 長い言葉から先に */
@@ -3376,6 +3614,7 @@ function switchTab(t){
   if(t==="btc" && !loaded.us){ loaded.us=1; loadUs(); }
   if(t==="gloss"){ renderGloss(); }
   if(t==="hl" && !loaded.hl){ loaded.hl=1; loadHl(); }
+  if(t==="hl" && !loaded.h2){ loaded.h2=1; loadHl2(); }
   if(t==="opt" && !loaded.opt){ loaded.opt=1; loadOpt(); }
   if(t==="news" && !loaded.news){ loaded.news=1; loadNews(); }
   if(t==="flow" && !loaded.flow){ loaded.flow=1; loadFlow(); }
@@ -3507,6 +3746,7 @@ function loadTop(){
   if(!loaded.btc){ loaded.btc = 1; loadMacro(); }
   if(!loaded.us){ loaded.us = 1; loadUs(); }
   if(!loaded.hl){ loaded.hl = 1; loadHl(); }
+  if(!loaded.h2){ loaded.h2 = 1; loadHl2(); }
   if(!loaded.flow){ loaded.flow = 1; loadFlow(); }
   if(!loaded.fm){ loaded.fm = 1; loadFlowMore(); }
   if(!loaded.opt){ loaded.opt = 1; loadOpt(); }
@@ -3584,7 +3824,7 @@ function renderTop(){
   }
   /* --- Hyperliquid --- */
   let hlBody;
-  if(!HL.data || !HL.data.snap) hlBody = !gas ? hmNoGas : HL.tried ? hmFail : hmWait;
+  if(!HL.data || !HL.data.snap) hlBody = (!gas ? hmNoGas : HL.tried ? hmFail : hmWait) + h2TopRows();
   else{
     const P = HL.data.snap.perps || [], btc = P.find(r=>r.n === "BTC") || {}, o24 = hlOi24("BTC");
     const alerts = [];
@@ -3596,7 +3836,8 @@ function renderTop(){
         <div><small>BTC の建玉</small><b>${esc(hlUsd(btc.oi))}</b><span>${o24 == null ? "24時間 -" : "24時間 " + hlPct(o24)}</span></div>
         <div><small>ファンディング</small><b>${hlF8(btc.f*8)}</b><span>8時間あたり</span></div></div>
       ${alerts.slice(0, 3).join("") || `<div class="hm-ok">✅ 建玉・ファンディングに大きな異変はありません</div>`}
-      ${arb ? `<div class="hm-row"><div class="hm-row-main"><b>取引所との差が最大: ${esc(arb[0].n)}</b><small>Hyperliquid ${hlF8(arb[0].f*8)} ／ 他の平均との差</small></div><span class="hm-badge">${hlF8(arb[1])}</span></div>` : ""}`;
+      ${arb ? `<div class="hm-row"><div class="hm-row-main"><b>取引所との差が最大: ${esc(arb[0].n)}</b><small>Hyperliquid ${hlF8(arb[0].f*8)} ／ 他の平均との差</small></div><span class="hm-badge">${hlF8(arb[1])}</span></div>` : ""}
+      ${h2TopRows()}`;
   }
   /* --- オプション市場 --- */
   let opBody;
@@ -3684,7 +3925,8 @@ $("#tab-top").addEventListener("click", ev=>{
   loadMacro = done(loadMacro, MC); loadHl = done(loadHl, HL); loadFlow = done(loadFlow, FL); loadOpt = done(loadOpt, OP); renderOpt = wrap("renderOpt", renderOpt);
   loadNews = done(loadNews, NW); renderNews = wrap("renderNews", renderNews);
   loadUs = done(loadUs, US); renderUs = wrap("renderUs", renderUs);
-  loadFlowMore = done(loadFlowMore, FM); renderFlowMore = wrap("renderFlowMore", renderFlowMore); }
+  loadFlowMore = done(loadFlowMore, FM); renderFlowMore = wrap("renderFlowMore", renderFlowMore);
+  loadHl2 = done(loadHl2, H2); renderHl2 = wrap("renderHl2", renderHl2); }
 
 load();
 applyTheme();

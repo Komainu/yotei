@@ -109,18 +109,18 @@ test('失敗: 1つが落ちても他は新しくなり、落ちたものは前�
   const r = z.gas.get({ action: 'llama2' });
   assert.equal(r.ok, false);
   assert.match(r.error, /DefiLlama から取得できませんでした \(ステーブルコインの価格・ハッキング被害・DEX の出来高\)/);
-  for (let i = 0; i < 4; i++) z.gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
+  for (let i = 0; i < 5; i++) z.gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
   const h = z.gas.get({ action: 'health' }).health.jobs.find(j => j.k === 'llama2');
   assert.equal(h.n, 'ハッキング・ペッグ・DEX (DefiLlama)');
   assert.equal(h.st, 'error');
   assert.match(h.err, /DefiLlama \(ハッキング・ペッグ・DEX・利回り\) を取得できません/);
   // 直れば ok
   z.w.down.all = false; z.clock.tick(H);
-  for (let i = 0; i < 4; i++) z.gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
+  for (let i = 0; i < 5; i++) z.gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
   assert.equal(z.gas.get({ action: 'health' }).health.jobs.find(j => j.k === 'llama2').st, 'ok');
   // 前回の値があれば、全部落ちても投げない (前回のまま)
   z.w.down.all = true; z.clock.tick(24 * H);
-  for (let i = 0; i < 4; i++) z.gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
+  for (let i = 0; i < 5; i++) z.gas.ctx.pmAlert();   // 定期の取得は pmAlert (10分おき) の後に1回1つずつ
   assert.equal(z.gas.get({ action: 'health' }).health.jobs.find(j => j.k === 'llama2').st, 'ok');
 });
 

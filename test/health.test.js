@@ -9,14 +9,16 @@ const { deribitFetch } = require('./helpers/deribit');
 const { newsFetch } = require('./helpers/news');
 const { usFetch } = require('./helpers/usflow');
 const { llama2Fetch } = require('./helpers/llama2');
+const { hl2Fetch } = require('./helpers/hl2');
 
 function world() {
   const clock = createClock('2026-11-12T10:00:00+09:00');
   const st = { hlDown: false };
   const ok = o => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify(o) });
-  const deribit = deribitFetch(clock), news = newsFetch(clock), us = usFetch(clock, { auctions: [] }), l2 = llama2Fetch(clock);   // 不調な入札の通知は出さない
+  const deribit = deribitFetch(clock), news = newsFetch(clock), us = usFetch(clock, { auctions: [] }), l2 = llama2Fetch(clock), h2 = hl2Fetch(clock);   // 不調な入札の通知は出さない
   const fetch = (url, params) => {
-    const dr = deribit(url) || news(url, params) || us(url) || l2(url); if (dr) return dr;
+    if (st.hlDown && /hyperliquid/.test(url)) throw new Error('Hyperliquid 503');
+    const dr = deribit(url) || news(url, params) || us(url) || l2(url) || h2(url, params); if (dr) return dr;
     if (/gamma-api\.polymarket\.com\/markets/.test(url)) return ok(Number(new URL(url).searchParams.get('offset')) === 0 ? [{ id: '1', question: 'Q', outcomes: '["Yes","No"]', outcomePrices: '["0.5","0.5"]', volume24hr: 1, closed: false, events: [{ id: 'e', title: 'E', slug: 'e' }] }] : []);
     if (/gamma-api/.test(url)) return ok({ events: [] });
     if (/kalshi/.test(url)) return ok({ events: [] });
@@ -25,7 +27,7 @@ function world() {
   };
   const gas = loadGas({ clock, fetch, props: { MAIL_TO: 'muse@example.com' } });
   gas.ctx.setup();
-  for (let i = 0; i < 4; i++) gas.ctx.pmSideJobs_();   // 定期の取得 (オプション・ニュース・米国・DefiLlama その2) は pmAlert の後に1つずつ動く
+  for (let i = 0; i < 5; i++) gas.ctx.pmSideJobs_();   // 定期の取得 (オプション・ニュース・米国・DefiLlama その2・Hyperliquid その2) は pmAlert の後に1つずつ動く
   return { clock, gas, st };
 }
 const byKey = h => Object.fromEntries(h.jobs.map(j => [j.k, j]));
@@ -66,7 +68,8 @@ test('見張り: 動いた記録は ok、失敗は error、時間がたって動
 test('見張り: 失敗が続いたらメールで知らせる (24時間に1回)。直ったら次に備える。毎朝のまとめにも載せる', () => {
   const { gas, clock, st } = world();
   st.hlDown = true;
-  for (let i = 0; i < 5; i++) { clock.tick(3600000); gas.ctx.pmAlert(); gas.ctx.pmRecord(); }
+  // pmAlert は本当は10分おき。定期の取得が5つあるので、1時間に2回は動かす (1回だけだと順番待ちで遅れて stale になる)
+  for (let i = 0; i < 5; i++) { clock.tick(3600000); gas.ctx.pmAlert(); gas.ctx.pmAlert(); gas.ctx.pmRecord(); }
   const m = gas.mails.filter(x => /記録が止まっています/.test(x.subject));
   assert.equal(m.length, 1, '3時間を過ぎてから1通だけ');
   assert.match(m[0].body, /Hyperliquid の建玉・ファンディング \(1時間ごと\): 失敗しています — .*Hyperliquid 503/);
@@ -75,7 +78,7 @@ test('見張り: 失敗が続いたらメールで知らせる (24時間に1回)
   gas.ctx.pmDigest();
   assert.match(gas.mails[gas.mails.length - 1].body, /⚠ 止まっている記録があります:\n・Hyperliquid/);
   // 直る → 次にまた止まったら、24時間たっていなくても知らせる
-  st.hlDown = false; clock.tick(3600000); gas.ctx.pmAlert(); gas.ctx.pmRecord();
+  st.hlDown = false; clock.tick(3600000); gas.ctx.pmAlert(); gas.ctx.pmAlert(); gas.ctx.pmRecord();
   assert.equal(gas.props.getProperty('HEALTH_MAILED'), null);
 });
 
@@ -90,7 +93,7 @@ test('アプリ: ホームに記録の状態 (正常/止まっている)、設�
     app.doc.querySelector('#gasCheck').click();
     for (let i = 0; i < 4; i++) await app.settle();
     const rows = [...app.doc.querySelectorAll('#gasResult .hc-tbl tbody tr')];
-    assert.equal(rows.length, 14);
+    assert.equal(rows.length, 15);
     assert.match(rows.map(r => r.textContent).join('\n'), /オプション市場.*✅ 動いています/);
     assert.match(rows[0].textContent, /Polymarket の確率・出来高1時間ごと.*✅ 動いています/);
   } finally { app.close(); }
