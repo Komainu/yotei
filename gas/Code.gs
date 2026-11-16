@@ -16,7 +16,7 @@
  */
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.12.10';
+const GAS_VERSION = '2026.12.11';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -182,6 +182,12 @@ function doGetInner_(e) {
     return json({ ok: true, version: GAS_VERSION, ai: !!PropertiesService.getScriptProperties().getProperty('GEMINI_KEY'),
       news: { at: d ? d.at : null, items: newsList_(days * 24), errors: d && d.errors ? d.errors : [] },
       feeds: NEWS_FEEDS.map(function (f) { return { k: f.k, n: f.n, off: f.off }; }) });
+  }
+  if (action === 'fund') {
+    const fdays = Math.max(1, Math.min(180, Number(e.parameter.days) || 60)), cut = Date.now() - fdays * FUND_DAY;
+    const all = fundList_(Math.max(fdays, 30));
+    return json({ ok: true, version: GAS_VERSION, ai: !!PropertiesService.getScriptProperties().getProperty('GEMINI_KEY'),
+      fund: { at: Date.now(), list: all.filter(function (x) { return x.t >= cut; }).slice(0, 200), read: fundRead_(all) } });
   }
   if (action === 'health') {
     return json({ ok: true, version: GAS_VERSION, health: pmHealth_() });
@@ -521,6 +527,12 @@ const PM_GLOSSARY = [
   ['Game 1 Winner', '第1ゲームの勝者'], ['Map 1 Winner', '第1マップの勝者'], ['BO5 / BO3', 'BO5 / BO3'],
 ];
 
+/** 今日の Gemini の残り回数 (数えるだけで、増やさない) */
+function pmAiDayLeft_() {
+  let c = {};
+  try { c = JSON.parse(PropertiesService.getScriptProperties().getProperty('PM_AI_DAY') || '{}') || {}; } catch (e) {}
+  return c.d === todayJst_() ? Math.max(0, PM_AI_DAY_MAX - (Number(c.n) || 0)) : PM_AI_DAY_MAX;
+}
 function pmAiDayOk_() {
   const props = PropertiesService.getScriptProperties();
   const day = todayJst_();
@@ -1050,8 +1062,9 @@ function pmDigest() {
     const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
     let mac = null;
     try { mac = pmMacroSection_(); } catch (e) { Logger.log('天気図をまとめに入れられません: ' + e); }
-    let ml = null, flow = null, optS = null, newsS = null, usS = null, deals = null, hl2S = null;
+    let ml = null, flow = null, optS = null, newsS = null, usS = null, deals = null, hl2S = null, fundS = null;
     if (ntf_().dNews) { try { newsS = pmNewsSection_(); } catch (e) { Logger.log('ニュースをまとめに入れられません: ' + e); } }
+    if (ntf_().dFund) { try { fundS = pmFundSection_(); } catch (e) { Logger.log('資金調達をまとめに入れられません: ' + e); } }
     if (ntf_().dHl2) { try { hl2S = pmHl2Section_(); } catch (e) { Logger.log('Hyperliquid の金庫・大口をまとめに入れられません: ' + e); } }
     if (ntf_().dOpt) { try { optS = pmOptSection_(); } catch (e) { Logger.log('オプション市場をまとめに入れられません: ' + e); } }
     if (ntf_().dMacro) { try { ml = mac ? pmMacroList_(mac.res) : null; } catch (e) { Logger.log('マクロ指標の一覧をまとめに入れられません: ' + e); } }
@@ -1063,7 +1076,7 @@ function pmDigest() {
       + sec('24時間で大きく動いた市場', movers, '大きな動きはありませんでした') + '\n'
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
-      + (newsS ? newsS.text + '\n' : '')
+      + (newsS ? newsS.text + '\n' : '') + (fundS ? fundS.text + '\n' : '')
       + (ml ? ml.text + '\n' : '') + (usS ? usS.text + '\n' : '') + (hl2S ? hl2S.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '') + (deals ? deals.text + '\n' : '')
       + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + pmHealthLine_() + '\n\n'
       + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
@@ -1079,7 +1092,7 @@ function pmDigest() {
       to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (mac ? ' ' + mac.sky[1] + mac.sky[2] : '') + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
       htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', (mac ? '<tr><td style="padding:6px 0 2px;font-weight:700;font-size:15px">🌐 相場の天気図</td></tr>' + mac.html : '') + h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')
-        + (newsS ? newsS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (hl2S ? hl2S.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '') + (deals ? deals.html : '')),
+        + (newsS ? newsS.html : '') + (fundS ? fundS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (hl2S ? hl2S.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '') + (deals ? deals.html : '')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
     hbOk_('digest');
@@ -1567,7 +1580,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us', 'deals', 'hl2'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us', 'deals', 'hl2', 'fund'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -1733,6 +1746,7 @@ function pmReport_(opt) {
   if (parts.indexOf('us') >= 0) { try { usReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 10. 米国のお金の流れ', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('deals') >= 0) { try { llama2ReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 11. ハッキング被害・ペッグ・DEX・利回り', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('hl2') >= 0) { try { hl2ReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 12. Hyperliquid の金庫・大口・買い戻し', '(読み出せませんでした: ' + e + ')', ''); } }
+  if (parts.indexOf('fund') >= 0) { try { fundReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 13. 資金調達 (ニュースから)', '(読み出せませんでした: ' + e + ')', ''); } }
   const text = lines.join('\n');
   return { ok: true, text: text, chars: text.length, from: from, to: to };
 }
@@ -3027,7 +3041,10 @@ const NEWS_AI_MAX = 30;          // 1回の実行で AI に渡す数
 const NEWS_AI_BATCH = 15;        // 1回の Gemini で渡す数
 const NEWS_MAIL_MAX = 8;
 const NEWS_DESC_MAX = 600;
-const NEWS_CATS = ['金融政策', '規制', 'ETF・機関投資家', '暗号資産市場', 'DeFi・プロジェクト', 'ハッキング・事故', 'マクロ経済', 'その他'];
+const NEWS_FX_MAX = 15;          // 資金調達の読み取りの後追い: 1回の実行で送り直す数
+const NEWS_FX_RESERVE = 40;      // 後追いは、1日の Gemini の上限がこれより多く残っている時だけ (アプリの和訳の分を残す)
+const NEWS_FX_CATS = ['ETF・機関投資家', 'DeFi・プロジェクト', '暗号資産市場', 'その他'];
+const NEWS_CATS = ['金融政策', '規制', 'ETF・機関投資家', '暗号資産市場', 'DeFi・プロジェクト', '資金調達', 'ハッキング・事故', 'マクロ経済', 'その他'];
 const NEWS_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', mdash: '—', ndash: '–', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”' };
 
 function newsFeed_(k) { for (let i = 0; i < NEWS_FEEDS.length; i++) if (NEWS_FEEDS[i].k === k) return NEWS_FEEDS[i]; return { k: k, n: k, off: false }; }
@@ -3102,11 +3119,18 @@ function newsPrompt_() {
   return 'あなたは、英語のニュースの見出しを日本語の利用者向けに整理する係です。\n'
     + '利用者の興味: ' + pmProfile_() + '\n'
     + '入力は JSON 配列 [{"i":番号,"s":"出どころ","t":"見出し","d":"説明 (無いこともある)"}]。\n'
-    + '出力は JSON 配列 [{"i":番号,"ja":"日本語の題","sum":"一行の要約","sc":点数,"cat":"分野"}] だけにしてください。\n'
+    + '出力は JSON 配列 [{"i":番号,"ja":"日本語の題","sum":"一行の要約","sc":点数,"cat":"分野","fund":資金調達の情報 か null}] だけにしてください。\n'
     + '・ja: 見出しの自然な日本語訳 (説明や補足は足さない)\n'
     + '・sum: 何が起きたかを、自分の言葉で日本語1文・80文字以内にまとめる (原文の文をそのまま訳して長く写さない)\n'
     + '・sc: 利用者の興味との関係。3=興味の中心そのもので重要 / 2=関係が深い / 1=少し関係 / 0=関係なし\n'
-    + '・cat: 次から1つ: ' + NEWS_CATS.join(', ') + '\n'
+    + '・cat: 次から1つ: ' + NEWS_CATS.join(', ') + '。会社・プロジェクトが投資家からお金を集めた記事は「資金調達」\n'
+    + '・fund: 会社・プロジェクトが投資家から資金を調達した (seed / pre-seed / series A〜D / strategic / private round / token sale) と見出しか説明にある時だけ'
+    + ' {"p":"名前 (英語の表記のまま)","amt":調達額のドル (数。"$12M" → 12000000。書かれていない・ドル以外の通貨は null),"r":"ラウンド (英語のまま。Seed, Series A, Strategic など。無ければ null)",'
+    + '"inv":["主導した投資家" (最大3。無ければ [])],"oth":ほかに名前の出た投資家の数 か null,"val":評価額のドル か null,'
+    + '"sec":"分野 (DeFi, 決済, インフラ, ゲーム, AI, 取引所, ウォレット, L1/L2, RWA, その他 から1つ)","note":"補足 (日本語40文字以内。ドル以外の金額はここに書く。無ければ省く)"}。'
+    + 'それ以外はすべて null (ETF の資金の出入り・ファンドの設立・買収・ハッキング・企業の暗号資産の購入・プロトコルの収益・訴訟は資金調達ではない)\n'
+    + '・例: "Acme raises $12M seed round led by Paradigm" → "cat":"資金調達","fund":{"p":"Acme","amt":12000000,"r":"Seed","inv":["Paradigm"],"oth":null,"val":null,"sec":"DeFi"}'
+    + ' / "Bitcoin ETFs see $500M outflows" → "fund":null\n'
     + '・人名・団体名は一般的なカタカナ表記。定着した英字 (SEC, ETF, FOMC など) は英字のまま。数字・金額は変えない\n'
     + '・用語集 (原文 → 訳):\n' + PM_GLOSSARY.map(function (g) { return '  ' + g[0] + ' → ' + g[1]; }).join('\n');
 }
@@ -3141,7 +3165,7 @@ function newsRecord_() {
 
   // AI: まだ和訳していないもの (新しい順に最大30件)
   const props = PropertiesService.getScriptProperties();
-  const scored = [];
+  const scored = [], raised = [];
   let aiErr = null;
   if (props.getProperty('GEMINI_KEY')) {
     const since = now - NEWS_LATEST_DAYS * 86400000, pend = [];
@@ -3159,11 +3183,27 @@ function newsRecord_() {
           if (o.sum) p.x.sum = String(o.sum).slice(0, 120);
           p.x.sc = Math.max(0, Math.min(3, Math.round(Number(o.sc) || 0)));
           p.x.cat = NEWS_CATS.indexOf(o.cat) >= 0 ? o.cat : 'その他';
+          fundTake_(p, o, raised);
           dirty[p.m] = 1; scored.push(p);
         });
       }
     } catch (e) { aiErr = String(e); Logger.log('ニュースの和訳に失敗: ' + e); }   // 取り込んだ記事は失わない (次の実行でまた訳す)
+    // 資金調達の読み取りの後追い: この変更より前に和訳した記事 (fx が無い) を、上限に余裕がある時だけ1回 (15件まで) 送り直す
+    if (!aiErr && pmAiDayLeft_() > NEWS_FX_RESERVE) {
+      const back = [];
+      Object.keys(files).forEach(function (m) { Object.keys(files[m]).forEach(function (id) { const x = files[m][id]; if (x.ja && !x.fx && x.t >= since && NEWS_FX_CATS.indexOf(x.cat) >= 0) back.push({ id: id, m: m, x: x }); }); });
+      back.sort(function (a, b) { return b.x.t - a.x.t; });
+      const chunk = back.slice(0, NEWS_FX_MAX);
+      if (chunk.length) {
+        try {
+          const out = pmGemini_(newsPrompt_(), chunk.map(function (p, j) { return { i: j, s: newsFeed_(p.x.s).n, t: p.x.ti, d: String(desc[p.id] || '').slice(0, 300) }; }), 4096);
+          (Array.isArray(out) ? out : []).forEach(function (o) { const p = chunk[Number(o && o.i)]; if (p && !p.x.fx) fundTake_(p, o, raised); });
+          chunk.forEach(function (p) { p.x.fx = 1; dirty[p.m] = 1; });   // 答えが無かったものも送り直さない
+        } catch (e) { Logger.log('資金調達の後追いに失敗: ' + e); }
+      }
+    }
   }
+  try { fundAlert_(raised, now); } catch (e) { Logger.log('資金調達の通知に失敗: ' + e); }
 
   // 通知: 今回判定したもののうち、重要度が基準以上 (1件につき1回だけ)
   try {
@@ -3198,7 +3238,7 @@ function newsRecord_() {
 }
 function newsItem_(id, x) {
   const o = { id: id, t: x.t, s: x.s, ti: x.ti, l: x.l };
-  ['ja', 'sum', 'sc', 'cat'].forEach(function (k) { if (x[k] != null) o[k] = x[k]; });
+  ['ja', 'sum', 'sc', 'cat', 'fund'].forEach(function (k) { if (x[k] != null) o[k] = x[k]; });
   return o;
 }
 /** 最近のもの (新しい順) */
@@ -3253,6 +3293,226 @@ function newsReportLines_(from) {
       const f = newsFeed_(x.s);
       return [Utilities.formatDate(new Date(x.t), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'), f.n + (f.off ? ' (公式)' : ''), x.ja ? x.ja + ' (' + x.ti + ')' : x.ti, x.sum || '-', x.sc == null ? '-' : x.sc];
     })));
+  } else lines.push('(この期間の記録はありません)');
+  lines.push('');
+  return lines;
+}
+
+
+/* ---- 資金調達 (ニュースから) ----
+   ニュースの Gemini (newsRecord_ の1回の呼び出し) が、資金調達の記事だけ fund = { p, amt, r, inv, oth, val, sec, note } を返す。
+   記事には fx = 1 (資金調達の読み取り済み) を付ける。同じ調達を複数のサイトが書いたものは fundList_ で1行にまとめる */
+const FUND_DAY = 86400000;
+const FUND_MERGE_DAYS = 14;      // 同じ名前をまとめる期間
+const FUND_MAIL_H = 48;          // これより古い記事は知らせない
+const FUND_TOP_VC = [/\ba16z\b|andreessen/i, /\bparadigm\b/i, /\bsequoia\b/i, /coinbase ventures/i, /binance labs|\byzi labs\b/i, /\bpolychain\b/i, /\bpantera\b/i,
+  /\bmulticoin\b/i, /\bdragonfly\b/i, /founders fund/i, /electric capital/i, /\bframework\b/i, /jump crypto/i, /\bvariant\b/i, /\bhaun\b/i];
+const FUND_SUFFIX = ['protocol', 'finance', 'labs', 'lab', 'network', 'foundation', 'xyz', 'io'];
+const FUND_ROUND_JA = { 'seed': 'シード', 'pre-seed': 'プレシード', 'preseed': 'プレシード', 'pre seed': 'プレシード', 'strategic': '戦略的出資' };
+/** 名前をそろえる (小文字・記号と空白を除く・protocol / labs などの言葉を外す) */
+function fundKey_(name) {
+  const w = String(name || '').toLowerCase().replace(/[^a-z0-9぀-ヿ一-鿿]+/g, ' ').trim().split(' ').filter(Boolean);
+  while (w.length > 1 && FUND_SUFFIX.indexOf(w[w.length - 1]) >= 0) w.pop();
+  let k = w.join('');
+  ['protocol', 'finance', 'labs', 'network', 'foundation'].forEach(function (x) { if (k.length > x.length + 2 && k.slice(-x.length) === x) k = k.slice(0, -x.length); });
+  return k;
+}
+function fundStr_(v, max) {
+  if (typeof v !== 'string') return null;
+  v = v.replace(/\s+/g, ' ').trim();
+  return v ? v.slice(0, max) : null;
+}
+/** Gemini の答えを確かめる (おかしなものは null) */
+function fundClean_(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const p = fundStr_(o.p, 60);
+  if (!p || !fundKey_(p)) return null;
+  const num = function (v, max) { return v == null ? null : (typeof v === 'number' && isFinite(v) && v > 0 && v < max) ? v : undefined; };
+  const amt = num(o.amt, 5e10), val = num(o.val, 1e13);
+  if (amt === undefined || val === undefined) return null;
+  if (o.r != null && typeof o.r !== 'string') return null;
+  if (o.inv != null && !Array.isArray(o.inv)) return null;
+  if (o.oth != null && !(typeof o.oth === 'number' && o.oth >= 0 && o.oth < 1000 && Math.floor(o.oth) === o.oth)) return null;
+  const inv = [];
+  (o.inv || []).forEach(function (n) { const v = fundStr_(n, 40); if (v && inv.length < 3 && !inv.some(function (x) { return x.toLowerCase() === v.toLowerCase(); })) inv.push(v); });
+  const f = { p: p, amt: amt == null ? null : Math.round(amt), r: fundStr_(o.r, 30), inv: inv, oth: o.oth == null ? null : o.oth, val: val == null ? null : Math.round(val), sec: fundStr_(o.sec, 20) || 'その他' };
+  const note = fundStr_(o.note, 40);
+  if (note) f.note = note;
+  return f;
+}
+/** 1件の答えから fund を記事に書く (newsRecord_ から) */
+function fundTake_(p, o, raised) {
+  const f = fundClean_(o && o.fund);
+  if (f) { p.x.fund = f; p.x.cat = '資金調達'; raised.push(p); } else delete p.x.fund;
+  p.x.fx = 1;
+}
+function fundRoundJa_(r) {
+  if (!r) return '';
+  const k = String(r).toLowerCase().trim(), m = k.match(/^series\s*([a-z])\b/);
+  if (m) return 'シリーズ' + m[1].toUpperCase() + String(r).trim().slice(m[0].length);
+  return FUND_ROUND_JA[k] || String(r);
+}
+function fundTop_(inv) { return (inv || []).some(function (n) { return FUND_TOP_VC.some(function (re) { return re.test(n); }); }); }
+/** トークンの有無を調べる表 (DefiLlama のプロトコルの控え・先物 DEX のエアドロップ候補) */
+function fundTokIndex_() {
+  let protos = null;
+  try { const c = JSON.parse(pmRead_('llama-protocols.json') || 'null'); if (c && c.m) protos = c.m; } catch (e) {}
+  if (!protos) { try { protos = llamaProtocols_(); } catch (e) { protos = {}; } }
+  const idx = {}, parSym = {}, cand = {};
+  Object.keys(protos).forEach(function (id) { const p = protos[id]; if (p && p.par && p.sym) parSym[p.par] = p.sym; });
+  const put = function (k, sym) { if (k && (idx[k] == null || sym)) idx[k] = !!sym; };
+  Object.keys(protos).forEach(function (id) {
+    const p = protos[id]; if (!p) return;
+    const sym = p.sym || (p.par && parSym[p.par]) || '';
+    put(fundKey_(p.n), sym);
+    if (p.par) put(fundKey_(String(p.par).replace(/^parent#/, '')), sym);
+  });
+  try {
+    const L = JSON.parse(pmRead_('llama-latest.json') || 'null');
+    ((L && L.perps) || []).filter(llamaIsCand_).forEach(function (x) { [x.n, x.key].forEach(function (n) { const k = fundKey_(n); if (k) cand[k] = 1; }); });
+  } catch (e) {}
+  return { idx: idx, cand: cand };
+}
+/** 記事 [{ t, s, l, ja, f }] (新しい順) → 調達ごとに1行 */
+function fundMerge_(rows, tok) {
+  const out = [];
+  rows.forEach(function (r) {
+    const f = r.f, k = fundKey_(f.p), src = newsFeed_(r.s).n;
+    let g = null;
+    for (let i = 0; i < out.length && !g; i++) if (out[i].k === k && out[i].tl - r.t <= FUND_MERGE_DAYS * FUND_DAY) g = out[i];
+    if (!g) {
+      g = { k: k, t: r.t, tl: r.t, d: pmJstDay_(r.t), p: f.p, amt: f.amt, r: f.r, inv: (f.inv || []).slice(0, 3), oth: f.oth, val: f.val, sec: f.sec, ja: r.ja || '', src: [], links: [] };
+      if (f.note) g.note = f.note;
+      out.push(g);
+    } else {
+      g.tl = r.t;
+      if (f.amt != null && (g.amt == null || f.amt > g.amt)) g.amt = f.amt;
+      if (f.val != null && (g.val == null || f.val > g.val)) g.val = f.val;
+      if (f.oth != null && (g.oth == null || f.oth > g.oth)) g.oth = f.oth;
+      if (!g.r && f.r) g.r = f.r;
+      if ((!g.sec || g.sec === 'その他') && f.sec) g.sec = f.sec;
+      if (!g.note && f.note) g.note = f.note;
+      (f.inv || []).forEach(function (n) { if (g.inv.length < 3 && !g.inv.some(function (x) { return x.toLowerCase() === n.toLowerCase(); })) g.inv.push(n); });
+    }
+    if (g.src.indexOf(src) < 0) g.src.push(src);
+    if (r.l && /^https?:\/\//i.test(r.l) && g.links.length < 3 && g.links.indexOf(r.l) < 0) g.links.push(r.l);
+  });
+  return out.map(function (g) {
+    delete g.tl;
+    g.token = tok && tok.idx[g.k] != null ? tok.idx[g.k] : null;
+    g.cand = g.token === false || !!(tok && tok.cand[g.k]);
+    g.top = fundTop_(g.inv);
+    return g;
+  });
+}
+/** ニュースの月ごとのファイルから、直近 days 日 (既定60・最大180) の資金調達 (新しい順・まとめたもの) */
+function fundList_(days, tok) {
+  days = Math.max(1, Math.min(180, Number(days) || 60));
+  const now = Date.now(), from = now - days * FUND_DAY, raw = [];
+  hlMonths_(now, Math.ceil(days / 28) + 1).forEach(function (m) {
+    const f = pmLoadJson_('news-' + m + '.json');
+    Object.keys(f).forEach(function (id) { const x = f[id]; if (x && x.fund && x.t >= from) raw.push({ t: x.t, s: x.s, l: x.l, ja: x.ja || x.ti, f: x.fund }); });
+  });
+  raw.sort(function (a, b) { return b.t - a.t; });
+  return fundMerge_(raw, tok || fundTokIndex_());
+}
+function fundAmtJa_(v) { return v == null ? '金額非公表' : pmMoneyJa_(v); }
+function fundTokJa_(x) { return x.token === false ? 'トークン未発行: エアドロップ候補の手がかり' : x.token === true ? 'トークンあり' : 'トークンの有無は不明'; }
+function fundLeadsJa_(x) { return (x.inv || []).length ? '主導: ' + x.inv.join('・') + (x.oth ? ' ほか' + x.oth + '社' : '') : ''; }
+/** 読み取り (やさしい日本語の文) */
+function fundRead_(list) {
+  const now = Date.now(), D = FUND_DAY;
+  const w1 = list.filter(function (x) { return x.t >= now - 7 * D; }), w0 = list.filter(function (x) { return x.t < now - 7 * D && x.t >= now - 14 * D; });
+  const sum = function (a) { return a.reduce(function (n, x) { return n + (x.amt || 0); }, 0); };
+  const out = [];
+  if (!w1.length && !w0.length) out.push('直近14日に、ニュースになった資金調達はありませんでした。');
+  else {
+    const noAmt = w1.filter(function (x) { return x.amt == null; }).length;
+    const tot = function (a) { return a.length + '件' + (sum(a) > 0 ? '・合計 ' + pmMoneyJa_(sum(a)) : ''); };
+    out.push('直近7日の資金調達は ' + tot(w1) + ' でした (その前の7日は ' + tot(w0) + ')。'
+      + (noAmt ? '金額が書かれていないものが ' + noAmt + '件あり、合計には入っていません。' : ''));
+  }
+  const big = w1.filter(function (x) { return x.amt; }).sort(function (a, b) { return b.amt - a.amt; })[0];
+  if (big) {
+    const sub = [fundRoundJa_(big.r), fundLeadsJa_(big)].filter(Boolean).join('・');
+    out.push('今週いちばん大きいのは ' + big.p + ' の ' + pmMoneyJa_(big.amt) + (sub ? ' (' + sub + ')' : '') + ' です。');
+  }
+  const nt = w1.filter(function (x) { return x.token === false; });
+  if (nt.length) out.push('トークン未発行: エアドロップ候補の手がかり — 今週は ' + nt.length + '件 (' + nt.slice(0, 3).map(function (x) { return x.p; }).join('・') + ') が、まだ自分のトークンを出していません。');
+  const cnt = {};
+  list.filter(function (x) { return x.t >= now - 30 * D; }).forEach(function (x) {
+    (x.inv || []).forEach(function (n) { const k = n.toLowerCase(); if (!cnt[k]) cnt[k] = { n: n, c: 0 }; cnt[k].c++; });
+  });
+  const top = Object.keys(cnt).map(function (k) { return cnt[k]; }).sort(function (a, b) { return (b.c - a.c) || (a.n < b.n ? -1 : a.n > b.n ? 1 : 0); }).slice(0, 3);
+  if (top.length) out.push('この30日によく主導した投資家: ' + top.map(function (x) { return x.n + ' ×' + x.c; }).join('、') + '。');
+  out.push('ニュースになった資金調達だけを数えています (すべての資金調達ではありません)。金額や投資家は AI が見出しから読み取ったものです。');
+  return out;
+}
+function fundLine_(x) {
+  return x.p + ' ' + fundAmtJa_(x.amt) + [fundRoundJa_(x.r), fundLeadsJa_(x), fundTokJa_(x), x.src.join('・')].filter(Boolean).map(function (s) { return ' ・ ' + s; }).join('');
+}
+/** 通知: 今回の実行で新しく読み取った資金調達 (raised = [{ x }]) のうち、基準を超えたものを1通で */
+function fundAlert_(raised, now) {
+  const NT = ntf_(), to = pmMailTo_();
+  if (!raised.length || !to || !pmMailOn_('PM_ALERT_ON') || !NT.raise) return;
+  const hot = raised.filter(function (p) {
+    const f = p.x.fund;
+    return p.x.t >= now - FUND_MAIL_H * 3600000 && (f.amt != null ? f.amt >= NT.raiseMin * 1e6 : fundTop_(f.inv));
+  }).sort(function (a, b) { return b.x.t - a.x.t; });
+  if (!hot.length) return;
+  const props = PropertiesService.getScriptProperties();
+  let sent = {};
+  try { sent = JSON.parse(props.getProperty('PM_FUND_SENT') || '{}') || {}; } catch (e) {}
+  Object.keys(sent).forEach(function (k) { if (now - sent[k] > 30 * FUND_DAY) delete sent[k]; });
+  const tok = fundTokIndex_();
+  const rows = fundMerge_(hot.map(function (p) { return { t: p.x.t, s: p.x.s, l: p.x.l, ja: p.x.ja || p.x.ti, f: p.x.fund }; }), tok)
+    .filter(function (g) { return !(sent[g.k] && now - sent[g.k] < FUND_MERGE_DAYS * FUND_DAY); })
+    .sort(function (a, b) { return (b.amt || 0) - (a.amt || 0); }).slice(0, 10);
+  if (!rows.length) { props.setProperty('PM_FUND_SENT', JSON.stringify(sent)); return; }
+  const body = '大きな資金調達がニュースになりました (' + newsWhen_(now) + ' 日本時間・基準 ' + pmMoneyJa_(NT.raiseMin * 1e6) + ' 以上、金額が書かれていない時は有名な VC が主導したもの)\n\n'
+    + rows.map(function (g, i) {
+      return (i + 1) + '. ' + g.p + ' ' + fundAmtJa_(g.amt) + (g.r ? ' (' + fundRoundJa_(g.r) + ')' : '')
+        + (fundLeadsJa_(g) ? '\n   ' + fundLeadsJa_(g) : '') + '\n   ' + fundTokJa_(g) + (g.sec ? ' ・ 分野: ' + g.sec : '')
+        + '\n   ' + g.src.join('・') + ': ' + (g.links[0] || '');
+    }).join('\n\n')
+    + '\n\n※ ニュースの見出しから AI が読み取ったもので、まちがいがあることもあります。元の記事で確かめてください。投資をすすめるものではありません。';
+  MailApp.sendEmail({ to: to, subject: '【ポリマーケット】資金調達: ' + rows[0].p + ' ' + fundAmtJa_(rows[0].amt) + (rows.length > 1 ? ' ほか' + (rows.length - 1) + '件' : ''), body: body,
+    htmlBody: pmMailHtml_('💰 資金調達 (ニュースから)', rows.map(function (g) {
+      return pmMailRow_('<b>' + esc(g.p) + '</b> ' + esc(fundAmtJa_(g.amt)) + (g.r ? ' <span style="color:#6b7280;font-size:12px">' + esc(fundRoundJa_(g.r)) + '</span>' : '')
+        + '<div style="font-size:12px;color:#6b7280">' + esc(g.src.join('・')) + (g.links[0] ? ' ・ <a href="' + esc(g.links[0]) + '">元の記事</a>' : '') + '</div>',
+        [fundLeadsJa_(g), fundTokJa_(g)].filter(Boolean).join(' ・ '));
+    }).join('')) });
+  rows.forEach(function (g) { sent[g.k] = now; });
+  props.setProperty('PM_FUND_SENT', JSON.stringify(sent));
+}
+/** 毎朝のまとめの欄 (直近7日に1件も無ければ null) */
+function pmFundSection_() {
+  const now = Date.now(), list = fundList_(30);
+  if (!list.some(function (x) { return x.t >= now - 7 * FUND_DAY; })) return null;
+  const read = fundRead_(list), recent = list.filter(function (x) { return x.t >= now - 48 * 3600000; }).slice(0, 10);
+  return {
+    text: '■■ 資金調達 (ニュースから)\n' + read.map(function (s) { return '・' + s; }).join('\n') + '\n□ 直近48時間\n'
+      + (recent.length ? recent.map(function (x) { return '・' + fundLine_(x) + (x.links[0] ? '\n  ' + x.links[0] : ''); }).join('\n') : '・直近48時間の新しい資金調達はありません') + '\n',
+    html: pmMailHead_('💰 資金調達 (ニュースから)') + read.map(function (s) { return pmMailRow_(esc(s), ''); }).join('') + pmMailSub_('直近48時間')
+      + (recent.length ? recent.map(function (x) {
+        return pmMailRow_('<b>' + esc(x.p) + '</b> ' + esc(fundAmtJa_(x.amt)) + (x.r ? ' <span style="color:#6b7280;font-size:12px">' + esc(fundRoundJa_(x.r)) + '</span>' : '')
+          + (x.links[0] ? ' <a href="' + esc(x.links[0]) + '" style="font-size:12px">' + esc(x.src.join('・')) + '</a>' : ''), [fundLeadsJa_(x), fundTokJa_(x)].filter(Boolean).join(' ・ '));
+      }).join('') : pmMailRow_('直近48時間の新しい資金調達はありません', '')),
+  };
+}
+/** AI に渡すレポートの節 */
+function fundReportLines_(from) {
+  const t0 = Date.parse(from + 'T00:00:00+09:00');
+  const list = fundList_(Math.ceil((Date.now() - t0) / FUND_DAY) + 1).filter(function (x) { return x.t >= t0; });
+  const lines = ['## 13. 資金調達 (ニュースから)', 'ニュースの見出しから AI が読み取った資金調達。複数のサイトが書いたものは1行にまとめた (金額は大きい方)。トークン = DefiLlama のプロトコルの一覧で調べた有無 (不明 = 一覧に無い)。'];
+  if (list.length) {
+    lines.push(pmMdTable_(['日付', '名前', 'ラウンド', '金額', '分野', '主な投資家', 'トークン', '出どころ'], list.slice(0, 150).map(function (x) {
+      return [x.d, x.p, fundRoundJa_(x.r) || '-', fundAmtJa_(x.amt), x.sec || '-', (x.inv || []).join('・') + (x.oth ? ' ほか' + x.oth + '社' : '') || '-', x.token === false ? '未発行' : x.token ? 'あり' : '不明', x.src.join('・')];
+    })));
+    const cnt = {};
+    list.forEach(function (x) { (x.inv || []).forEach(function (n) { const k = n.toLowerCase(); if (!cnt[k]) cnt[k] = { n: n, c: 0 }; cnt[k].c++; }); });
+    const top = Object.keys(cnt).map(function (k) { return cnt[k]; }).sort(function (a, b) { return b.c - a.c; }).slice(0, 15);
+    if (top.length) { lines.push('', '主導した回数 (投資家ごと)'); lines.push(pmMdTable_(['投資家', '回数'], top.map(function (x) { return [x.n, x.c]; }))); }
   } else lines.push('(この期間の記録はありません)');
   lines.push('');
   return lines;
@@ -3686,12 +3946,13 @@ const NTF_SPEC = {
   hl: [true], oi: [20, 5, 200], fhi: [0.05, 0.005, 1], flo: [-0.03, -1, -0.005],
   opt: [true], dvol: [8, 2, 50],   // オプション: DVOL が24時間でこれだけ動いたら知らせる
   news: [true], newsMin: [3, 2, 3],   // ニュース: AI の重要度がこれ以上なら知らせる
+  raise: [true], raiseMin: [30, 5, 1000],   // 資金調達 (ニュースから): 百万ドル以上 (金額が無い時は有名な VC が主導したもの)
   us: [true], srf: [5, 1, 200], tga: [50, 10, 500],   // 米国のお金の流れ: SRF の利用額・TGA の1営業日の増減 (どちらも10億ドル単位)
   hack: [true], hackMin: [20, 1, 1000], peg: [true], pegPct: [1, 0.3, 10],   // DefiLlama: ハッキング被害 (百万ドル以上)・ステーブルコインの1ドルからのずれ (%)
   hlw: [true], hlwMin: [1, 0.1, 100],   // Hyperliquid: 見張っているアドレスのポジションの変化 (百万ドル以上)
   health: [true],
   dHl2: [true],   // 毎朝のまとめ: Hyperliquid の金庫・大口・買い戻し
-  dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true], dUs: [true], dDeals: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
+  dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true], dFund: [true], dUs: [true], dDeals: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
 };
 function ntfDefaults_() { const o = {}; Object.keys(NTF_SPEC).forEach(function (k) { o[k] = NTF_SPEC[k][0]; }); return o; }
 function ntf_() {

@@ -58,8 +58,36 @@ function feeds(base, world) {
     ].concat(Array.from({ length: world.many || 0 }, (_, i) => item('Filler story ' + (i + 1), 'https://decrypt.co/filler/' + (i + 1), rfc822(base - 9 * H - i * 60000), 'DESC_MARK_fill' + (i + 1))))
       .concat((world.extra || []).map(x => item(x.title, x.link, rfc822(x.t), x.desc || '')))),
   };
+  const add = (world.fund ? FUND_ITEMS(base) : []).concat(world.add || []);
+  for (const x of add) {
+    if (x.k === 'theblock') out.theblock = out.theblock.replace('</feed>', `<entry><title>${x.title}</title><link href="${x.link}"/><id>tag:${x.link}</id><published>${iso(x.t)}</published><content type="html">${x.desc || ''}</content></entry>\n</feed>`);
+    else out[x.k] = out[x.k].replace('\n</channel>', '\n' + item(x.title, x.link, rfc822(x.t), x.desc || '') + '\n</channel>');
+  }
   return out;
 }
+
+/**
+ * 資金調達の見出し (world.fund = true で足す)。Acme は2つのサイトが少し違う名前・金額で書く。Zeta は金額なしで Paradigm が主導。
+ * ETF の流出 ($500M) は資金調達ではない
+ */
+const FUND_ITEMS = base => [
+  { k: 'theblock', title: 'Acme Labs raises $25 million Series A led by Paradigm and a16z', link: 'https://www.theblock.co/news/10-acme', t: base - 2 * H, desc: 'DESC_MARK_f1 Acme builds lending markets.' },
+  { k: 'coindesk', title: 'Acme Protocol secures $24M in Series A funding', link: 'https://www.coindesk.com/business/2026/11/14/acme', t: base - 3 * H, desc: 'DESC_MARK_f2 Coinbase Ventures also joined.' },
+  { k: 'ctg', title: 'Zeta Network raises strategic funding from Paradigm', link: 'https://cointelegraph.com/news/zeta-network', t: base - 5 * H, desc: 'DESC_MARK_f3' },
+  { k: 'decrypt', title: 'Bitcoin ETFs see $500M outflows as prices slide', link: 'https://decrypt.co/500m-outflows', t: base - 4 * H, desc: 'DESC_MARK_f4' },
+  { k: 'decrypt', title: 'Beta Wallet raises $8M seed round', link: 'https://decrypt.co/beta-wallet', t: base - 6 * H, desc: 'DESC_MARK_f5' },
+  { k: 'ctg', title: 'Lighter raises $68M Series B at $1.5B valuation', link: 'https://cointelegraph.com/news/lighter-68m', t: base - 7 * H, desc: 'DESC_MARK_f6' },
+];
+/** 偽の Gemini が返す fund (英語の題で決める。当てはまらなければ null) */
+const FUNDS = [
+  [/^Acme Labs raises/, { p: 'Acme Labs', amt: 25000000, r: 'Series A', inv: ['Paradigm', 'a16z'], oth: 3, val: null, sec: 'DeFi' }],
+  [/^Acme Protocol secures/, { p: 'Acme Protocol', amt: 24000000, r: 'Series A', inv: ['Paradigm', 'Coinbase Ventures'], oth: null, val: 250000000, sec: 'DeFi', note: '貸し借りの市場' }],
+  [/^Zeta Network raises/, { p: 'Zeta Network', amt: null, r: 'Strategic', inv: ['Paradigm'], oth: null, val: null, sec: 'インフラ' }],
+  [/^Beta Wallet raises/, { p: 'Beta Wallet', amt: 8000000, r: 'Seed', inv: ['Small Capital'], oth: 2, val: null, sec: 'ウォレット' }],
+  [/^Lighter (raises|closes)/, { p: 'Lighter', amt: 68000000, r: 'Series B', inv: ['Founders Fund', 'Ribbit Capital'], oth: null, val: 1500000000, sec: '取引所' }],
+  [/^(Old Corp|Ancient) raises/, { p: 'Old Corp', amt: 100000000, r: 'Series C', inv: ['Paradigm'], oth: null, val: null, sec: 'AI' }],
+];
+function fundJudge(t) { const f = FUNDS.find(x => x[0].test(t)); return f ? JSON.parse(JSON.stringify(f[1])) : null; }
 
 /**
  * world = { down: { frb: true, ... }, allDown: false, many: 0, extra: [{title, link, t}], base }
@@ -93,6 +121,7 @@ function newsJudge(t) {
 }
 /**
  * Gemini の偽物 (ニュースの整理・和訳・市場の判定)。gem.calls = [{ kind, input }]、gem.down = true で 500
+ * gem.fund = 題 → fund の関数で、資金調達の答えを差し替える (壊れた答えの確認用)
  */
 function geminiFake() {
   const calls = [];
@@ -102,7 +131,10 @@ function geminiFake() {
     const kind = /見出し/.test(sys) ? 'news' : /翻訳者/.test(sys) ? 'tr' : 'sc';
     calls.push({ kind, input });
     if (gem.down) return { getResponseCode: () => 500, getContentText: () => '{"error":{"message":"internal"}}' };
-    const out = kind === 'news' ? input.map(x => { const [sc, cat] = newsJudge(x.t); return { i: x.i, ja: '和:' + x.t, sum: '要約:' + x.t.slice(0, 24), sc, cat }; })
+    const out = kind === 'news' ? input.map(x => {
+      const [sc, cat] = newsJudge(x.t), fund = gem.fund ? gem.fund(x.t) : fundJudge(x.t);
+      return { i: x.i, ja: '和:' + x.t, sum: '要約:' + x.t.slice(0, 24), sc, cat: fund ? '資金調達' : cat, fund: fund === undefined ? null : fund };
+    })
       : kind === 'tr' ? input.map(x => ({ i: x.i, ja: '訳:' + x.t }))
       : input.map(x => ({ i: x.i, s: /Fed|Bitcoin|ETH|HYPE/.test(x.t) ? 3 : 0, c: 'その他' }));
     return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] }) };
@@ -111,4 +143,4 @@ function geminiFake() {
   return gem;
 }
 
-module.exports = { newsFetch, geminiFake, newsJudge, rfc822, NEWS_URLS: URLS };
+module.exports = { newsFetch, geminiFake, newsJudge, fundJudge, rfc822, NEWS_URLS: URLS, FUND_ITEMS };

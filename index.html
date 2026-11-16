@@ -336,6 +336,10 @@ section.tab.active{display:block; animation:fadein .18s ease}
 .hm-card > header + .hm-row, .hm-sub + .hm-row, .hm-kpis + .hm-row{border-top:none}
 .hm-row.hm-click{cursor:pointer; border-radius:10px}
 .hm-row.hm-click:hover{background:var(--card2)}
+a.hm-row, a.hm-row:hover{color:var(--text); text-decoration:none}
+.hm-ext{color:var(--muted); font-weight:400; font-size:12px}
+.nw-t a.nw-tl{color:inherit}
+.nw-t a.nw-tl:hover{color:var(--accent2); text-decoration:underline}
 .hm-row[class*="cmp-bg-"]{border-top:none; margin-bottom:6px; border-radius:10px}
 .hm-row-main{flex:1; min-width:0}
 .hm-row-main b{display:block; font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -511,6 +515,16 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 .op-mp{background:var(--tint-warn); border-radius:6px}
 .op-now{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--accent); margin:3px 0}
 .op-now::before, .op-now::after{content:""; flex:1; border-top:1.5px dashed var(--accent)}
+/* ---------- 資金調達 (ニュースから) ---------- */
+.fd-tools{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0}
+.fd-tools .search{flex:1 1 160px; min-width:0}
+.fd-tbl td{vertical-align:top}
+.fd-tbl small{color:var(--muted)}
+.pm-tag.fd-no{background:var(--tint-ok); color:var(--ok); font-weight:700}
+.pm-tag.fd-yes{background:var(--card2); color:var(--muted)}
+.pm-tag.fd-un{background:var(--tint-warn); color:var(--warn)}
+.pm-tag.fd-raise{background:var(--tint-accent); color:var(--accent); font-weight:700}
+.fd-src a{color:var(--accent); white-space:nowrap}
 </style>
 </head>
 <body>
@@ -714,6 +728,10 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
     <div id="flPerps"></div>
     <div id="flPDetail"></div>
   </div>
+  <div class="mc-cal" id="fdArea">
+    <div class="hl-bar"><b>💰 資金調達 (ニュースから) <button class="gq" data-term="raise" aria-label="解説">?</button></b><span id="fdInfo" class="pm-info" style="margin-left:auto"></span></div>
+    <div id="fdBody"></div>
+  </div>
   <div id="fmArea">
     <div class="mc-cal"><div class="hl-bar"><b>🔎 読み取り (ハッキング・ステーブルコイン・DEX・利回り)</b><span id="fmInfo" class="pm-info" style="margin-left:auto"></span></div><div id="fmRead"></div></div>
     <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🚨 ハッキング被害 (この半年・100万ドル以上) <button class="gq" data-term="hack" aria-label="解説">?</button></div><div id="fmHacks"></div></div>
@@ -721,7 +739,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
     <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🔄 DEX の出来高 <button class="gq" data-term="dex" aria-label="解説">?</button></div><div id="fmDex"></div></div>
     <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🌾 ステーブルコインの利回り <button class="gq" data-term="apy" aria-label="解説">?</button></div><div id="fmYields"></div></div>
   </div>
-  <p class="hint">ソース: DefiLlama の公開データ (チェーン・先物 DEX は6時間ごと、ステーブルコインの価格は1時間ごと、ハッキング・DEX の出来高は6時間ごと、利回りは1日1回に更新)。先物 DEX の出来高・資金調達ラウンド・ブリッジの流出入は DefiLlama では有料のため出していません。チェーン名は DefiLlama の表記です。</p>
+  <p class="hint">ソース: DefiLlama の公開データ (チェーン・先物 DEX は6時間ごと、ステーブルコインの価格は1時間ごと、ハッキング・DEX の出来高は6時間ごと、利回りは1日1回に更新)。先物 DEX の出来高・ブリッジの流出入は DefiLlama では有料のため出していません。資金調達は、ニュースの見出しから AI が読み取ったものです。チェーン名は DefiLlama の表記です。</p>
 </section>
 
 <!-- ============ 用語集 ============ -->
@@ -796,12 +814,17 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r">AI が付けた重要度が <select data-ntf="newsMin" style="width:auto"><option value="3">3 (いちばん大事) だけ</option><option value="2">2 以上</option></select> の記事を知らせる (1時間ごと・同じ記事は1回だけ)</div>
       </div>
       <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="raise" style="width:auto">💰 資金調達 (ニュースから)</label>
+        <div class="ntf-r"><input type="number" data-ntf="raiseMin" step="5"> 百万ドル以上 (金額が書かれていない時は、有名VCが主導したもの) の資金調達がニュースになった (30 なら 3,000万ドル。同じ調達は1回だけ)</div>
+      </div>
+      <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="health" style="width:auto">⚠ 記録が止まった時</label>
       </div>
       <div class="ntf-g">
         <div class="ntf-t" style="font-weight:700">🗞 毎朝のまとめに入れるもの</div>
         <div class="ntf-r" style="color:var(--muted)">相場の天気図・これからの予定・動いた市場・ウォッチ・新しい市場 は、いつも入ります。</div>
         <label class="check"><input type="checkbox" data-ntf="dNews" style="width:auto">📰 ニュースと公式発表 (直近24時間の公式発表と、あなた向けの記事)</label>
+        <label class="check"><input type="checkbox" data-ntf="dFund" style="width:auto">💰 資金調達 (ニュースから。この7日の読み取りと、直近48時間の資金調達)</label>
         <label class="check"><input type="checkbox" data-ntf="dMacro" style="width:auto">📋 マクロ指標の一覧 (金利・お金の量・ドルと円・株・暗号資産などの数値と信号)</label>
         <label class="check"><input type="checkbox" data-ntf="dHl2" style="width:auto">🐋 Hyperliquid の金庫・大口・買い戻し (HLP の損益・大口の買い越し・見張っているアドレス・上場オークション)</label>
         <label class="check"><input type="checkbox" data-ntf="dUs" style="width:auto">🏛 米国のお金の流れ (財務省口座・リバースレポ・正味の流動性・SOFR・国債の入札)</label>
@@ -923,6 +946,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       <label class="check"><input type="checkbox" value="us" checked style="width:auto">🏛 米国のお金の流れ (TGA・ON RRP・SRF・SOFR・国債の入札、日次)</label>
       <label class="check"><input type="checkbox" value="deals" checked style="width:auto">🚨 ハッキング被害・ステーブルコインのペッグ・DEX の出来高・利回り (DefiLlama)</label>
       <label class="check"><input type="checkbox" value="hl2" checked style="width:auto">🐋 Hyperliquid の金庫・大口・買い戻し</label>
+      <label class="check"><input type="checkbox" value="fund" checked style="width:auto">💰 資金調達 (ニュースから)</label>
     </div>
     <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
     <div id="repOut"></div>
@@ -950,9 +974,9 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.10";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.12";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.10";
+const MIN_GAS_VERSION = "2026.12.11";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { settings: {} };
@@ -2481,7 +2505,7 @@ function renderUsAuc(){
 
 /* ================= ニュースと公式発表 ================= */
 /* サーバー (newsRecord_) が1時間ごとに RSS を取り込み、AI が日本語の題・一行の要約・重要度 (0〜3)・分野を付けたもの */
-const NW_FILTERS = [["rel", "✨ あなた向け"], ["off", "🏛 公式発表"], ["all", "すべて"]];
+const NW_FILTERS = [["rel", "✨ あなた向け"], ["off", "🏛 公式発表"], ["fund", "💰 資金調達"], ["all", "すべて"]];
 const NW_SHOW = 40;
 const NW = { data: null, loading: false, filter: "rel", src: "", shown: NW_SHOW, q: "", orig: {} };
 { const f = pmLS.get("pm_ui_v1", {}).nw; if(NW_FILTERS.some(x=>x[0] === f)) NW.filter = f; }
@@ -2527,6 +2551,7 @@ function nwFiltered(){
   return nwItems().filter(x=>{
     if(NW.filter === "rel" && !(x.sc >= 2)) return false;
     if(NW.filter === "off" && !nwFeed(x.s).off) return false;
+    if(NW.filter === "fund" && !(x.fund && x.fund.p)) return false;
     if(NW.src && x.s !== NW.src) return false;
     if(q && ![x.ja, x.ti, x.sum, x.cat, nwFeed(x.s).n].some(s=>String(s || "").toLowerCase().includes(q))) return false;
     return true;
@@ -2539,8 +2564,8 @@ function nwDots(sc){
 function nwRowHtml(x){
   const f = nwFeed(x.s), link = nwLink(x.l), id = esc(x.id);
   return `<article class="nw-row${x.sc >= 3 ? " nw-hot" : ""}" data-nwid="${id}">
-    <div class="nw-meta"><span class="nw-src${f.off ? " off" : ""}">${f.off ? "🏛 " : ""}${esc(f.n)}</span><span>${esc(nwAgo(x.t))} ・ ${esc(nwHm(x.t))}</span>${x.cat ? `<span class="pm-tag">${esc(x.cat)}</span>` : ""}${nwDots(x.sc)}</div>
-    <div class="nw-t">${esc(nwTitle(x))}${x.ja ? "" : ` <span class="pm-tag nw-mi">未訳</span>`}</div>
+    <div class="nw-meta"><span class="nw-src${f.off ? " off" : ""}">${f.off ? "🏛 " : ""}${esc(f.n)}</span><span>${esc(nwAgo(x.t))} ・ ${esc(nwHm(x.t))}</span>${x.cat ? `<span class="pm-tag">${esc(x.cat)}</span>` : ""}${x.fund && x.fund.p ? `<span class="pm-tag fd-raise">💰 ${esc(x.fund.amt > 0 ? hlUsd(x.fund.amt) + "調達" : "資金調達")}</span>` : ""}${nwDots(x.sc)}</div>
+    <div class="nw-t">${link ? `<a class="nw-tl" href="${esc(link)}" target="_blank" rel="noopener">${esc(nwTitle(x))}</a>` : esc(nwTitle(x))}${x.ja ? "" : ` <span class="pm-tag nw-mi">未訳</span>`}</div>
     ${x.sum ? `<div class="nw-sum">${esc(x.sum)}</div>` : ""}
     ${x.ja && NW.orig[x.id] ? `<div class="nw-orig">${esc(x.ti)}</div>` : ""}
     <div class="nw-foot">${x.ja ? `<button class="nw-ob" type="button" data-nworig="${id}">${NW.orig[x.id] ? "原文を隠す" : "原文を見る"}</button>` : ""}${link ? `<a class="nw-go" href="${esc(link)}" target="_blank" rel="noopener">記事を開く ↗</a>` : ""}</div>
@@ -2810,6 +2835,94 @@ $("#fmArea").addEventListener("click", ev=>{
   if(ev.target.closest("[data-fmmore]")){ FM.shown += 30; renderFlowMore(); }
 });
 $("#flReload").addEventListener("click", ()=>loadFlowMore(true));
+
+/* ================= 資金調達 (ニュースから) ================= */
+/* サーバーの fundList_: ニュースの Gemini が見出しから読み取った資金調達。同じ調達を複数のサイトが書いたものは1行にまとめてある */
+const FD_SHOW = 30;
+const FD = { data: null, loading: false, f: "all", q: "", shown: FD_SHOW };
+const FD_FILTERS = [["all", "すべて"], ["notok", "トークン未発行"], ["big", "1,000万ドル以上"], ["top", "有名VCが主導"]];
+const FD_ROUND = { "seed": "シード", "pre-seed": "プレシード", "preseed": "プレシード", "pre seed": "プレシード", "strategic": "戦略的出資" };
+function fdRound(r){
+  if(!r) return "-";
+  const k = String(r).toLowerCase().trim(), m = k.match(/^series\s*([a-z])\b/);
+  if(m) return "シリーズ" + m[1].toUpperCase() + String(r).trim().slice(m[0].length);
+  return FD_ROUND[k] || String(r);
+}
+const fdTok = x => x.token === false ? `<span class="pm-tag fd-no">未発行</span>` : x.token === true ? `<span class="pm-tag fd-yes">あり</span>` : `<span class="pm-tag fd-un">不明</span>`;
+const fdAmt = v => v > 0 ? hlUsd(v) : "非公表";
+function fdList(){ return FD.data && FD.data.fund && Array.isArray(FD.data.fund.list) ? FD.data.fund.list : []; }
+function fdFiltered(){
+  const q = FD.q.trim().toLowerCase();
+  return fdList().filter(x=>{
+    if(FD.f === "notok" && x.token !== false) return false;
+    if(FD.f === "big" && !(x.amt >= 1e7)) return false;
+    if(FD.f === "top" && !x.top) return false;
+    if(q && ![x.p, x.sec, x.ja].concat(x.inv || []).some(s=>String(s || "").toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+async function loadFund(force){
+  if(FD.loading) return;
+  if(!state.settings.gasUrl){ $("#fdBody").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると表示されます。</div>`; return; }
+  const cache = pmLS.get("fd_cache_v1", null);
+  if(cache && cache.fund && !FD.data){ FD.data = cache; renderFund(); }
+  if(!FD.data) $("#fdBody").innerHTML = `<div class="pm-skel"></div>`;
+  FD.loading = true; $("#fdInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=fund&days=60&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !d.fund || !Array.isArray(d.fund.list)) throw new Error((d && d.error) || "サーバーが古い版です (自動公開を待ってください)");
+    FD.data = d; pmLS.set("fd_cache_v1", d);
+    renderFund();
+  }catch(err){
+    if(!FD.data){ $("#fdBody").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`; $("#fdInfo").textContent = ""; }
+    else $("#fdInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ FD.loading = false; }
+}
+function fdRowHtml(x){
+  const inv = (x.inv || []).map(esc).join("・");
+  const src = (x.src || []).map((n, i)=>{ const l = (x.links || [])[i] || (x.links || [])[0]; return nwLink(l) ? `<a href="${esc(nwLink(l))}" target="_blank" rel="noopener">${esc(n)}</a>` : esc(n); }).join("・");
+  return `<tr><td>${esc(fmMd(x.d))}</td><td><b>${esc(x.p)}</b>${relBadge(x.p)}${x.note ? `<br><small>${esc(x.note)}</small>` : ""}</td><td>${esc(fdRound(x.r))}</td>`
+    + `<td>${esc(fdAmt(x.amt))}${x.val > 0 ? `<br><small>評価額 ${esc(hlUsd(x.val))}</small>` : ""}</td><td>${esc(x.sec || "-")}</td>`
+    + `<td>${inv || "-"}${x.oth ? ` <small>+他${esc(String(x.oth))}社</small>` : ""}</td><td>${fdTok(x)}</td><td class="fd-src">${src || "-"}</td></tr>`;
+}
+function renderFund(){
+  const d = FD.data; if(!d) return;
+  const F = d.fund || {}, all = fdList();
+  $("#fdInfo").textContent = F.at ? new Date(F.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) + " 時点" : "";
+  const hint = `<div class="hint">ニュースになった資金調達だけです。金額や投資家は記事の見出しから AI が読み取ったもので、まちがいがあることもあります。</div>`;
+  if(!all.length){
+    $("#fdBody").innerHTML = d.ai === false
+      ? `<div class="empty">設定「🈯 和訳とあなた向け」で Gemini のキーを登録すると、ニュースの見出しから資金調達を読み取って、ここに並べます。</div>`
+      : `<div class="empty">直近60日に、ニュースになった資金調達はまだありません。ニュースを1時間ごとに読んで、見つけたらここに足します。</div>` + hint;
+    return;
+  }
+  const list = fdFiltered();
+  const read = (F.read || []).length ? `<ul class="op-read">${F.read.map(x=>`<li>${linkTerms(esc(x))}</li>`).join("")}</ul>` : "";
+  const tools = `<div class="fd-tools"><div class="chips" id="fdFilter">${FD_FILTERS.map(([k, n])=>`<button class="chip${FD.f === k ? " active" : ""}" data-fdf="${k}">${n}</button>`).join("")}</div>`
+    + `<input class="search" id="fdQ" placeholder="🔍 名前・投資家・分野で探す" autocomplete="off" value="${esc(FD.q)}"></div>`;
+  const table = list.length ? `<div class="hl-wrap"><table class="hl-tbl fd-tbl"><thead><tr><th>日付</th><th>名前</th><th>ラウンド</th><th>金額</th><th>分野</th><th>主な投資家</th><th>トークン</th><th>出どころ</th></tr></thead><tbody>`
+      + list.slice(0, FD.shown).map(fdRowHtml).join("") + `</tbody></table></div>`
+      + (list.length > FD.shown ? `<button class="btn small" data-fdmore="1">もっと見る (あと${list.length - FD.shown}件)</button>` : "")
+    : `<div class="empty">条件に合う資金調達はありません。</div>`;
+  const had = document.activeElement && document.activeElement.id === "fdQ";
+  $("#fdBody").innerHTML = read + tools + `<div id="fdTable">${table}</div>` + hint;
+  if(had){ const q = $("#fdQ"); q.focus(); try{ q.setSelectionRange(q.value.length, q.value.length); }catch(e){} }
+}
+$("#fdArea").addEventListener("click", ev=>{
+  const f = ev.target.closest("[data-fdf]"); if(f){ FD.f = f.dataset.fdf; FD.shown = FD_SHOW; renderFund(); return; }
+  if(ev.target.closest("[data-fdmore]")){ FD.shown += FD_SHOW; renderFund(); }
+});
+$("#fdArea").addEventListener("input", ev=>{ if(ev.target.id === "fdQ"){ FD.q = ev.target.value; FD.shown = FD_SHOW; renderFund(); } });
+$("#flReload").addEventListener("click", ()=>loadFund(true));
+/** ホームの「お金の流れ」に足す行: 直近7日でいちばん大きい資金調達 */
+function fdTopRow(){
+  const since = Date.now() - 7 * 86400000;
+  const x = fdList().filter(r=>r.t >= since && r.amt > 0).sort((a, b)=>b.amt - a.amt)[0];
+  if(!x) return "";
+  return `<button class="hm-row hm-click" data-jump="flow"><div class="hm-row-main"><b>💰 今週いちばん大きい資金調達: ${esc(x.p)}</b><small>${esc(fdRound(x.r))}${(x.inv || []).length ? " ・ 主導: " + x.inv.map(esc).join("・") : ""}</small></div><span class="hm-num">${esc(hlUsd(x.amt))} ${fdTok(x)}</span></button>`;
+}
 /* ================= 記録を AI に渡す ================= */
 const REP_COPY_MAX = 30000;   /* これより長い時はファイルで渡すのをすすめる (貼り付けると長すぎることがあるため) */
 let repText = "";
@@ -2918,6 +3031,8 @@ const GLOSS = {
   mcap: { n:"時価総額", a:["時価総額","market cap"], s:"トークン (株) の値段 × 出回っている枚数。", w:"FDV との差が大きいと、今後出回る分 (売り圧力) が多いことになります。", r:["fdv"] },
   tge: { n:"TGE (トークン生成イベント)", a:["TGE","トークン発行","トークン生成"], s:"プロジェクトが自分のトークンを初めて発行し、取引できるようにすること。", w:"多くの場合エアドロップと同時に行われます。「いつ TGE するか」「初日の FDV は」が Polymarket でよく賭けられます。", r:["fdv","airdrop"] },
   airdrop: { n:"エアドロップ", a:["エアドロップ","airdrop"], s:"プロジェクトが、使ってくれた人などにトークンを無料で配ること。", r:["tge"] },
+  raise: { n:"資金調達ラウンド", a:["資金調達","シリーズA","シードラウンド","主導投資家","リード投資家"], s:"会社やプロジェクトが、投資家からまとまったお金を集めること。始めたばかりの「シード」、事業が育ってからの「シリーズA・B…」、提携先からの「戦略的出資」などがあります。いちばん多く出したり条件を決めたりする投資家を「主導 (リード) 投資家」と言います。", w:"有名な VC が主導した、まだトークンを出していないプロジェクトは、のちにトークンを発行してエアドロップをすることが多く、早めに使ってみる手がかりになります。ただし必ず配られるわけではありません。", r:["vc","airdrop","tge"] },
+  vc: { n:"VC (ベンチャーキャピタル)", a:["VC","ベンチャーキャピタル"], s:"伸びそうな若い会社やプロジェクトにお金を出し、育ったところで利益を得る投資会社。暗号資産では a16z・Paradigm・Coinbase Ventures などが有名です。", w:"どの VC がどの分野に多く出しているかを見ると、これからお金と人が集まりそうな分野の目安になります。", r:["raise"] },
   peg: { n:"ペッグ (ペッグ外れ)", a:["ペッグ外れ","ペッグ","デペッグ"], s:"ステーブルコインの値段を1ドルなどに結びつけておく仕組み。1ドルから大きく離れることを「ペッグ外れ (デペッグ)」と言います。", w:"ステーブルコインは「いつでも1ドルに戻せる」という信用で成り立っています。値段が1ドルを下回り続けると、売りが売りを呼んで、そのコインを使うサービスにも影響が広がることがあります。", d:"1ドルを下回るのは、売りたい人が多い (信用が揺らいでいる) 合図です。", r:["stable","hack"] },
   dex: { n:"DEX (分散型取引所)", a:["DEX","分散型取引所"], s:"会社が間に入らず、ブロックチェーン上のプログラムで暗号資産を交換する取引所 (Uniswap・PancakeSwap など)。", w:"DEX の出来高は、チェーンの上でどれだけ売り買いが行われているかの目安です。新しいトークンが盛り上がる時や、相場が大きく動く時に増えます。", u:"取引が活発になっています。", d:"取引が落ち着いています。", r:["tvl","perpdex","pmvol"] },
   apy: { n:"利回り (APY)", a:["APY","年利回り"], s:"お金を1年預けた時に増える割合 (複利で計算したもの)。ここではステーブルコインを DeFi のサービスに預けた時の利回りです。", w:"ステーブルコインの利回りは「借りたい人がどれだけいるか」で決まります。借りてでも暗号資産に投資したい人が多いと上がり、相場が落ち着くと下がります。米国の短期金利 (SOFR など) とも比べられます。", u:"借りたい人が多い (強気の人が多い) 目安です。", d:"借りたい人が少なく、落ち着いている目安です。", r:["stable","tvl","sofr"] },
@@ -3619,6 +3734,7 @@ function switchTab(t){
   if(t==="news" && !loaded.news){ loaded.news=1; loadNews(); }
   if(t==="flow" && !loaded.flow){ loaded.flow=1; loadFlow(); }
   if(t==="flow" && !loaded.fm){ loaded.fm=1; loadFlowMore(); }
+  if(t==="flow" && !loaded.fd){ loaded.fd=1; loadFund(); }
   if(t==="top") loadTop();
 }
 $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
@@ -3749,6 +3865,7 @@ function loadTop(){
   if(!loaded.h2){ loaded.h2 = 1; loadHl2(); }
   if(!loaded.flow){ loaded.flow = 1; loadFlow(); }
   if(!loaded.fm){ loaded.fm = 1; loadFlowMore(); }
+  if(!loaded.fd){ loaded.fd = 1; loadFund(); }
   if(!loaded.opt){ loaded.opt = 1; loadOpt(); }
   if(!loaded.news){ loaded.news = 1; loadNews(); }
   renderTop();
@@ -3860,7 +3977,7 @@ function renderTop(){
     flBody = (big.length ? `<div class="hm-sub">TVL が伸びているチェーン (30日)</div>` + big.map(c=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(c.n)}</b><small>TVL ${esc(flUsd(c.tvl))}</small></div><span class="hm-num">${flPct(c.c30)}</span></div>`).join("") : "")
       + (st ? `<div class="hm-row"><div class="hm-row-main"><b>ステーブルコインの流入が最大: ${esc(st.n)}</b><small>30日の増加額</small></div><span class="hm-num up">+${esc(flUsd(st.s30d))}</span></div>` : "")
       + (cand.length ? `<div class="hm-sub">🪂 エアドロップ候補 (トークン未発行の先物 DEX)</div>` + cand.map(x=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(x.n)}${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}</b><small>建玉 ${esc(flUsd(x.oi))} ・ ${esc((x.ch||[]).join("・"))}</small></div><span class="hm-num">${flPct(x.c30)}</span></div>`).join("") : "")
-      + fmTopRows()
+      + fmTopRows() + fdTopRow()
       || `<div class="hint" style="margin:0">データを取得中です</div>`;
   }
   /* --- ニュースと公式発表 --- */
@@ -3868,7 +3985,9 @@ function renderTop(){
   if(!NW.data) nwBody = !gas ? hmNoGas : NW.tried ? hmFail : hmWait;
   else {
     const top = nwItems().filter(x=>Date.now() - x.t < 86400000 && (nwFeed(x.s).off || x.sc >= 2)).sort((a, b)=>b.t - a.t).slice(0, 4);
-    nwBody = top.length ? top.map(x=>{ const f = nwFeed(x.s); return `<button class="hm-row hm-click" data-jump="news"><div class="hm-row-main"><b>${esc(nwTitle(x))}</b><small>${f.off ? "🏛 " : ""}${esc(f.n)} ・ ${esc(nwAgo(x.t))}${x.sum ? " ・ " + esc(x.sum) : ""}</small></div>${x.sc != null ? nwDots(x.sc) : ""}</button>`; }).join("")
+    nwBody = top.length ? top.map(x=>{ const f = nwFeed(x.s), link = nwLink(x.l);
+      const inner = `<div class="hm-row-main"><b>${esc(nwTitle(x))}${link ? ` <span class="hm-ext" title="記事を開きます">↗</span>` : ""}</b><small>${f.off ? "🏛 " : ""}${esc(f.n)} ・ ${esc(nwAgo(x.t))}${x.sum ? " ・ " + esc(x.sum) : ""}</small></div>${x.sc != null ? nwDots(x.sc) : ""}`;
+      return link ? `<a class="hm-row hm-click" href="${esc(link)}" target="_blank" rel="noopener">${inner}</a>` : `<button class="hm-row hm-click" data-jump="news">${inner}</button>`; }).join("")
       : `<div class="hint" style="margin:0">直近24時間に、公式発表やあなた向けのニュースはありませんでした</div>`;
   }
   /* --- 米国のお金の流れ --- */
@@ -3926,6 +4045,7 @@ $("#tab-top").addEventListener("click", ev=>{
   loadNews = done(loadNews, NW); renderNews = wrap("renderNews", renderNews);
   loadUs = done(loadUs, US); renderUs = wrap("renderUs", renderUs);
   loadFlowMore = done(loadFlowMore, FM); renderFlowMore = wrap("renderFlowMore", renderFlowMore);
+  loadFund = done(loadFund, FD); renderFund = wrap("renderFund", renderFund);
   loadHl2 = done(loadHl2, H2); renderHl2 = wrap("renderHl2", renderHl2); }
 
 load();

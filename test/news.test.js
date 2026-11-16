@@ -494,7 +494,7 @@ test('アプリ: ホームに「📰 ニュースと公式発表」(24時間以�
     assert.equal(rows.length, 4);
     assert.match(rows[0].textContent, /和:CFTC Sues Louisiana.*🏛 CFTC ・ たった今/);
     assert.match(rows[1].textContent, /和:Bitcoin slides below \$68,000/);
-    rows[0].click();
+    card.querySelector('.hm-more').click();
     assert.ok(app.doc.querySelector('#tab-news').classList.contains('active'));
     for (let i = 0; i < 3; i++) await app.settle();
     assert.ok(rowTitles(app).length > 0);
@@ -508,6 +508,57 @@ test('アプリ: ホームに「📰 ニュースと公式発表」(24時間以�
     assert.match(rel, /和:Hyperliquid tops “open interest” rankings/);
     assert.doesNotMatch(rel, /FOMC/);
     assert.equal(app.doc.querySelector('#pmSRelated a.rel-row').getAttribute('href'), 'https://www.theblock.co/news/1-hyperliquid');
+    assert.deepEqual(app.errors, []);
+  } finally { app.close(); }
+});
+
+test('アプリ: ホームのニュースの行は記事へのリンク (別のタブで開く)。http(s) 以外は押すとニュースタブ。ニュースタブの題もリンク', async () => {
+  const { gas, clock } = world();
+  gas.ctx.newsRecord_();
+  const L = latest(gas);
+  L.items.unshift({ id: 'bad1', t: clock.now, s: 'cftc', ti: 'Evil official', l: 'javascript:alert(1)' });
+  gas.ctx.pmWrite_('news-latest.json', JSON.stringify(L));
+  const app = await openApp({ clock, gas, state: { settings: { gasUrl: GAS_URL, gasAuto: false } } });
+  try {
+    for (let i = 0; i < 10; i++) await app.settle();
+    const card = [...app.doc.querySelectorAll('#homeBody .hm-card')].find(c => /ニュースと公式発表/.test(c.querySelector('h3').textContent));
+    const rows = [...card.querySelectorAll('.hm-row')];
+    assert.ok(rows.length >= 2);
+    const links = rows.filter(r => r.tagName === 'A');
+    assert.ok(links.length >= 1);
+    for (const a of links) {
+      assert.match(a.getAttribute('href'), /^https:\/\//);
+      assert.equal(a.getAttribute('target'), '_blank');
+      assert.match(a.getAttribute('rel'), /noopener/);
+      assert.ok(a.classList.contains('hm-click'));
+      assert.match(a.textContent, /↗/);
+    }
+    const evil = rows.find(r => /Evil official/.test(r.textContent));
+    assert.ok(evil, '危ないリンクの記事も行は出る');
+    assert.equal(evil.tagName, 'BUTTON', 'リンクにはしない');
+    assert.equal(evil.dataset.jump, 'news');
+    assert.equal(card.querySelectorAll('a[href^="javascript"]').length, 0);
+    // 行を押してもタブは変わらない
+    links[0].click();
+    assert.ok(app.doc.querySelector('#tab-top').classList.contains('active'), 'ホームのまま');
+    assert.ok(!app.doc.querySelector('#tab-news').classList.contains('active'));
+    // 見出しの「くわしく →」はニュースタブへ
+    card.querySelector('.hm-more').click();
+    assert.ok(app.doc.querySelector('#tab-news').classList.contains('active'));
+    for (let i = 0; i < 4; i++) await app.settle();
+    app.doc.querySelector('#nwFilter [data-nwf="all"]').click();
+    const titleLinks = [...app.doc.querySelectorAll('#nwList .nw-row .nw-t a.nw-tl')];
+    assert.ok(titleLinks.length >= 5);
+    for (const a of titleLinks) {
+      assert.match(a.getAttribute('href'), /^https:\/\//);
+      assert.equal(a.getAttribute('target'), '_blank');
+      assert.match(a.getAttribute('rel'), /noopener/);
+    }
+    const first = [...app.doc.querySelectorAll('#nwList .nw-row')].find(r => r.querySelector('a.nw-go'));
+    assert.equal(first.querySelector('.nw-t a').getAttribute('href'), first.querySelector('a.nw-go').getAttribute('href'), '題と「記事を開く ↗」は同じ先');
+    const ev = [...app.doc.querySelectorAll('#nwList .nw-row')].find(r => /Evil official/.test(r.textContent));
+    assert.equal(ev.querySelector('.nw-t a'), null);
+    assert.ok(app.doc.querySelector('#nwList [data-nworig]'), '原文を見るは残る');
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }
 });

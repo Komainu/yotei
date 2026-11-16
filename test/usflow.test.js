@@ -263,7 +263,7 @@ test('レポート: 「## 10. 米国のお金の流れ」に日ごとの表と�
   assert.doesNotMatch(t, /\| 2026-11-06 \|/, '7日より前は入れない');
   assert.match(t, /\| 2026-11-12 \| 10年国債 \| 42 \| 2\.3 \| 2\.5 \| 4\.16 \| 75 \| 不調 \|/);
   assert.match(t, /### これからの国債入札/);
-  assert.equal(gas.C.GAS_VERSION, '2026.12.10');
+  assert.equal(gas.C.GAS_VERSION, '2026.12.11');
   const all = gas.get({ action: 'report', days: '7' }).text;
   assert.match(all, /## 10\. 米国のお金の流れ/);
 });
