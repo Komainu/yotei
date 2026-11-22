@@ -57,7 +57,9 @@ test('プロンプト: fund の形・資金調達でないもの・例2つ・分
   for (const k of ['"p":', '"amt":', '"r":', '"inv":', '"oth":', '"val":', '"sec":', '"note":']) assert.ok(p.includes(k), k);
   assert.match(p, /seed \/ pre-seed \/ series A〜D \/ strategic \/ private round \/ token sale/);
   assert.match(p, /"\$12M" → 12000000/);
-  assert.match(p, /ETF の資金の出入り・ファンドの設立・買収・ハッキング・企業の暗号資産の購入・プロトコルの収益・訴訟は資金調達ではない/);
+  assert.match(p, /上場していない会社・プロジェクトが、株・SAFE・トークンを投資家に売って/);
+  assert.match(p, /次は資金調達ではない: 借入・融資・債務 \(debt\)・クレジットライン \(credit facility\)・転換社債や社債 \(convertible notes \/ bonds\)・上場企業の資金集め \(株の売り出し・ATM・上場企業の PIPE など、上場企業のものはすべて\)・企業の暗号資産の購入 \(トレジャリー\)・ETF の資金の出入り・ファンドの設立・買収や合併・助成金 \(grant\)・ハッキング・プロトコルの収益・訴訟/);
+  assert.match(p, /"MARA raises \$185M in debt financing" → "fund":null/);
   assert.match(p, /例: "Acme raises \$12M seed round led by Paradigm" → .*"fund":\{"p":"Acme","amt":12000000/);
   assert.match(p, /"Bitcoin ETFs see \$500M outflows" → "fund":null/);
   gas.ctx.newsRecord_();
@@ -137,6 +139,74 @@ test('後追い: 前に和訳した記事のうち7日以内・候補の分野�
   gas.ctx.newsRecord_();
   assert.equal(newsCalls(gem).length, 3, '済んだら呼ばない');
   assert.equal(JSON.parse(gas.props.getProperty('PM_AI_DAY')).n, 3, '後追いも1日の上限に数える');
+});
+
+test('借入は資金調達ではない: AI が fund を答えても、題・要約・原題に借入の言葉 (英語・日本語) があれば外す。ふつうの調達はそのまま', () => {
+  const { gas, gem } = world({ world: { add: [
+    { k: 'decrypt', title: 'MARA raises $185M in debt financing', link: 'https://decrypt.co/mara-debt', t: Date.parse('2026-11-14T08:00:00+09:00') },
+    { k: 'decrypt', title: 'Miner Corp secures $50M credit facility', link: 'https://decrypt.co/miner-credit', t: Date.parse('2026-11-14T08:30:00+09:00') },
+  ] } });
+  const { fundJudge } = require('./helpers/news');
+  gem.fund = t => /^MARA/.test(t) ? { p: 'MARA', amt: 185000000, r: null, inv: [], oth: null, val: null, sec: 'その他' }
+    : /^Miner Corp/.test(t) ? { p: 'Miner Corp', amt: 50000000, r: 'Strategic', inv: [], oth: null, val: null, sec: 'インフラ' } : fundJudge(t);
+  gas.ctx.newsRecord_();
+  const mara = byTitle(gas, /^MARA/), miner = byTitle(gas, /^Miner Corp/);
+  assert.equal(mara.fund, undefined, 'MARA の借入は資金調達にしない');
+  assert.notEqual(mara.cat, '資金調達');
+  assert.equal(miner.fund, undefined, 'credit facility も');
+  assert.equal(byTitle(gas, /^Acme Labs/).fund.amt, 25000000, 'ふつうの調達はそのまま');
+  assert.equal(byTitle(gas, /^Lighter/).fund.val, 1500000000);
+  assert.ok(!fundMails(gas).some(m => /MARA|Miner/.test(m.subject + m.body)), '借入は知らせない');
+  // 言葉の確かめ (日本語の題・要約も)
+  const d = t => gas.ctx.fundDebt_([t]);
+  for (const t of ['MARA raises $185M in debt financing', 'Firm closes $300M convertible notes offering', 'Strategy prices $2B senior notes', 'Miner gets $40M loan', 'Issuer sells $1B bonds',
+    'MARA が債務で1.85億ドルを調達', '借入で資金を確保', '銀行から融資を受ける', '転換社債を発行', '社債の発行', '債券を売り出す']) assert.equal(d(t), true, t);
+  for (const t of ['Acme Labs raises $25 million Series A led by Paradigm', 'Bondless raises $5M seed', 'Loanword Labs raises $3M', 'アクメが2,500万ドルを調達 (シリーズA)', 'トークンセールで1,000万ドル']) assert.equal(d(t), false, t);
+  assert.equal(gas.ctx.fundDebt_([null, undefined, 3]), false);
+});
+
+test('読み直し (1回だけ・FUND_RECHECK_V2): 14日以内の fund のある記事を後追いで送り直し、間違った fund を外す。知らせない。2回目はしない', () => {
+  const { gas, gem, clock } = world({ fund: false });
+  const now = clock.now;
+  const f = (p, amt) => ({ p, amt, r: null, inv: [], oth: null, val: null, sec: 'その他' });
+  seedOld(gas, [
+    { ti: 'Hut Holdings closes $185M financing', t: now - 3 * D, cat: '資金調達', fx: 1, fund: f('Hut Holdings', 185000000) },   // AI に聞き直すと null
+    { ti: 'MARA raises $185M in debt financing', t: now - 2 * D, cat: '資金調達', fx: 1, fund: f('MARA', 185000000) },           // 言葉でその場で外す
+    { ti: 'Beta Wallet raises $8M seed round', t: now - 10 * D, cat: '資金調達', fx: 1, fund: f('Beta Wallet', 8000000) },        // 聞き直しても調達のまま
+    { ti: 'Old Corp raises $100M Series C led by Paradigm', t: now - 20 * D, cat: '資金調達', fx: 1, fund: f('Old Corp', 100000000) },   // 14日より前は触らない
+  ]);
+  gas.ctx.newsRecord_();
+  const c = newsCalls(gem);
+  assert.deepEqual(c.map(x => x.input.length), [10, 2], 'いつもの10件 + 読み直しの2件 (MARA は言葉で外したので送らない)');
+  assert.deepEqual(c[1].input.map(x => x.t), ['Hut Holdings closes $185M financing', 'Beta Wallet raises $8M seed round']);
+  let m = fileJson(gas, 'news-2026-11.json');
+  assert.equal(m.old0.fund, undefined, '間違った fund を外す');
+  assert.equal(m.old0.cat, 'その他');
+  assert.equal(m.old0.fx, 1); assert.equal(m.old0.rk, undefined);
+  assert.equal(m.old1.fund, undefined); assert.equal(m.old1.cat, 'その他');
+  assert.equal(m.old2.fund.p, 'Beta Wallet', 'ふつうの調達は残る');
+  assert.equal(m.old2.cat, '資金調達');
+  assert.equal(m.old3.fund.p, 'Old Corp', '14日より前はそのまま');
+  assert.equal(fundMails(gas).length, 0, '読み直したものは知らせない');
+  assert.ok(gas.props.getProperty('FUND_RECHECK_V2'));
+  assert.equal(gas.ctx.fundList_(30).some(x => /MARA|Hut/.test(x.p)), false, '一覧から消える');
+  clock.tick(H);
+  gas.ctx.newsRecord_();
+  assert.equal(newsCalls(gem).length, 2, '2回目は読み直さない');
+});
+
+test('読み直し: 1日の Gemini の残りが少ない時は待つ (印は残し、余裕ができた日に送り直す)', () => {
+  const { gas, gem, clock } = world({ fund: false, props: { PM_AI_DAY: JSON.stringify({ d: '2026-11-14', n: 359 }) } });
+  seedOld(gas, [{ ti: 'Hut Holdings closes $185M financing', t: clock.now - 3 * D, cat: '資金調達', fx: 1, fund: { p: 'Hut Holdings', amt: 185000000, r: null, inv: [], oth: null, val: null, sec: 'その他' } }]);
+  gas.ctx.newsRecord_();
+  assert.deepEqual(newsCalls(gem).map(x => x.input.length), [10]);
+  let m = fileJson(gas, 'news-2026-11.json');
+  assert.equal(m.old0.rk, 1); assert.equal(m.old0.fund.p, 'Hut Holdings');
+  clock.addDays(1);
+  gas.ctx.newsRecord_();
+  assert.deepEqual(newsCalls(gem).slice(-1).map(x => x.input.map(y => y.t)), [['Hut Holdings closes $185M financing']], '次の日に送り直す');
+  m = fileJson(gas, 'news-2026-11.json');
+  assert.equal(m.old0.fund, undefined);
 });
 
 test('後追い: 1日の上限の残りが少ない時 (40回以下) はしない。いつもの和訳は続ける', () => {

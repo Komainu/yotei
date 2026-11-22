@@ -506,7 +506,7 @@ test('アプリ: 設定に通知 (hlw・hlwMin 百万ドル)・毎朝のまと�
     const cb = app.doc.querySelector('input[type="checkbox"][value="hl2"]');
     assert.ok(cb);
     assert.match(cb.parentElement.textContent, /🐋 Hyperliquid の金庫・大口・買い戻し/);
-    assert.equal(app.run('APP_VERSION'), '2026.12.12');
+    assert.equal(app.run('APP_VERSION'), '2026.12.13');
     assert.equal(app.run('MIN_GAS_VERSION'), z.gas.C.GAS_VERSION);
     assert.deepEqual(app.errors, []);
   } finally { app.close(); }

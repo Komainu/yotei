@@ -16,7 +16,7 @@
  */
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.12.11';
+const GAS_VERSION = '2026.12.13';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -174,6 +174,16 @@ function doGetInner_(e) {
   }
   if (action === 'hl2') {
     return json(hl2Get_(e.parameter.force === '1'));
+  }
+  if (action === 'cg') {
+    let d = null, err = null;
+    try { d = cgData_(e.parameter.force === '1'); } catch (x) { err = String(x && x.message || x); }
+    return json({ ok: !!d, version: GAS_VERSION, error: err || CG_LAST_ERR, cg: d, hist: cgHist_(120) });
+  }
+  if (action === 'okx') {
+    let d = null, err = null;
+    try { d = okxData_(e.parameter.force === '1'); } catch (x) { err = String(x && x.message || x); }
+    return json({ ok: !!d, version: GAS_VERSION, error: err || OKX_LAST_ERR, okx: d, hist: okxHist_(120), coins: OKX_COINS.map(function (c) { return c.c; }) });
   }
   if (action === 'news') {
     const days = Math.max(1, Math.min(NEWS_LATEST_DAYS, Number(e.parameter.days) || 3));
@@ -877,7 +887,10 @@ function pmAlert() {
   PM_RUN_T0 = Date.now();   // DefiLlama その2 の重い取得の目安 (この回の始まり)
   try { pmAlertInner_(); }
   finally {
-    try { pmSideJobs_(); } catch (e) { Logger.log('定期の取得に失敗: ' + e); }
+    try {
+      // 1つ目が早く終わったら (60秒未満)、予定より10分以上遅れているものをもう1つだけ (7つの取得を1時間に回しきるため)
+      if (pmSideJobs_() && Date.now() - PM_RUN_T0 < SIDE_SECOND_MS) pmSideJobs_(true);
+    } catch (e) { Logger.log('定期の取得に失敗: ' + e); }
     PM_RUN_T0 = 0;
   }
 }
@@ -1062,10 +1075,12 @@ function pmDigest() {
     const day = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M月d日');
     let mac = null;
     try { mac = pmMacroSection_(); } catch (e) { Logger.log('天気図をまとめに入れられません: ' + e); }
-    let ml = null, flow = null, optS = null, newsS = null, usS = null, deals = null, hl2S = null, fundS = null;
+    let ml = null, flow = null, optS = null, newsS = null, usS = null, deals = null, hl2S = null, fundS = null, okxS = null, cgS = null;
     if (ntf_().dNews) { try { newsS = pmNewsSection_(); } catch (e) { Logger.log('ニュースをまとめに入れられません: ' + e); } }
     if (ntf_().dFund) { try { fundS = pmFundSection_(); } catch (e) { Logger.log('資金調達をまとめに入れられません: ' + e); } }
     if (ntf_().dHl2) { try { hl2S = pmHl2Section_(); } catch (e) { Logger.log('Hyperliquid の金庫・大口をまとめに入れられません: ' + e); } }
+    if (ntf_().dOkx) { try { okxS = pmOkxSection_(); } catch (e) { Logger.log('取引所の先物 (OKX) をまとめに入れられません: ' + e); } }
+    if (ntf_().dCg) { try { cgS = pmCgSection_(); } catch (e) { Logger.log('暗号資産の市場全体をまとめに入れられません: ' + e); } }
     if (ntf_().dOpt) { try { optS = pmOptSection_(); } catch (e) { Logger.log('オプション市場をまとめに入れられません: ' + e); } }
     if (ntf_().dMacro) { try { ml = mac ? pmMacroList_(mac.res) : null; } catch (e) { Logger.log('マクロ指標の一覧をまとめに入れられません: ' + e); } }
     if (ntf_().dUs) { try { usS = pmUsSection_(); } catch (e) { Logger.log('米国のお金の流れをまとめに入れられません: ' + e); } }
@@ -1077,7 +1092,7 @@ function pmDigest() {
       + sec('ウォッチ中の市場', watch, 'ウォッチ中の市場はありません (アプリで ☆ を押すと入ります)') + '\n'
       + sec('新しく出てきた市場', fresh, 'ありませんでした') + '\n'
       + (newsS ? newsS.text + '\n' : '') + (fundS ? fundS.text + '\n' : '')
-      + (ml ? ml.text + '\n' : '') + (usS ? usS.text + '\n' : '') + (hl2S ? hl2S.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '') + (deals ? deals.text + '\n' : '')
+      + (ml ? ml.text + '\n' : '') + (usS ? usS.text + '\n' : '') + (hl2S ? hl2S.text + '\n' : '') + (okxS ? okxS.text + '\n' : '') + (cgS ? cgS.text + '\n' : '') + (optS ? optS.text + '\n' : '') + (flow ? flow.text + '\n' : '') + (deals ? deals.text + '\n' : '')
       + '■ 記録の状況\n・台帳 ' + st.markets + '件 ／ 決着済み ' + st.resolved + '件' + (st.since ? ' ／ ' + st.since + ' から記録中' : '') + (st.error ? '\n・⚠ ' + st.error : '') + pmHealthLine_() + '\n\n'
       + '※ ポリマーケット記録アプリが毎朝' + PM_DIGEST_HOUR + '時に送っています。売買はしていません。';
     const h = function (title, list, empty) {
@@ -1092,7 +1107,7 @@ function pmDigest() {
       to: to, subject: '【ポリマーケット】' + day + 'のまとめ' + (mac ? ' ' + mac.sky[1] + mac.sky[2] : '') + (movers.length ? ' — 大きな動き' + movers.length + '件' : ''), body: text,
       htmlBody: pmMailHtml_('🗞 ' + day + ' のまとめ', (mac ? '<tr><td style="padding:6px 0 2px;font-weight:700;font-size:15px">🌐 相場の天気図</td></tr>' + mac.html : '') + h('📈 24時間で大きく動いた市場', movers, '大きな動きはありませんでした')
         + h('⭐ ウォッチ中の市場', watch, 'ウォッチ中の市場はありません') + h('🆕 新しく出てきた市場', fresh, 'ありませんでした')
-        + (newsS ? newsS.html : '') + (fundS ? fundS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (hl2S ? hl2S.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '') + (deals ? deals.html : '')),
+        + (newsS ? newsS.html : '') + (fundS ? fundS.html : '') + (ml ? ml.html : '') + (usS ? usS.html : '') + (hl2S ? hl2S.html : '') + (okxS ? okxS.html : '') + (cgS ? cgS.html : '') + (optS ? optS.html : '') + (flow ? flow.html : '') + (deals ? deals.html : '')),
     });
     props.setProperty('PM_DIGEST_LAST', new Date().toISOString());
     hbOk_('digest');
@@ -1580,7 +1595,7 @@ const pmP_ = function (p) { return p == null || isNaN(p) ? '-' : (Math.round(p *
  */
 function pmReport_(opt) {
   const days = Math.max(1, Math.min(365, Number(opt.days) || 30));
-  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us', 'deals', 'hl2', 'fund'];
+  const parts = Array.isArray(opt.parts) && opt.parts.length ? opt.parts : ['macro', 'watch', 'alerts', 'resolve', 'kalshi', 'hl', 'llama', 'opt', 'news', 'us', 'deals', 'hl2', 'fund', 'cg', 'okx'];
   const to = pmJstDay_(Date.now()), from = pmDayAdd_(to, -days);
   const cat = pmLoadCatalog_();
   const ja = pmLoadJson_('tr.json');
@@ -1746,6 +1761,8 @@ function pmReport_(opt) {
   if (parts.indexOf('us') >= 0) { try { usReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 10. 米国のお金の流れ', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('deals') >= 0) { try { llama2ReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 11. ハッキング被害・ペッグ・DEX・利回り', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('hl2') >= 0) { try { hl2ReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 12. Hyperliquid の金庫・大口・買い戻し', '(読み出せませんでした: ' + e + ')', ''); } }
+  if (parts.indexOf('cg') >= 0) { try { cgReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 14. 暗号資産の市場全体 (CoinGecko)', '(読み出せませんでした: ' + e + ')', ''); } }
+  if (parts.indexOf('okx') >= 0) { try { okxReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 15. 取引所の先物 (OKX)', '(読み出せませんでした: ' + e + ')', ''); } }
   if (parts.indexOf('fund') >= 0) { try { fundReportLines_(from).forEach(function (l) { lines.push(l); }); } catch (e) { lines.push('## 13. 資金調達 (ニュースから)', '(読み出せませんでした: ' + e + ')', ''); } }
   const text = lines.join('\n');
   return { ok: true, text: text, chars: text.length, from: from, to: to };
@@ -3124,13 +3141,14 @@ function newsPrompt_() {
     + '・sum: 何が起きたかを、自分の言葉で日本語1文・80文字以内にまとめる (原文の文をそのまま訳して長く写さない)\n'
     + '・sc: 利用者の興味との関係。3=興味の中心そのもので重要 / 2=関係が深い / 1=少し関係 / 0=関係なし\n'
     + '・cat: 次から1つ: ' + NEWS_CATS.join(', ') + '。会社・プロジェクトが投資家からお金を集めた記事は「資金調達」\n'
-    + '・fund: 会社・プロジェクトが投資家から資金を調達した (seed / pre-seed / series A〜D / strategic / private round / token sale) と見出しか説明にある時だけ'
+    + '・fund: 上場していない会社・プロジェクトが、株・SAFE・トークンを投資家に売って資金を調達した (seed / pre-seed / series A〜D / strategic / private round / token sale) と見出しか説明にある時だけ'
     + ' {"p":"名前 (英語の表記のまま)","amt":調達額のドル (数。"$12M" → 12000000。書かれていない・ドル以外の通貨は null),"r":"ラウンド (英語のまま。Seed, Series A, Strategic など。無ければ null)",'
     + '"inv":["主導した投資家" (最大3。無ければ [])],"oth":ほかに名前の出た投資家の数 か null,"val":評価額のドル か null,'
     + '"sec":"分野 (DeFi, 決済, インフラ, ゲーム, AI, 取引所, ウォレット, L1/L2, RWA, その他 から1つ)","note":"補足 (日本語40文字以内。ドル以外の金額はここに書く。無ければ省く)"}。'
-    + 'それ以外はすべて null (ETF の資金の出入り・ファンドの設立・買収・ハッキング・企業の暗号資産の購入・プロトコルの収益・訴訟は資金調達ではない)\n'
+    + 'それ以外はすべて null。次は資金調達ではない: 借入・融資・債務 (debt)・クレジットライン (credit facility)・転換社債や社債 (convertible notes / bonds)・'
+    + '上場企業の資金集め (株の売り出し・ATM・上場企業の PIPE など、上場企業のものはすべて)・企業の暗号資産の購入 (トレジャリー)・ETF の資金の出入り・ファンドの設立・買収や合併・助成金 (grant)・ハッキング・プロトコルの収益・訴訟\n'
     + '・例: "Acme raises $12M seed round led by Paradigm" → "cat":"資金調達","fund":{"p":"Acme","amt":12000000,"r":"Seed","inv":["Paradigm"],"oth":null,"val":null,"sec":"DeFi"}'
-    + ' / "Bitcoin ETFs see $500M outflows" → "fund":null\n'
+    + ' / "Bitcoin ETFs see $500M outflows" → "fund":null / "MARA raises $185M in debt financing" → "fund":null\n'
     + '・人名・団体名は一般的なカタカナ表記。定着した英字 (SEC, ETF, FOMC など) は英字のまま。数字・金額は変えない\n'
     + '・用語集 (原文 → 訳):\n' + PM_GLOSSARY.map(function (g) { return '  ' + g[0] + ' → ' + g[1]; }).join('\n');
 }
@@ -3169,6 +3187,8 @@ function newsRecord_() {
   let aiErr = null;
   if (props.getProperty('GEMINI_KEY')) {
     const since = now - NEWS_LATEST_DAYS * 86400000, pend = [];
+    // 資金調達の読み直し (1回だけ): 14日以内の fund のある記事を、下の後追いに混ぜる (知らせない)。今回の和訳より前に印を付ける
+    try { fundRecheckMark_(files, dirty, now); } catch (e) { Logger.log('資金調達の読み直しの準備に失敗: ' + e); }
     Object.keys(files).forEach(function (m) { Object.keys(files[m]).forEach(function (id) { const x = files[m][id]; if (!x.ja && x.t >= since) pend.push({ id: id, m: m, x: x }); }); });
     pend.sort(function (a, b) { return b.x.t - a.x.t; });
     const todo = pend.slice(0, NEWS_AI_MAX);
@@ -3190,15 +3210,15 @@ function newsRecord_() {
     } catch (e) { aiErr = String(e); Logger.log('ニュースの和訳に失敗: ' + e); }   // 取り込んだ記事は失わない (次の実行でまた訳す)
     // 資金調達の読み取りの後追い: この変更より前に和訳した記事 (fx が無い) を、上限に余裕がある時だけ1回 (15件まで) 送り直す
     if (!aiErr && pmAiDayLeft_() > NEWS_FX_RESERVE) {
-      const back = [];
-      Object.keys(files).forEach(function (m) { Object.keys(files[m]).forEach(function (id) { const x = files[m][id]; if (x.ja && !x.fx && x.t >= since && NEWS_FX_CATS.indexOf(x.cat) >= 0) back.push({ id: id, m: m, x: x }); }); });
+      const back = [], rkSince = now - FUND_RECHECK_DAYS * 86400000;
+      Object.keys(files).forEach(function (m) { Object.keys(files[m]).forEach(function (id) { const x = files[m][id]; if (x.ja && !x.fx && ((x.t >= since && NEWS_FX_CATS.indexOf(x.cat) >= 0) || (x.rk && x.t >= rkSince))) back.push({ id: id, m: m, x: x }); }); });
       back.sort(function (a, b) { return b.x.t - a.x.t; });
       const chunk = back.slice(0, NEWS_FX_MAX);
       if (chunk.length) {
         try {
           const out = pmGemini_(newsPrompt_(), chunk.map(function (p, j) { return { i: j, s: newsFeed_(p.x.s).n, t: p.x.ti, d: String(desc[p.id] || '').slice(0, 300) }; }), 4096);
-          (Array.isArray(out) ? out : []).forEach(function (o) { const p = chunk[Number(o && o.i)]; if (p && !p.x.fx) fundTake_(p, o, raised); });
-          chunk.forEach(function (p) { p.x.fx = 1; dirty[p.m] = 1; });   // 答えが無かったものも送り直さない
+          (Array.isArray(out) ? out : []).forEach(function (o) { const p = chunk[Number(o && o.i)]; if (p && !p.x.fx) fundTake_(p, o, p.x.rk ? null : raised); });
+          chunk.forEach(function (p) { p.x.fx = 1; delete p.x.rk; dirty[p.m] = 1; });   // 答えが無かったものも送り直さない
         } catch (e) { Logger.log('資金調達の後追いに失敗: ' + e); }
       }
     }
@@ -3340,11 +3360,38 @@ function fundClean_(o) {
   if (note) f.note = note;
   return f;
 }
-/** 1件の答えから fund を記事に書く (newsRecord_ から) */
+/** 借入・債務の言葉 (英語・日本語)。これがある記事は資金調達として扱わない (AI が借入を資金調達と答えることがあるため) */
+const FUND_DEBT_RE = /\b(debts?|loans?|credit (facility|facilities|line)|convertibles?|notes offering|senior notes|bonds?)\b|債務|借入|借り入れ|融資|社債|債券/i;
+function fundDebt_(texts) { return texts.some(function (t) { return typeof t === 'string' && FUND_DEBT_RE.test(t); }); }
+/** 1件の答えから fund を記事に書く (newsRecord_ から)。raised が null の時 (読み直し) は知らせない */
 function fundTake_(p, o, raised) {
-  const f = fundClean_(o && o.fund);
-  if (f) { p.x.fund = f; p.x.cat = '資金調達'; raised.push(p); } else delete p.x.fund;
+  let f = fundClean_(o && o.fund);
+  const debt = fundDebt_([o && o.ja, o && o.sum, p.x.ti, p.x.ja, p.x.sum]);
+  if (f && debt) f = null;
+  if (f) { p.x.fund = f; p.x.cat = '資金調達'; if (raised) raised.push(p); }
+  else {
+    delete p.x.fund;
+    if (p.x.cat === '資金調達' && (debt || !raised)) p.x.cat = o && NEWS_CATS.indexOf(o.cat) >= 0 && o.cat !== '資金調達' ? o.cat : 'その他';
+  }
   p.x.fx = 1;
+}
+/** 1回だけ (FUND_RECHECK_V2): 14日以内の fund のある記事を読み直しの印 (rk) にする。借入の言葉があるものはその場で fund を外す */
+const FUND_RECHECK_DAYS = 14;
+function fundRecheckMark_(files, dirty, now) {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('FUND_RECHECK_V2')) return 0;
+  let n = 0;
+  Object.keys(files).forEach(function (m) {
+    Object.keys(files[m]).forEach(function (id) {
+      const x = files[m][id];
+      if (!x.fund || x.t < now - FUND_RECHECK_DAYS * 86400000) return;
+      if (fundDebt_([x.ti, x.ja, x.sum])) { delete x.fund; if (x.cat === '資金調達') x.cat = 'その他'; }
+      else { delete x.fx; x.rk = 1; }
+      dirty[m] = 1; n++;
+    });
+  });
+  props.setProperty('FUND_RECHECK_V2', String(now));
+  return n;
 }
 function fundRoundJa_(r) {
   if (!r) return '';
@@ -3806,6 +3853,426 @@ function usReportLines_(from) {
 }
 
 // =====================================================================
+//  暗号資産の市場全体 (CoinGecko の公開 API・キー不要)
+//    api.coingecko.com は鍵なしだと回数の制限がきつく、Apps Script は IP を共有するので、
+//    2時間に1回・1回に4つまで・あいだを1.5秒あける。429 などで落ちた部分は前回のまま (errors に名前)
+//    cg-latest.json … { at, global, trend, cats, treas, read, errors } / cg-YYYY-MM.json … { 日付: { btcDom, ethDom, stableDom, mcap } }
+// =====================================================================
+const CG_BASE = 'https://api.coingecko.com/api/v3';
+const CG_TTL = 115 * 60000;          // 2時間ごと (定期の取得の every=120 より少し短く)
+const CG_FORCE_MIN = 10 * 60000;     // 取り直しの指定があっても、前回から10分たつまでは取りに行かない
+const CG_GAP = 1500;                 // 呼び出しのあいだ (ミリ秒)
+const CG_CAT_MIN = 1e9;              // 分野の値動きは時価総額10億ドル以上のものだけ
+let CG_LAST_ERR = null;              // 直近の取得が全部落ちた時の理由 (見張り用)
+
+function cgRound_(v, n) { const m = Math.pow(10, n == null ? 2 : n); return Math.round(Number(v) * m) / m; }
+function cgNum_(v) { return typeof v === 'number' && isFinite(v) ? v : (typeof v === 'string' && v !== '' && isFinite(Number(v)) ? Number(v) : null); }
+function cgMoney_(v) { v = Number(v) || 0; return v >= 1e12 ? (Math.round(v / 1e10) / 100) + '兆ドル' : pmMoneyJa_(v); }
+function cgPt_(v) { return v == null ? '-' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(cgRound_(v, 1)) + 'pt'; }
+function cgPct_(v) { return v == null ? '-' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(cgRound_(v, 1)) + '%'; }
+function cgCode_(e) { return e && e.code != null ? e.code : null; }
+/** 1つ取る。200 以外は HTTP の番号つきで投げる (429 = 混み合い) */
+function cgGet_(path) {
+  let res;
+  try { res = UrlFetchApp.fetch(CG_BASE + path, { muteHttpExceptions: true, headers: { accept: 'application/json' } }); }
+  catch (e) { const x = new Error('通信できません: ' + String(e).slice(0, 80)); x.code = 0; throw x; }
+  const code = res.getResponseCode();
+  if (code !== 200) { const x = new Error('HTTP ' + code); x.code = code; throw x; }
+  return JSON.parse(res.getContentText());
+}
+function cgGlobal_(j) {
+  const d = (j && j.data) || {}, pc = d.market_cap_percentage || {};
+  const mcap = cgNum_((d.total_market_cap || {}).usd);
+  if (!mcap) throw new Error('全体の時価総額がありません');
+  const p = function (k) { return cgNum_(pc[k]); };
+  const chg = cgNum_(d.market_cap_change_percentage_24h_usd);
+  return { mcap: Math.round(mcap), vol: Math.round(cgNum_((d.total_volume || {}).usd) || 0), btcDom: p('btc') == null ? null : cgRound_(p('btc')), ethDom: p('eth') == null ? null : cgRound_(p('eth')),
+    stableDom: p('usdt') == null && p('usdc') == null ? null : cgRound_((p('usdt') || 0) + (p('usdc') || 0)), chg24: chg == null ? null : cgRound_(chg) };
+}
+function cgTrend_(j) {
+  const s = function (v, n) { return typeof v === 'string' ? v.slice(0, n) : ''; };
+  return ((j && j.coins) || []).map(function (c) {
+    const it = (c && c.item) || {}, pr = cgNum_(((it.data || {}).price_change_percentage_24h || {}).usd);
+    if (!it.name || typeof it.name !== 'string') return null;
+    return { n: s(it.name, 40), sym: s(it.symbol, 16).toUpperCase(), rank: cgNum_(it.market_cap_rank), chg: pr == null ? null : cgRound_(pr, 1) };
+  }).filter(Boolean).slice(0, 10);
+}
+function cgCats_(j) {
+  const all = (Array.isArray(j) ? j : []).map(function (c) {
+    const mcap = cgNum_(c && c.market_cap);
+    if (!c || typeof c.name !== 'string' || !mcap) return null;
+    const chg = cgNum_(c.market_cap_change_24h);
+    return { n: c.name.slice(0, 50), mcap: Math.round(mcap), chg: chg == null ? null : cgRound_(chg, 1), vol: Math.round(cgNum_(c.volume_24h) || 0) };
+  }).filter(Boolean);
+  if (!all.length) throw new Error('分野がありません');
+  const big = all.filter(function (c) { return c.mcap >= CG_CAT_MIN && c.chg != null; });
+  return { up: big.filter(function (c) { return c.chg > 0; }).sort(function (a, b) { return b.chg - a.chg; }).slice(0, 8),
+    down: big.filter(function (c) { return c.chg < 0; }).sort(function (a, b) { return a.chg - b.chg; }).slice(0, 5),
+    big: all.slice().sort(function (a, b) { return b.mcap - a.mcap; }).slice(0, 10) };
+}
+function cgTreas_(j, now) {
+  const list = j && j.companies;
+  if (!Array.isArray(list) || cgNum_(j.total_holdings) == null) throw new Error('保有の一覧がありません');
+  return { at: now, total: cgRound_(j.total_holdings, 0), usd: Math.round(cgNum_(j.total_value_usd) || 0), top: list.slice(0, 10).map(function (c) {
+    const pct = cgNum_(c.percentage_of_total_supply);
+    return { n: String(c.name || '').slice(0, 50), sym: String(c.symbol || '').slice(0, 16), cty: String(c.country || '').slice(0, 4), h: cgRound_(c.total_holdings, 0), usd: Math.round(cgNum_(c.total_current_value_usd) || 0), pct: pct == null ? null : cgRound_(pct, 3) };
+  }) };
+}
+function cgCache_() { try { return JSON.parse(pmRead_('cg-latest.json') || 'null'); } catch (e) { return null; } }
+/** 日ごとの記録 (直近 days 日) → { 日付: { btcDom, ethDom, stableDom, mcap } } */
+function cgHist_(days) {
+  const from = pmJstDay_(Date.now() - days * 86400000), out = {};
+  hlMonths_(Date.now(), Math.ceil(days / 28) + 1).forEach(function (m) {
+    let f = {};
+    try { f = pmLoadJson_('cg-' + m + '.json'); } catch (e) {}
+    Object.keys(f).forEach(function (d) { if (d >= from) out[d] = f[d]; });
+  });
+  return out;
+}
+/** 7日の変化 (記録が2日分以上ある時)。7日前の行が無ければ、期間の中でいちばん古い行と比べる */
+function cgChg7_(hist, k, now) {
+  const from = pmJstDay_(now - 7 * 86400000);
+  const rows = Object.keys(hist).sort().filter(function (d) { return d >= from && hist[d] && hist[d][k] != null; });
+  if (rows.length < 2) return null;
+  return cgRound_(hist[rows[rows.length - 1]][k] - hist[rows[0]][k], 2);
+}
+/** 接続できない時の文 (見張り・アプリ共通) */
+function cgFailMsg_(code) {
+  return 'CoinGecko に接続できません (' + (code ? 'HTTP ' + code : '通信できません') + ')。' + (code === 429 ? '混み合っているため、しばらくしてから取り直します' : '時間をおいて取り直します');
+}
+function cgData_(force) {
+  const cur = cgCache_(), now = Date.now();
+  CG_LAST_ERR = null;
+  if (cur && now - cur.at < (force ? CG_FORCE_MIN : CG_TTL)) return cur;
+  const fresh = { at: now, global: cur ? cur.global : null, trend: cur ? cur.trend || [] : [], cats: cur ? cur.cats : null, treas: (cur && cur.treas) || {}, errors: [] };
+  // 企業の保有は BTC と ETH を1回ずつ交互に (1回の呼び出しを4つまでにする)
+  const tb = fresh.treas.btc, te = fresh.treas.eth, tk = !tb ? 'btc' : !te ? 'eth' : (tb.at <= te.at ? 'btc' : 'eth');
+  let gOk = false;
+  const parts = [
+    { k: 'global', n: '全体の時価総額', path: '/global', fn: function (j) { fresh.global = cgGlobal_(j); gOk = true; } },
+    { k: 'trend', n: '注目の銘柄', path: '/search/trending', fn: function (j) { fresh.trend = cgTrend_(j); } },
+    { k: 'cats', n: '分野ごとの値動き', path: '/coins/categories', fn: function (j) { fresh.cats = cgCats_(j); } },
+    { k: 'treas', n: '企業の保有 (' + tk.toUpperCase() + ')', path: '/companies/public_treasury/' + (tk === 'btc' ? 'bitcoin' : 'ethereum'), fn: function (j) { fresh.treas[tk] = cgTreas_(j, now); } },
+  ];
+  let got = 0;
+  const codes = [];
+  parts.forEach(function (p, i) {
+    if (i) Utilities.sleep(CG_GAP);
+    try { p.fn(cgGet_(p.path)); got++; }
+    catch (e) { const c = cgCode_(e); codes.push(c); fresh.errors.push(p.n + (c ? ' (HTTP ' + c + ')' : '')); Logger.log('CoinGecko ' + p.k + ' に失敗: ' + e); }
+  });
+  if (!got) {
+    CG_LAST_ERR = cgFailMsg_(codes.filter(Boolean)[0] || null);
+    if (cur) return cur;
+    throw new Error(CG_LAST_ERR);
+  }
+  // 日ごとの行 (全体の値が取れた時だけ。その日の最後の値で上書き)
+  if (gOk) {
+    const day = pmJstDay_(now), name = 'cg-' + day.slice(0, 7) + '.json';
+    try { const f = pmLoadJson_(name); f[day] = { btcDom: fresh.global.btcDom, ethDom: fresh.global.ethDom, stableDom: fresh.global.stableDom, mcap: fresh.global.mcap }; pmWrite_(name, JSON.stringify(f)); }
+    catch (e) { Logger.log(name + ' を保存できません: ' + e); }
+  }
+  fresh.read = cgRead_(fresh, cgHist_(14), now);
+  try { pmWrite_('cg-latest.json', JSON.stringify(fresh)); } catch (e) { Logger.log('cg-latest.json を保存できません: ' + e); }
+  return fresh;
+}
+/** 読み取り (やさしい日本語。売買のすすめはしない) */
+function cgRead_(d, hist, now) {
+  const out = [], g = d.global;
+  if (g && g.btcDom != null) {
+    const c = cgChg7_(hist, 'btcDom', now);
+    out.push('BTC の占める割合 (ドミナンス) は ' + g.btcDom + '%' + (c == null ? 'です (記録が2日分たまると、7日の変化を出します)。上がる時はお金が BTC に集まり、ほかの銘柄 (アルトコイン) は弱い時です'
+      : ' (7日で ' + cgPt_(c) + ')。' + (c >= 0.5 ? '上がっています: お金が BTC に集まり、ほかの銘柄 (アルトコイン) は弱めです' : c <= -0.5 ? '下がっています: アルトコインにお金が回っています' : '大きな変化はありません')));
+  }
+  if (g && g.stableDom != null) {
+    const c = cgChg7_(hist, 'stableDom', now);
+    out.push('ステーブルコイン (USDT・USDC) の占める割合は ' + g.stableDom + '%' + (c == null ? 'です。上がる時は、様子見でドルのまま置いている人が多い時です'
+      : ' (7日で ' + cgPt_(c) + ')。' + (c >= 0.3 ? '上がっています: 様子見でドルのまま置いている人が多いようです' : c <= -0.3 ? '下がっています: ドルから暗号資産にお金が動いています' : '大きな変化はありません')));
+  }
+  if (g && g.chg24 != null) out.push('暗号資産全体の時価総額は ' + cgMoney_(g.mcap) + ' (24時間で ' + cgPct_(g.chg24) + ')');
+  const cats = d.cats;
+  if (cats && (cats.up.length || cats.down.length)) {
+    out.push('今日の分野ごとの値動き (時価総額10億ドル以上): ' + (cats.up.length ? 'いちばん強いのは「' + cats.up[0].n + '」(' + cgPct_(cats.up[0].chg) + ')' : '上がった分野はありません')
+      + '、' + (cats.down.length ? 'いちばん弱いのは「' + cats.down[0].n + '」(' + cgPct_(cats.down[0].chg) + ')' : '下がった分野はありません'));
+  }
+  if ((d.trend || []).length) out.push('CoinGecko で注目されている銘柄: ' + d.trend.slice(0, 3).map(function (t) { return t.n + ' (' + t.sym + ')'; }).join('、'));
+  const tr = d.treas || {};
+  ['btc', 'eth'].forEach(function (k) {
+    const t = tr[k], K = k.toUpperCase();
+    if (!t || !t.top || !t.top.length) return;
+    out.push('上場企業などの ' + K + ' の保有は合計 ' + Math.round(t.total).toLocaleString() + ' ' + K + ' (' + cgMoney_(t.usd) + ')。いちばん多いのは ' + t.top[0].n + ' (' + Math.round(t.top[0].h).toLocaleString() + ' ' + K + ')');
+  });
+  return out;
+}
+/** 2時間ごと (SIDE_JOBS): 取り直す (前回から10分以内なら取りに行かない)。全部落ちたら HTTP の番号つきで投げる (見張りに出る) */
+function cgRecord_() {
+  const d = cgData_(true);
+  if (CG_LAST_ERR) throw new Error(CG_LAST_ERR);
+  return d;
+}
+/** 毎朝のまとめに入れる欄 */
+function pmCgSection_() {
+  const d = cgCache_();
+  if (!d || !d.global) return null;
+  const g = d.global, cats = d.cats || { up: [], down: [] };
+  const nums = '時価総額の合計 ' + cgMoney_(g.mcap) + ' (24時間 ' + cgPct_(g.chg24) + ') ／ BTC ' + g.btcDom + '% ／ ETH ' + g.ethDom + '% ／ ステーブルコイン ' + g.stableDom + '%';
+  const cl = function (c) { return c.n + ' ' + cgPct_(c.chg) + ' (時価総額 ' + cgMoney_(c.mcap) + ')'; };
+  const up = cats.up.slice(0, 5), dn = cats.down.slice(0, 5), tr = (d.trend || []).slice(0, 5);
+  const tl = function (t) { return t.n + ' (' + t.sym + ')' + (t.chg != null ? ' 24時間 ' + cgPct_(t.chg) : '') + (t.rank ? ' ・ 時価総額 ' + t.rank + '位' : ''); };
+  const text = '■■ 暗号資産の市場全体 (CoinGecko)\n' + (d.read || []).map(function (x) { return '・' + x; }).join('\n') + '\n・' + nums + '\n'
+    + (up.length ? '\n■ 上がった分野\n' + up.map(function (c) { return '・' + cl(c); }).join('\n') + '\n' : '')
+    + (dn.length ? '\n■ 下がった分野\n' + dn.map(function (c) { return '・' + cl(c); }).join('\n') + '\n' : '')
+    + (tr.length ? '\n■ 注目されている銘柄\n' + tr.map(function (t) { return '・' + tl(t); }).join('\n') + '\n' : '')
+    + ((d.errors || []).length ? '・一部取得できませんでした: ' + d.errors.join('、') + '\n' : '');
+  const html = pmMailHead_('🧭 暗号資産の市場全体 (CoinGecko)') + (d.read || []).map(function (x) { return pmMailRow_(esc(x)); }).join('') + pmMailRow_(esc(nums))
+    + (up.length ? pmMailSub_('上がった分野') + up.map(function (c) { return pmMailRow_(esc(cl(c))); }).join('') : '')
+    + (dn.length ? pmMailSub_('下がった分野') + dn.map(function (c) { return pmMailRow_(esc(cl(c))); }).join('') : '')
+    + (tr.length ? pmMailSub_('注目されている銘柄') + tr.map(function (t) { return pmMailRow_(esc(tl(t))); }).join('') : '');
+  return { text: text, html: html };
+}
+/** AI に渡すレポートの節 */
+function cgReportLines_(from) {
+  const lines = ['## 14. 暗号資産の市場全体 (CoinGecko)'];
+  lines.push('ドミナンス = 暗号資産全体の時価総額のうち、その銘柄が占める割合 (%)。BTC が上がるとお金が BTC に集まり、下がるとアルトコインに回っている。ステーブルコイン = USDT + USDC (上がると様子見のお金が多い)。時価総額の合計は10億ドル単位。');
+  const d = cgCache_(), hist = cgHist_(200), ds = Object.keys(hist).filter(function (x) { return x >= from; }).sort();
+  if (d && (d.read || []).length) lines.push('いまの読み取り: ' + d.read.join(' ／ '));
+  const v = function (x) { return x == null ? '-' : x; };
+  if (ds.length) lines.push(pmMdTable_(['日付', 'BTC (%)', 'ETH (%)', 'ステーブルコイン (%)', '時価総額の合計'], ds.map(function (x) { const r = hist[x]; return [x, v(r.btcDom), v(r.ethDom), v(r.stableDom), r.mcap ? cgRound_(r.mcap / 1e9, 0) : '-']; })));
+  else lines.push('(この期間の記録はありません)');
+  if (d && d.cats) {
+    lines.push('### いまの分野ごとの値動き (24時間・時価総額10億ドル以上)');
+    lines.push(pmMdTable_(['分野', '24時間 (%)', '時価総額 (10億ドル)', '出来高 (10億ドル)'], d.cats.up.concat(d.cats.down).map(function (c) { return [c.n, c.chg, cgRound_(c.mcap / 1e9, 1), cgRound_(c.vol / 1e9, 1)]; })));
+  }
+  lines.push('');
+  return lines;
+}
+
+// =====================================================================
+//  取引所の先物 (OKX の公開 API・キー不要): ロング・ショート比率・清算・成行の買い/売り
+//    OKX は米国からの利用を制限している。Apps Script は Google (米国) の IP から通信するので、届かないことがある。
+//    全部落ちたら「OKX に接続できません (HTTP 403)…」を見張りとアプリに出す
+//    1回に12回まで (銘柄ごとに 比率・清算・成行 の3つ)。55分ごと
+//    okx-latest.json … { at, coins: { BTC: { ls, ls24, lsAt, taker, liq, ct } }, read, errors } / okx-YYYY-MM.json … { 日付: { BTC: [ls, 買いの清算, 売りの清算, 成行の比率] } }
+// =====================================================================
+const OKX_BASE = 'https://www.okx.com';
+const OKX_COINS = [{ c: 'BTC', ct: 0.01 }, { c: 'ETH', ct: 0.1 }, { c: 'SOL', ct: 1 }, { c: 'HYPE', ct: 0.1 }];   // ct = 1枚の大きさ (instruments の ctVal。BTC・HYPE は 2026-11 に確かめた)
+const OKX_TTL = 55 * 60000;
+const OKX_FORCE_MIN = 10 * 60000;
+const OKX_MAX_CALLS = 12;
+const OKX_GAP = 250;
+const OKX_COOLDOWN = 6 * 3600000;
+let OKX_LAST_ERR = null;
+
+function okxGet_(path) {
+  let res;
+  try { res = UrlFetchApp.fetch(OKX_BASE + path, { muteHttpExceptions: true, headers: { accept: 'application/json' } }); }
+  catch (e) { const x = new Error('通信できません: ' + String(e).slice(0, 80)); x.code = 0; throw x; }
+  const code = res.getResponseCode();
+  if (code !== 200) { const x = new Error('HTTP ' + code); x.code = code; throw x; }
+  const j = JSON.parse(res.getContentText());
+  if (!j || String(j.code) !== '0' || !Array.isArray(j.data)) throw new Error('OKX のエラー ' + (j && j.code) + ' ' + String((j && j.msg) || '').slice(0, 60));
+  return j.data;
+}
+function okxFailMsg_(code) {
+  return 'OKX に接続できません (' + (code ? 'HTTP ' + code : '通信できません') + ')。' + (code === 403 || code === 451 ? 'サーバーの場所から使えない可能性があります' : '時間をおいて取り直します');
+}
+/** 口座の数のロング・ショート比率 (1時間ごと・新しい順) → { ls, ls24, lsAt } */
+function okxLs_(rows) {
+  const r = (rows || []).map(function (x) { return [Number(x[0]), Number(x[1])]; }).filter(function (x) { return x[0] > 0 && x[1] > 0; }).sort(function (a, b) { return b[0] - a[0]; });
+  if (!r.length) throw new Error('比率がありません');
+  let ago = null;
+  for (let i = 0; i < r.length; i++) if (r[i][0] <= r[0][0] - 24 * 3600000) { ago = r[i][1]; break; }
+  return { ls: cgRound_(r[0][1], 2), ls24: ago == null ? null : cgRound_(ago, 2), lsAt: r[0][0] };
+}
+/** 成行の売り・買い (1時間ごと・ドル。行は [時刻, 売り, 買い]) の24本の合計 */
+function okxTaker_(rows) {
+  let buy = 0, sell = 0, n = 0;
+  (rows || []).slice(0, 24).forEach(function (x) { const s = Number(x[1]), b = Number(x[2]); if (isFinite(s) && isFinite(b)) { sell += s; buy += b; n++; } });
+  if (!n) throw new Error('成行の記録がありません');
+  return { buy24: Math.round(buy), sell24: Math.round(sell), ratio: sell > 0 ? cgRound_(buy / sell, 2) : null, h: n };
+}
+/** 清算 (約定した直近100件まで)。posSide=long (片側モードでは side=sell) が買いの清算。sz は枚数 → 枚数 × ct × 価格 でドル。
+ *  span = 何時間分が分かるか (100件で埋まっていて、いちばん古いものが24時間以内ならそこまで。それ以外は24) */
+function okxLiq_(data, ct, now) {
+  const det = [];
+  (data || []).forEach(function (g) { ((g && g.details) || []).forEach(function (x) { det.push(x); }); });
+  const H = 3600000, rows = det.map(function (x) {
+    const t = Number(x.ts || x.time), sz = Number(x.sz), px = Number(x.bkPx);
+    if (!(t > 0) || !(sz > 0) || !(px > 0)) return null;
+    const long = x.posSide === 'long' || (x.posSide !== 'short' && x.side === 'sell');
+    return { t: t, long: long, usd: sz * ct * px, px: px };
+  }).filter(Boolean).sort(function (a, b) { return b.t - a.t; });
+  const oldest = rows.length ? rows[rows.length - 1].t : null;
+  const span = rows.length >= 100 && oldest > now - 24 * H ? Math.max(0.1, cgRound_((now - oldest) / H, 1)) : 24;
+  const o = { long1h: 0, short1h: 0, long24: 0, short24: 0, n: 0, span: span, last: rows.length ? rows[0].t : null, biggest: null };
+  rows.forEach(function (r) {
+    if (r.t < now - span * H) return;
+    o.n++;
+    if (r.long) o.long24 += r.usd; else o.short24 += r.usd;
+    if (r.t >= now - H) { if (r.long) o.long1h += r.usd; else o.short1h += r.usd; }
+    if (!o.biggest || r.usd > o.biggest.usd) o.biggest = { side: r.long ? 'long' : 'short', usd: Math.round(r.usd), px: r.px, t: r.t };
+  });
+  ['long1h', 'short1h', 'long24', 'short24'].forEach(function (k) { o[k] = Math.round(o[k]); });
+  return o;
+}
+function okxCache_() { try { return JSON.parse(pmRead_('okx-latest.json') || 'null'); } catch (e) { return null; } }
+/** 日ごとの記録 (直近 days 日) → { 日付: { BTC: [ls, 買いの清算, 売りの清算, 成行の比率] } } */
+function okxHist_(days) {
+  const from = pmJstDay_(Date.now() - days * 86400000), out = {};
+  hlMonths_(Date.now(), Math.ceil(days / 28) + 1).forEach(function (m) {
+    let f = {};
+    try { f = pmLoadJson_('okx-' + m + '.json'); } catch (e) {}
+    Object.keys(f).forEach(function (d) { if (d >= from) out[d] = f[d]; });
+  });
+  return out;
+}
+function okxData_(force) {
+  const cur = okxCache_(), now = Date.now();
+  OKX_LAST_ERR = null;
+  if (cur && now - cur.at < (force ? OKX_FORCE_MIN : OKX_TTL)) return cur;
+  const fresh = { at: now, coins: {}, errors: [] }, codes = [];
+  let got = 0, calls = 0;
+  const one = function (coin, name, path, fn) {
+    const prev = cur && cur.coins ? cur.coins[coin.c] : null;
+    if (calls >= OKX_MAX_CALLS) { fn(null, prev); return; }
+    if (calls) Utilities.sleep(OKX_GAP);
+    calls++;
+    let data = null;
+    try { data = okxGet_(path); fn(data, prev); got++; }
+    catch (e) {
+      const c = cgCode_(e); codes.push(c);
+      fresh.errors.push(coin.c + ' ' + name + (c ? ' (HTTP ' + c + ')' : ''));
+      Logger.log('OKX ' + coin.c + ' ' + name + ' に失敗: ' + e);
+      fn(null, prev);
+    }
+  };
+  OKX_COINS.forEach(function (coin) {
+    const o = { ct: coin.ct };
+    one(coin, 'ロング・ショート比率', '/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=' + coin.c + '&period=1H', function (d, p) {
+      if (d) { const r = okxLs_(d); o.ls = r.ls; o.ls24 = r.ls24; o.lsAt = r.lsAt; }
+      else if (p && p.ls != null) { o.ls = p.ls; o.ls24 = p.ls24; o.lsAt = p.lsAt; }
+    });
+    one(coin, '清算', '/api/v5/public/liquidation-orders?instType=SWAP&uly=' + coin.c + '-USDT&state=filled&limit=100', function (d, p) {
+      if (d) o.liq = okxLiq_(d, coin.ct, now); else if (p && p.liq) o.liq = p.liq;
+    });
+    one(coin, '成行の買い・売り', '/api/v5/rubik/stat/taker-volume-contract?instId=' + coin.c + '-USDT-SWAP&period=1H&unit=2&limit=24', function (d, p) {
+      if (d) o.taker = okxTaker_(d); else if (p && p.taker) o.taker = p.taker;
+    });
+    if (o.ls != null || o.liq || o.taker) fresh.coins[coin.c] = o;
+  });
+  if (!got) {
+    OKX_LAST_ERR = okxFailMsg_(codes.filter(Boolean)[0] || null);
+    if (cur) return cur;
+    throw new Error(OKX_LAST_ERR);
+  }
+  // 日ごとの行 (その日の最後の値で上書き)
+  const day = pmJstDay_(now), name = 'okx-' + day.slice(0, 7) + '.json', row = {};
+  Object.keys(fresh.coins).forEach(function (c) { const o = fresh.coins[c]; row[c] = [o.ls == null ? null : o.ls, o.liq ? o.liq.long24 : null, o.liq ? o.liq.short24 : null, o.taker ? o.taker.ratio : null]; });
+  try { const f = pmLoadJson_(name); f[day] = row; pmWrite_(name, JSON.stringify(f)); } catch (e) { Logger.log(name + ' を保存できません: ' + e); }
+  fresh.read = okxRead_(fresh, now);
+  try { pmWrite_('okx-latest.json', JSON.stringify(fresh)); } catch (e) { Logger.log('okx-latest.json を保存できません: ' + e); }
+  return fresh;
+}
+function okxSpan_(l) { return l.span >= 24 ? '24時間' : '直近' + l.span + '時間'; }
+function okxRatioJa_(r) { return '買い ' + r + ' : 売り 1'; }
+/** 読み取り (やさしい日本語。売買のすすめはしない) */
+function okxRead_(d, now) {
+  const out = [], crowd = [];
+  let anyLiq = false, last = 0;
+  OKX_COINS.forEach(function (coin) {
+    const o = d.coins[coin.c];
+    if (!o) return;
+    if (o.ls != null) {
+      out.push('OKX の ' + coin.c + ' 先物は、口座の数で見ると' + okxRatioJa_(o.ls) + (o.ls24 != null ? ' (24時間前は ' + o.ls24 + ')' : '') + '。'
+        + (o.ls >= 1.2 ? '口座の多く (主に個人) は買いに傾いています' : o.ls <= 0.83 ? '口座の多く (主に個人) は売りに傾いています' : '買いと売りはほぼ半々です'));
+      if (o.ls >= 2.5 || o.ls <= 0.6) crowd.push(coin.c);
+    }
+    const l = o.liq;
+    if (l) {
+      if (l.last) last = Math.max(last, l.last);
+      if (l.long24 + l.short24 >= 1e6) {
+        anyLiq = true;
+        out.push(coin.c + ': ' + okxSpan_(l) + 'で買いの清算 ' + pmMoneyJa_(l.long24) + '・売りの清算 ' + pmMoneyJa_(l.short24) + ': '
+          + (l.long24 >= l.short24 * 2 ? '値下がりで買いの人が強制的に手じまいさせられました' : l.short24 >= l.long24 * 2 ? '値上がりで売りの人が強制的に手じまいさせられました' : '上下どちらの向きでも清算が出ています'));
+      }
+    }
+  });
+  const b = d.coins.BTC;
+  if (b && b.taker && b.taker.ratio != null) {
+    const r = b.taker.ratio;
+    out.push('BTC の24時間の成行の注文 (テイカー) は' + okxRatioJa_(r) + ' (買い ' + pmMoneyJa_(b.taker.buy24) + '・売り ' + pmMoneyJa_(b.taker.sell24) + ')。'
+      + (r >= 1.1 ? '急いで買う人が多めです' : r <= 0.9 ? '急いで売る人が多めです' : '買いと売りはつり合っています'));
+  }
+  if (!anyLiq && last && now - last > 24 * 3600000) out.push('OKX の公開データでは、24時間以内の大きな清算は出ていません (最後の記録は ' + Utilities.formatDate(new Date(last), 'Asia/Tokyo', 'M/d') + ')');
+  if (crowd.length) out.push(crowd.join('・') + ' は片方に大きく偏っています。偏った側は、逆に動いた時に一気に清算 (踏み上げ・投げ売り) が起きやすくなります');
+  return out;
+}
+/** 1時間ごと (SIDE_JOBS): 取り直し (前回から10分以内なら取りに行かない)、片方の清算が大きければ知らせる。全部落ちたら HTTP の番号つきで投げる */
+function okxRecord_() {
+  const d = okxData_(true);
+  if (OKX_LAST_ERR) throw new Error(OKX_LAST_ERR);
+  const props = PropertiesService.getScriptProperties(), to = pmMailTo_(), NT = ntf_(), now = Date.now();
+  if (!to || !pmMailOn_('PM_ALERT_ON') || !NT.okx) return d;
+  let sent = {};
+  try { sent = JSON.parse(props.getProperty('OKX_ALERT_SENT') || '{}') || {}; } catch (e) {}
+  const hits = [], min = NT.liqMin * 1e6;
+  OKX_COINS.forEach(function (coin) {
+    const o = d.coins[coin.c], l = o && o.liq;
+    if (!l) return;
+    [['long', l.long24, '買い', '値下がりで買いの人が強制的に手じまいさせられました'], ['short', l.short24, '売り', '値上がりで売りの人が強制的に手じまいさせられました']].forEach(function (s) {
+      const k = coin.c + ':' + s[0];
+      if (s[1] < min || (sent[k] && now - sent[k] < OKX_COOLDOWN)) return;
+      hits.push(coin.c + ' ' + s[2] + 'の清算 ' + pmMoneyJa_(s[1]) + ' (' + okxSpan_(l) + ') — ' + s[3]);
+      sent[k] = now;
+    });
+  });
+  if (hits.length) {
+    Object.keys(sent).forEach(function (k) { if (now - sent[k] > 7 * 86400000) delete sent[k]; });
+    MailApp.sendEmail({ to: to, subject: '【ポリマーケット】先物の清算: ' + hits[0].split(' — ')[0].slice(0, 44),
+      body: '取引所 OKX の先物で、大きな清算がありました (' + Utilities.formatDate(new Date(now), 'Asia/Tokyo', 'M/d HH:mm') + '、基準 ' + pmMoneyJa_(min) + ' 以上)。\n\n・' + hits.join('\n・')
+        + '\n\n■ いまの読み取り\n' + (d.read || []).map(function (x) { return '・' + x; }).join('\n')
+        + '\n\n清算 = 借りたお金で売買している人が、損が大きくなって強制的に手じまいさせられること。\n※ ポリマーケット記録アプリからの自動通知です。売買はしていません。' });
+    props.setProperty('OKX_ALERT_SENT', JSON.stringify(sent));
+  }
+  return d;
+}
+function okxLine_(c, o) {
+  const l = o.liq, t = o.taker;
+  return c + ': ロング・ショート ' + (o.ls == null ? '-' : o.ls) + (o.ls24 != null ? ' (24時間前 ' + o.ls24 + ')' : '')
+    + (l ? ' ／ 清算 (' + okxSpan_(l) + ') 買い ' + pmMoneyJa_(l.long24) + '・売り ' + pmMoneyJa_(l.short24) : '')
+    + (t && t.ratio != null ? ' ／ 成行 買い÷売り ' + t.ratio : '');
+}
+/** 毎朝のまとめに入れる欄 */
+function pmOkxSection_() {
+  const d = okxCache_();
+  if (!d || !d.coins || !Object.keys(d.coins).length) return null;
+  const rows = OKX_COINS.filter(function (c) { return d.coins[c.c]; }).map(function (c) { return okxLine_(c.c, d.coins[c.c]); });
+  const text = '■■ 取引所の先物 (OKX)\n' + (d.read || []).map(function (x) { return '・' + x; }).join('\n') + '\n'
+    + '\n■ 銘柄ごと\n' + rows.map(function (r) { return '・' + r; }).join('\n') + '\n'
+    + ((d.errors || []).length ? '・一部取得できませんでした: ' + d.errors.join('、') + '\n' : '');
+  const html = pmMailHead_('🏦 取引所の先物 (OKX)') + (d.read || []).map(function (x) { return pmMailRow_(esc(x)); }).join('')
+    + pmMailSub_('銘柄ごと') + rows.map(function (r) { return pmMailRow_(esc(r)); }).join('');
+  return { text: text, html: html };
+}
+/** AI に渡すレポートの節 */
+function okxReportLines_(from) {
+  const lines = ['## 15. 取引所の先物 (OKX)'];
+  lines.push('ロング・ショート比率 = 買いの口座の数 ÷ 売りの口座の数 (1より大きいと買いの口座が多い)。清算 = 強制的に手じまいさせられた額 (ドル、OKX の公開データの直近100件までなので24時間より短いことがある)。成行の比率 = 24時間の成行の買い ÷ 売り (ドル)。');
+  const d = okxCache_(), hist = okxHist_(200), ds = Object.keys(hist).filter(function (x) { return x >= from; }).sort();
+  if (d && (d.read || []).length) lines.push('いまの読み取り: ' + d.read.join(' ／ '));
+  const v = function (x) { return x == null ? '-' : x; };
+  OKX_COINS.forEach(function (c) {
+    const rs = ds.filter(function (x) { return hist[x][c.c]; });
+    if (!rs.length) return;
+    lines.push('### ' + c.c);
+    lines.push(pmMdTable_(['日付', 'ロング・ショート比率', '買いの清算 (ドル)', '売りの清算 (ドル)', '成行の買い÷売り'], rs.map(function (x) { const r = hist[x][c.c]; return [x, v(r[0]), v(r[1]), v(r[2]), v(r[3])]; })));
+  });
+  if (!ds.length) lines.push('(この期間の記録はありません)');
+  lines.push('');
+  return lines;
+}
+
+// =====================================================================
 //  記録の見張り — それぞれの記録が最後にいつ動いたかを控え、止まっていたら知らせる
 //    HB_<名前> = 最後に成功した時刻 / HBE_<名前> = 最後の失敗 (時刻 + 理由)。成功したら失敗は消す
 // =====================================================================
@@ -3820,6 +4287,8 @@ const HEALTH_JOBS = [
   { k: 'us',       n: '米国のお金の流れ (財務省・NY連銀)',  every: '1時間ごと', max: 6 },
   { k: 'llama2',   n: 'ハッキング・ペッグ・DEX (DefiLlama)', every: '1時間ごと', max: 6 },
   { k: 'hl2',      n: 'Hyperliquid の金庫・大口・買い戻し', every: '1時間ごと', max: 6 },
+  { k: 'cg',       n: '暗号資産の市場全体 (CoinGecko)',   every: '2時間ごと', max: 8 },
+  { k: 'okx',      n: '取引所の先物 (OKX)',               every: '1時間ごと', max: 6 },
   { k: 'resolve',  n: '決着の取り込み',                    every: '毎日5時',   max: 30 },
   { k: 'daily',    n: '日ごとの要約',                      every: '毎日5時',   max: 30 },
   { k: 'macrolog', n: 'マクロの日誌 (天気図)',             every: '毎日5時',   max: 30 },
@@ -3829,7 +4298,8 @@ const HEALTH_JOBS = [
 ];
 const HEALTH_TRIGGERS = ['pmRecord', 'pmResolve', 'pmAlert', 'pmDigest'];
 
-/** 定期の取得 (every = 分)。pmRecord が6分の制限に近づかないように、pmAlert (10分おき) の最後に1回1つずつ動かす。
+/** 定期の取得 (every = 分)。pmRecord が6分の制限に近づかないように、pmAlert (10分おき) の最後に1回1つずつ動かす
+ *  (7つで1時間に回りきらないので、1つ目が60秒未満で終わったら、10分以上遅れているものをもう1つだけ: pmAlert の SIDE_SECOND_MS)。
  *  新しい定期の取得はここに足す (pmRecord には足さない)。HEALTH_JOBS にも足す */
 const SIDE_JOBS = [
   { k: 'opt',    fn: optRecord_,        every: 60 },
@@ -3837,11 +4307,15 @@ const SIDE_JOBS = [
   { k: 'us',     fn: usRecord_,         every: 60 },
   { k: 'llama2', fn: llamaMoreRecord_,  every: 60 },
   { k: 'hl2',    fn: hl2Record_,        every: 60 },
+  { k: 'cg',     fn: cgRecord_,         every: 120 },
+  { k: 'okx',    fn: okxRecord_,        every: 60 },
 ];
 const SIDE_SLACK = 60000;   // 1分早くても動かす (トリガーの時刻のずれ)
+const SIDE_SECOND_MS = 60000;   // pmAlert の始まりからこれより短ければ、遅れている取得をもう1つ動かす
+const SIDE_LATE = 10 * 60000;   // 2つ目に動かすのは、予定 (every) より10分以上遅れているものだけ
 /** 時間になったもののうち一番待っているもの (まだ一度も動いていないものは並び順) を1つだけ動かす。動かした名前 (無ければ null) を返す。
  *  始める前に SIDE_LAST に時刻を控えるので、落ちたり時間切れになったりしても10分ごとに取り直し続けることはない */
-function pmSideJobs_() {
+function pmSideJobs_(lateOnly) {
   const p = PropertiesService.getScriptProperties();
   let last = {};
   try { last = JSON.parse(p.getProperty('SIDE_LAST') || '{}') || {}; } catch (e) {}
@@ -3849,6 +4323,7 @@ function pmSideJobs_() {
   let pick = null;
   SIDE_JOBS.forEach(function (j) {
     if (at(j) && now - at(j) < j.every * 60000 - SIDE_SLACK) return;
+    if (lateOnly && (!at(j) || now - at(j) < j.every * 60000 + SIDE_LATE - SIDE_SLACK)) return;
     if (!pick || at(j) < at(pick)) pick = j;
   });
   if (!pick) return null;
@@ -3952,6 +4427,8 @@ const NTF_SPEC = {
   hlw: [true], hlwMin: [1, 0.1, 100],   // Hyperliquid: 見張っているアドレスのポジションの変化 (百万ドル以上)
   health: [true],
   dHl2: [true],   // 毎朝のまとめ: Hyperliquid の金庫・大口・買い戻し
+  okx: [true], liqMin: [100, 10, 5000],   // 取引所の先物 (OKX): 片方の清算 (百万ドル以上)
+  dOkx: [true], dCg: [true],   // 毎朝のまとめ: 取引所の先物 (OKX)・暗号資産の市場全体 (CoinGecko)
   dMacro: [true], dFlow: [true], dOpt: [true], dNews: [true], dFund: [true], dUs: [true], dDeals: [true],   // 毎朝のまとめに入れる欄 (マクロ指標の一覧 / お金の流れ)
 };
 function ntfDefaults_() { const o = {}; Object.keys(NTF_SPEC).forEach(function (k) { o[k] = NTF_SPEC[k][0]; }); return o; }

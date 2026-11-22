@@ -525,6 +525,24 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 .pm-tag.fd-un{background:var(--tint-warn); color:var(--warn)}
 .pm-tag.fd-raise{background:var(--tint-accent); color:var(--accent); font-weight:700}
 .fd-src a{color:var(--accent); white-space:nowrap}
+/* 暗号資産の市場全体 (CoinGecko)・取引所の先物 (OKX) */
+.cg-cols{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px}
+.cg-bars{display:grid; gap:4px}
+.cg-bar{display:grid; grid-template-columns:minmax(0,1fr) minmax(90px,140px) 70px; gap:8px; align-items:center; font-size:13px}
+.cg-bar .n{overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
+.cg-bar small{color:var(--muted); text-align:right; font-size:11.5px}
+.cg-bar .op-bar{min-width:0}
+.op-bar.cg-dn i{background:var(--tint-danger)}
+.cg-chips{display:flex; flex-wrap:wrap; gap:6px}
+.cg-chip{border:1px solid var(--border); border-radius:99px; padding:4px 10px; font-size:12.5px; background:var(--card)}
+.cg-chip small{color:var(--muted)}
+.ok-coins{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; margin-bottom:10px}
+.ok-coin{border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:var(--card)}
+.ok-row{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12.5px; color:var(--dim); margin-top:5px}
+.ok-ls{display:flex; height:16px; border-radius:6px; overflow:hidden; margin:6px 0 2px; font-size:10.5px; line-height:16px; color:#fff; background:var(--card2)}
+.ok-ls i{display:block; font-style:normal; text-align:center; overflow:hidden; white-space:nowrap}
+.ok-ls .l{background:var(--ok)}
+.ok-ls .s{background:var(--danger)}
 </style>
 </head>
 <body>
@@ -633,6 +651,12 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
     <button class="btn small" id="hlReload" title="最新にする">↻</button>
   </div>
   <div id="hlSum"></div>
+  <div class="mc-cal" id="okArea">
+    <div class="hl-bar"><b>🏦 ほかの取引所 (OKX) のロング・ショートと清算 <button class="gq" data-term="lsratio" aria-label="解説">?</button></b><span id="okInfo" class="pm-info" style="margin-left:auto"></span></div>
+    <div id="okBody"></div>
+    <div id="okRead"></div>
+    <div id="okChart"></div>
+  </div>
   <div class="mc-cal" id="hlChartBox"></div>
   <div id="h2Area">
     <div class="mc-cal">
@@ -712,6 +736,17 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
     <span id="flInfo" class="pm-info" style="margin-left:auto"></span>
     <button class="btn small" data-ai-report="1">🤖 記録</button>
     <button class="btn small" id="flReload" title="最新にする">↻</button>
+  </div>
+  <div id="cgArea">
+    <div class="mc-cal">
+      <div class="hl-bar"><b>🧭 暗号資産の市場全体 <button class="gq" data-term="dominance" aria-label="解説">?</button></b><span id="cgInfo" class="pm-info" style="margin-left:auto"></span></div>
+      <div id="cgSum"></div>
+      <div id="cgRead"></div>
+      <div id="cgChart"></div>
+    </div>
+    <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">📊 分野ごとの値動き (24時間) <button class="gq" data-term="sector" aria-label="解説">?</button></div><div id="cgCats"></div></div>
+    <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🔥 注目されている銘柄 (CoinGecko)</div><div id="cgTrend"></div></div>
+    <div class="mc-cal" id="cgTreasBox"><div class="mc-w-h" style="margin-top:0">🏢 企業の保有 (上場企業などが持っている BTC・ETH)</div><div id="cgTreas"></div></div>
   </div>
   <div id="flSum"></div>
   <div class="mc-cal"><div class="mc-w-h" style="margin-top:0">🚀 お金が集まっているチェーン</div><div id="flHot"></div></div>
@@ -818,6 +853,10 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <div class="ntf-r"><input type="number" data-ntf="raiseMin" step="5"> 百万ドル以上 (金額が書かれていない時は、有名VCが主導したもの) の資金調達がニュースになった (30 なら 3,000万ドル。同じ調達は1回だけ)</div>
       </div>
       <div class="ntf-g">
+        <label class="check ntf-t"><input type="checkbox" data-ntf="okx" style="width:auto">🏦 取引所の先物 (OKX)</label>
+        <div class="ntf-r">片方の清算が <input type="number" data-ntf="liqMin" step="10"> 百万ドル以上 (100 なら 1億ドル。BTC・ETH・SOL・HYPE の、OKX が出している直近の清算で数えます。同じ銘柄・同じ向きは6時間に1回)</div>
+      </div>
+      <div class="ntf-g">
         <label class="check ntf-t"><input type="checkbox" data-ntf="health" style="width:auto">⚠ 記録が止まった時</label>
       </div>
       <div class="ntf-g">
@@ -828,6 +867,8 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
         <label class="check"><input type="checkbox" data-ntf="dMacro" style="width:auto">📋 マクロ指標の一覧 (金利・お金の量・ドルと円・株・暗号資産などの数値と信号)</label>
         <label class="check"><input type="checkbox" data-ntf="dHl2" style="width:auto">🐋 Hyperliquid の金庫・大口・買い戻し (HLP の損益・大口の買い越し・見張っているアドレス・上場オークション)</label>
         <label class="check"><input type="checkbox" data-ntf="dUs" style="width:auto">🏛 米国のお金の流れ (財務省口座・リバースレポ・正味の流動性・SOFR・国債の入札)</label>
+        <label class="check"><input type="checkbox" data-ntf="dOkx" style="width:auto">🏦 取引所の先物 (OKX のロング・ショート比率・清算・成行の買いと売り)</label>
+        <label class="check"><input type="checkbox" data-ntf="dCg" style="width:auto">🧭 暗号資産の市場全体 (BTC・ステーブルコインの占める割合・分野ごとの値動き・注目の銘柄)</label>
         <label class="check"><input type="checkbox" data-ntf="dOpt" style="width:auto">🎯 オプション市場 (予想変動率・プット/コール比率・スキュー・建玉の大きい満期)</label>
         <label class="check"><input type="checkbox" data-ntf="dFlow" style="width:auto">💧 お金の流れ (チェーンの預かり資産・ステーブルコインの増減・先物 DEX・エアドロップ候補)</label>
         <label class="check"><input type="checkbox" data-ntf="dDeals" style="width:auto">🚨 ハッキング・ステーブルコイン・DEX (この7日のハッキング被害・ペッグ外れ・DEX の出来高・利回り)</label>
@@ -947,6 +988,8 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       <label class="check"><input type="checkbox" value="deals" checked style="width:auto">🚨 ハッキング被害・ステーブルコインのペッグ・DEX の出来高・利回り (DefiLlama)</label>
       <label class="check"><input type="checkbox" value="hl2" checked style="width:auto">🐋 Hyperliquid の金庫・大口・買い戻し</label>
       <label class="check"><input type="checkbox" value="fund" checked style="width:auto">💰 資金調達 (ニュースから)</label>
+      <label class="check"><input type="checkbox" value="cg" checked style="width:auto">🧭 暗号資産の市場全体 (ドミナンスの推移・分野ごとの値動き)</label>
+      <label class="check"><input type="checkbox" value="okx" checked style="width:auto">🏦 取引所の先物 (OKX のロング・ショート比率・清算)</label>
     </div>
     <div class="pm-actions"><button class="btn primary" id="repMake">まとめる</button></div>
     <div id="repOut"></div>
@@ -974,9 +1017,9 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.12";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.13";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.11";
+const MIN_GAS_VERSION = "2026.12.13";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { settings: {} };
@@ -2134,7 +2177,7 @@ $("#tab-hl").addEventListener("click", ev=>{
   const st = ev.target.closest("[data-hlstar]"); if(st){ ev.stopPropagation(); hlToggleWatch(st.dataset.hlstar); return; }
   const sel = ev.target.closest("[data-hlsel]"); if(sel){ HL.sel = sel.dataset.hlsel; renderHlChart(); return; }
   if(ev.target.id === "hlMoreBtn"){ HL.shown += 40; renderHlPerps(); return; }
-  if(ev.target.id === "hlReload"){ loadHl(); loadHl2(true); return; }
+  if(ev.target.id === "hlReload"){ loadHl(); loadHl2(true); loadOkx(true); return; }
   const tr = ev.target.closest("tr[data-coin]");
   if(tr && hlTracked().includes(tr.dataset.coin)){ HL.sel = tr.dataset.coin; renderHlChart(); renderHlPerps(); $("#hlChartBox").scrollIntoView && $("#hlChartBox").scrollIntoView({ behavior:"smooth", block:"start" }); }
   else if(tr) toast(tr.dataset.coin + " はまだ記録していません (☆ を押すと記録を始めます)");
@@ -2923,6 +2966,149 @@ function fdTopRow(){
   if(!x) return "";
   return `<button class="hm-row hm-click" data-jump="flow"><div class="hm-row-main"><b>💰 今週いちばん大きい資金調達: ${esc(x.p)}</b><small>${esc(fdRound(x.r))}${(x.inv || []).length ? " ・ 主導: " + x.inv.map(esc).join("・") : ""}</small></div><span class="hm-num">${esc(hlUsd(x.amt))} ${fdTok(x)}</span></button>`;
 }
+/* ================= 暗号資産の市場全体 (CoinGecko、サーバー経由) ================= */
+const CG = { data: null, hist: null, loading: false, err: null };
+const cgPct = x => x == null || isNaN(x) ? "-" : (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x).toFixed(1) + "%";
+const cgPt = x => x == null || isNaN(x) ? "-" : (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(x).toFixed(1) + "pt";
+const cgCls = x => x == null ? "flat" : x > 0 ? "up" : x < 0 ? "down" : "flat";
+/** 7日の変化 (記録が2日分以上ある時。サーバーの cgChg7_ と同じ) */
+function cgChg7(k){
+  const h = CG.hist || {}, from = fmJst(Date.now() - 7 * 86400000);
+  const ds = Object.keys(h).sort().filter(d=>d >= from && h[d] && h[d][k] != null);
+  return ds.length < 2 ? null : Math.round((h[ds[ds.length-1]][k] - h[ds[0]][k]) * 100) / 100;
+}
+async function loadCg(force){
+  if(CG.loading) return;
+  if(!state.settings.gasUrl){ $("#cgSum").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると表示されます。</div>`; return; }
+  const cache = pmLS.get("cg_cache_v1", null);
+  if(cache && cache.cg && !CG.data){ CG.data = cache.cg; CG.hist = cache.hist || {}; renderCg(); }
+  if(!CG.data) $("#cgSum").innerHTML = Array.from({length:2}, ()=>`<div class="pm-skel"></div>`).join("");
+  CG.loading = true; $("#cgInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=cg" + (force === true ? "&force=1" : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !("cg" in d)) throw new Error("サーバーが古い版です (自動公開を待ってください)");
+    if(!d.cg) throw new Error(d.error || "CoinGecko から取得できませんでした");
+    CG.data = d.cg; CG.hist = d.hist || {}; CG.err = d.error || null;
+    pmLS.set("cg_cache_v1", { cg: d.cg, hist: CG.hist });
+    renderCg();
+  }catch(err){
+    CG.err = err.message;
+    if(!CG.data){ $("#cgSum").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`; $("#cgInfo").textContent = ""; }
+    else $("#cgInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ CG.loading = false; }
+}
+function renderCg(){
+  const d = CG.data; if(!d) return;
+  const g = d.global || {};
+  const card = (n, t, v, sub) => `<div class="mc-card"><div class="mc-h"><span>${n}</span>${termBtn(t)}</div><div class="mc-v">${v}</div><div class="mc-sub">${sub}</div></div>`;
+  const dom = (k, v) => { const c = cgChg7(k); return c == null ? "記録が2日分たまると、7日の変化を出します" : `7日で <b class="${k === "btcDom" ? "" : cgCls(c)}">${esc(cgPt(c))}</b>`; };
+  $("#cgSum").innerHTML = g.mcap ? `<div class="hl-sum">
+      ${card("時価総額の合計", "mcap", esc(flUsd(g.mcap)), `24時間 <b class="${cgCls(g.chg24)}">${esc(cgPct(g.chg24))}</b> ・ 出来高 ${esc(flUsd(g.vol))}`)}
+      ${card("BTC の占める割合 (ドミナンス)", "dominance", g.btcDom == null ? "-" : esc(String(g.btcDom)) + "%", dom("btcDom"))}
+      ${card("ステーブルコインの占める割合", "stable", g.stableDom == null ? "-" : esc(String(g.stableDom)) + "%", "USDT と USDC ・ " + dom("stableDom"))}
+      ${card("ETH の占める割合", "dominance", g.ethDom == null ? "-" : esc(String(g.ethDom)) + "%", dom("ethDom"))}
+    </div>` : `<div class="hint">全体の時価総額を取得できませんでした</div>`;
+  $("#cgRead").innerHTML = ((d.read || []).length ? `<ul class="op-read">${d.read.map(x=>`<li>${linkTerms(esc(x))}</li>`).join("")}</ul>` : "")
+    + `<div class="hint">ソース: CoinGecko の公開データ (2時間ごとにサーバーが取り直します)。読み取りは一般的な目安で、売買の判断ではありません。</div>`;
+  /* ドミナンスの推移 (記録が2日分以上) */
+  const h = CG.hist || {}, ds = Object.keys(h).sort();
+  const box = (title, k) => { const pts = ds.map(x=>[x + "T00", h[x][k]]).filter(p=>p[1] != null), l = pts[pts.length-1];
+    return `<div class="hl-chart"><div class="t"><span>${title}</span><b>${l ? esc(String(l[1])) + "%" : "-"}</b></div>${pts.length >= 2 ? hlLine(pts, {}) : `<div class="hint">記録が2日分以上たまると描きます</div>`}</div>`; };
+  $("#cgChart").innerHTML = ds.length >= 2 ? `<div class="mc-w-h">📈 占める割合の推移 (日ごと)</div><div class="hl-charts">${box("BTC", "btcDom")}${box("ステーブルコイン", "stableDom")}${box("ETH", "ethDom")}</div>` : "";
+  /* 分野ごとの値動き */
+  const cats = d.cats;
+  if(!cats) $("#cgCats").innerHTML = `<div class="hint">分野ごとの値動きを取得できませんでした</div>`;
+  else{
+    const mx = Math.max(1, ...cats.up.concat(cats.down).map(c=>Math.abs(c.chg || 0)));
+    const bars = (list, dn) => list.length ? `<div class="cg-bars">` + list.map(c=>`<div class="cg-bar"><span class="n" title="${esc(c.n)}">${esc(c.n)}</span><div class="op-bar${dn ? " cg-dn" : ""}"><i style="width:${(Math.abs(c.chg || 0) / mx * 100).toFixed(0)}%"></i><span class="${cgCls(c.chg)}">${esc(cgPct(c.chg))}</span></div><small>${esc(flUsd(c.mcap))}</small></div>`).join("") + `</div>` : `<div class="hint">ありません</div>`;
+    $("#cgCats").innerHTML = `<div class="cg-cols"><div><div class="hm-sub">⬆ 上がった分野</div>${bars(cats.up, false)}</div><div><div class="hm-sub">⬇ 下がった分野</div>${bars(cats.down, true)}</div></div>`
+      + `<div class="hint">時価総額10億ドル以上の分野の、24時間の時価総額の増減です。右の数字は分野の時価総額。1つの銘柄がいくつもの分野に入っています。</div>`;
+  }
+  /* 注目されている銘柄 */
+  const tr = d.trend || [];
+  $("#cgTrend").innerHTML = tr.length ? `<div class="cg-chips">` + tr.map(t=>`<span class="cg-chip"><b>${esc(t.n)}</b> <small>${esc(t.sym)}</small> <span class="${cgCls(t.chg)}">${esc(cgPct(t.chg))}</span>${t.rank ? ` <small>${esc(String(t.rank))}位</small>` : ""}</span>`).join("") + `</div><div class="hint">CoinGecko でよく検索されている銘柄です (24時間の値動き・時価総額の順位)。注目されていることと値上がりは別です。</div>`
+    : `<div class="hint">取得できませんでした</div>`;
+  /* 企業の保有 */
+  const T = d.treas || {}, ks = ["btc", "eth"].filter(k=>T[k] && (T[k].top || []).length);
+  $("#cgTreasBox").style.display = ks.length ? "" : "none";
+  $("#cgTreas").innerHTML = ks.map(k=>{ const t = T[k], K = k.toUpperCase();
+    return `<div class="hm-sub">${K}: 合計 ${esc(Math.round(t.total).toLocaleString())} ${K} (${esc(flUsd(t.usd))})</div><div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>企業</th><th>国</th><th>保有</th><th>いまの価値</th><th>発行量に占める割合</th></tr></thead><tbody>`
+      + t.top.map(c=>`<tr><td><b>${esc(c.n)}</b> <small>${esc(c.sym)}</small></td><td>${esc(c.cty)}</td><td>${esc(Math.round(c.h).toLocaleString())} ${K}</td><td>${esc(flUsd(c.usd))}</td><td>${c.pct == null ? "-" : esc(String(c.pct)) + "%"}</td></tr>`).join("") + `</tbody></table></div>`; }).join("");
+  const t = d.at ? new Date(d.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+  $("#cgInfo").textContent = (t ? t + " 時点" : "") + (CG.err ? " ・ " + CG.err + " (前回の内容を表示しています)" : (d.errors || []).length ? " ・ 一部取得できず (" + d.errors.join("、") + ")" : "");
+}
+/** ホームの「お金の流れ」に足す行: BTC の占める割合 */
+function cgTopRow(){
+  const g = CG.data && CG.data.global; if(!g || g.btcDom == null) return "";
+  const c = cgChg7("btcDom");
+  return `<button class="hm-row hm-click" data-jump="flow"><div class="hm-row-main"><b>🧭 BTC の占める割合 ${esc(String(g.btcDom))}%${c == null ? "" : ` (7日で ${esc(cgPt(c))})`}</b><small>ステーブルコイン ${g.stableDom == null ? "-" : esc(String(g.stableDom)) + "%"} ・ 全体の時価総額 ${esc(flUsd(g.mcap))}</small></div><span class="hm-num ${cgCls(g.chg24)}">${esc(cgPct(g.chg24))}</span></button>`;
+}
+$("#flReload").addEventListener("click", ()=>loadCg(true));
+
+/* ================= 取引所の先物 (OKX、サーバー経由) ================= */
+const OK = { data: null, hist: null, loading: false, err: null };
+const OK_COINS = ["BTC", "ETH", "SOL", "HYPE"];
+const okSpan = l => l.span >= 24 ? "24時間" : `直近${l.span}時間`;
+async function loadOkx(force){
+  if(OK.loading) return;
+  if(!state.settings.gasUrl){ $("#okBody").innerHTML = `<div class="empty">設定でサーバー (Apps Script) の URL を入れると表示されます。</div>`; return; }
+  const cache = pmLS.get("okx_cache_v1", null);
+  if(cache && cache.okx && !OK.data){ OK.data = cache.okx; OK.hist = cache.hist || {}; renderOkx(); }
+  if(!OK.data) $("#okBody").innerHTML = `<div class="pm-skel"></div>`;
+  OK.loading = true; $("#okInfo").innerHTML = `<span class="spin"></span> 更新中…`;
+  try{
+    const r = await fetch(gasGetUrl("action=okx" + (force === true ? "&force=1" : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !("okx" in d)) throw new Error("サーバーが古い版です (自動公開を待ってください)");
+    if(!d.okx) throw new Error(d.error || "OKX から取得できませんでした");
+    OK.data = d.okx; OK.hist = d.hist || {}; OK.err = d.error || null;
+    pmLS.set("okx_cache_v1", { okx: d.okx, hist: OK.hist });
+    renderOkx();
+  }catch(err){
+    OK.err = err.message;
+    if(!OK.data){ $("#okBody").innerHTML = `<div class="empty">取得できませんでした: ${esc(err.message)}</div>`; $("#okInfo").textContent = ""; }
+    else $("#okInfo").textContent = "最新の取得に失敗しました。前回の内容を表示しています";
+  }finally{ OK.loading = false; }
+}
+function renderOkx(){
+  const d = OK.data; if(!d) return;
+  const C = d.coins || {}, list = OK_COINS.filter(c=>C[c]);
+  const two = (a, b, la, lb) => { const tot = a + b; if(!(tot > 0)) return ""; const p = Math.round(a / tot * 100);
+    return `<div class="ok-ls"><i class="l" style="width:${p}%">${la} ${p}%</i><i class="s" style="width:${100 - p}%">${lb} ${100 - p}%</i></div>`; };
+  $("#okBody").innerHTML = list.length ? `<div class="ok-coins">` + list.map(c=>{ const o = C[c], l = o.liq, t = o.taker;
+    return `<div class="ok-coin"><div class="ok-row" style="margin:0"><b style="color:var(--text)">${esc(c)}</b><span>${o.ls == null ? "-" : `買い <b>${esc(String(o.ls))}</b> : 売り 1`}</span></div>`
+      + (o.ls != null ? two(o.ls, 1, "買い", "売り") : "")
+      + `<div class="ok-row"><span>24時間前</span><span>${o.ls24 == null ? "-" : `買い ${esc(String(o.ls24))} : 売り 1`}</span></div>`
+      + (l ? `<div class="ok-row"><span>清算 (${esc(okSpan(l))}) ${termBtn("liq")}</span><span>買い <b class="down">${esc(hlUsd(l.long24))}</b> ・ 売り <b class="up">${esc(hlUsd(l.short24))}</b></span></div>` + two(l.long24, l.short24, "買い", "売り")
+        + (l.biggest ? `<div class="ok-row"><span>いちばん大きい清算</span><span>${l.biggest.side === "long" ? "買い" : "売り"} ${esc(hlUsd(l.biggest.usd))} (${esc(Number(l.biggest.px).toLocaleString())}ドル)</span></div>` : "") : "")
+      + (t && t.ratio != null ? `<div class="ok-row"><span>成行の買い÷売り (24時間) ${termBtn("taker")}</span><b class="${t.ratio >= 1 ? "up" : "down"}">${esc(String(t.ratio))}</b></div>` : "")
+      + `</div>`; }).join("") + `</div>` : `<div class="hint">データがありません</div>`;
+  $("#okRead").innerHTML = ((d.read || []).length ? `<ul class="op-read">${d.read.map(x=>`<li>${linkTerms(esc(x))}</li>`).join("")}</ul>` : "")
+    + `<div class="hint">ロング・ショート比率は、買いの口座の数 ÷ 売りの口座の数 (お金の量ではありません)。清算は OKX の公開データの直近100件までなので、24時間より短い時は「直近○時間」と出します。読み取りは一般的な目安で、売買の判断ではありません。</div>`;
+  const h = OK.hist || {}, ds = Object.keys(h).sort();
+  if(ds.length >= 2){
+    const pts = c => ds.map(x=>[x + "T00", h[x][c] ? h[x][c][0] : null]);
+    $("#okChart").innerHTML = `<div class="hl-chart"><div class="t"><span>ロング・ショート比率の推移 (日ごと) — BTC <span style="color:var(--warn)">点線: ETH</span></span><b>${C.BTC && C.BTC.ls != null ? esc(String(C.BTC.ls)) : "-"}</b></div>${hlLine(pts("BTC"), { second: pts("ETH") })}</div>`;
+  } else $("#okChart").innerHTML = `<div class="hint">日ごとの記録が2日分たまると、比率の推移を描きます</div>`;
+  const t = d.at ? new Date(d.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+  $("#okInfo").textContent = (t ? t + " 時点" : "") + (OK.err ? " ・ " + OK.err + " (前回の内容を表示しています)" : (d.errors || []).length ? " ・ 一部取得できず (" + d.errors.join("、") + ")" : "");
+}
+/** ホームの Hyperliquid のカードに足す行: OKX のロング・ショートが極端 (2.5 以上 / 0.6 以下) か、片方の清算が1億ドル以上 */
+function okTopRows(){
+  const C = OK.data && OK.data.coins; if(!C) return "";
+  const rows = [];
+  OK_COINS.forEach(c=>{ const o = C[c]; if(!o) return;
+    if(o.ls != null && (o.ls >= 2.5 || o.ls <= 0.6)) rows.push(`<button class="hm-row hm-click" data-jump="hl"><div class="hm-row-main"><b>🏦 OKX の ${esc(c)}: ${o.ls >= 2.5 ? "買い" : "売り"}の口座が大きく多い</b><small>ロング・ショート比率 (口座の数) ・ 24時間前 ${o.ls24 == null ? "-" : esc(String(o.ls24))}</small></div><span class="hm-badge ${o.ls >= 2.5 ? "hm-b-r" : "hm-b-y"}">買い ${esc(String(o.ls))} : 売り 1</span></button>`);
+    const l = o.liq;
+    if(l && Math.max(l.long24, l.short24) >= 1e8){ const lg = l.long24 >= l.short24;
+      rows.push(`<button class="hm-row hm-click" data-jump="hl"><div class="hm-row-main"><b>🏦 OKX の ${esc(c)}: ${lg ? "買い" : "売り"}の清算が多い (${esc(okSpan(l))})</b><small>${lg ? "値下がりで買いの人が" : "値上がりで売りの人が"}強制的に手じまいさせられました</small></div><span class="hm-num ${lg ? "down" : "up"}">${esc(hlUsd(lg ? l.long24 : l.short24))}</span></button>`); }
+  });
+  return rows.slice(0, 2).join("");
+}
+
 /* ================= 記録を AI に渡す ================= */
 const REP_COPY_MAX = 30000;   /* これより長い時はファイルで渡すのをすすめる (貼り付けると長すぎることがあるため) */
 let repText = "";
@@ -3043,6 +3229,11 @@ const GLOSS = {
   longshort: { n:"買い持ち・売り持ち (ロング・ショート)", a:["買い持ち","売り持ち","ロング","ショート","買い越し","売り越し"], s:"買い持ち (ロング) は値上がりで、売り持ち (ショート) は値下がりでもうかるポジション。買い越し = 買い持ちの合計が売り持ちより多いこと。", w:"大口がどちらに傾いているかの目安になります。ただし大口は他の取引所や現物で反対の取引をして損を抑えている (ヘッジ) こともあるので、それだけで向きは決められません。", r:["lev","liq","oi"] },
   afund: { n:"支援基金 (HYPE の買い戻し)", a:["支援基金","買い戻し基金","Assistance Fund"], s:"Hyperliquid の手数料で HYPE を市場から買い続けている仕組みのアドレス。買った HYPE は持ち続けます。", w:"増え方が速いほど、取引が多く手数料が多いことになります。市場で買い続けるので、HYPE の値段を下から支える力になります。", u:"取引と手数料が増えている。", d:"(ふつうは減りません)", r:["hlp","listauc"] },
   listauc: { n:"上場オークション (トークンの上場の権利)", a:["上場オークション","ティッカーオークション"], s:"新しいトークンを Hyperliquid に上場する権利を決めるオークション。値段 (HYPE) は31時間かけて下がり、誰かが買うと次の回は2倍から始まります。", w:"値段が高いほど、上場したい人 (新しいトークンを出したい人) が多いことになります。", u:"上場したい人が多い (新しいトークンが続きそう)。", d:"上場したい人が少ない。", r:["afund","tge"] },
+  dominance: { n:"ドミナンス (占める割合)", a:["ドミナンス","占める割合"], s:"暗号資産全体の時価総額のうち、ある銘柄 (BTC など) が占める割合 (%)。", w:"BTC のドミナンスが上がる時はお金が BTC に集まり、ほかの銘柄 (アルトコイン) は弱い時です。下がる時はアルトコインにお金が回っています。ステーブルコインの割合が上がる時は、様子見でドルのまま置いている人が多い時です。", u:"BTC に集まる (アルトコインは弱め)", d:"アルトコインにお金が回る", r:["altcoin","btc","stable","mcap"] },
+  altcoin: { n:"アルトコイン", a:["アルトコイン","altcoin"], s:"BTC 以外の暗号資産のこと (ETH・SOL・HYPE など)。", w:"BTC より値動きが大きいことが多く、お金が BTC から回ってくると大きく上がり、逃げると大きく下がります。", r:["dominance","btc"] },
+  sector: { n:"分野 (セクター)", a:["セクター"], s:"同じ種類の銘柄をまとめたもの (ミーム・AI・DeFi・RWA など)。CoinGecko の分け方で、1つの銘柄がいくつもの分野に入ります。", w:"どの分野にお金が向かっているかで、いま市場が何に注目しているかが分かります。", r:["dominance","mcap","altcoin"] },
+  lsratio: { n:"ロング・ショート比率", a:["ロング・ショート比率","ロングショート比率"], s:"先物で買い (ロング) を持っている口座の数 ÷ 売り (ショート) を持っている口座の数。2 なら買いの口座が売りの2倍です。", w:"口座の数なので、主に個人の傾きを表します (お金の量ではありません)。片方に大きく偏ると、逆に動いた時に清算が続いて値動きが大きくなりやすくなります。", u:"買いの口座が増えている", d:"売りの口座が増えている", r:["longshort","liq","funding","taker"] },
+  taker: { n:"成行の買い・売り (テイカー)", a:["テイカー","成行の注文"], s:"値段を指定せず「今の値段ですぐに」売り買いする注文 (成行・テイカー) の量。買い÷売り が1より大きいと、急いで買う人が多いことになります。", w:"急いで動く人の向きが分かります。短い時間の勢いの目安で、続くとは限りません。", r:["lsratio","pmvol"] },
   median: { n:"中央値と50%の範囲", a:["中央値"], s:"「それより上と下が半々」になる値。50%の範囲は、その値の間に入る確率が50%という幅です。", w:"このアプリでは、Polymarket の「○○を上回るか」の各選択肢の確率をつないで計算しています。ローンチしないと全部「いいえ」になる市場は、ローンチした場合に直しています。", r:["fdv","pm"] },
 };
 const GLOSS_ALIAS = (()=>{   /* 本文の自動リンク用: 長い言葉から先に */
@@ -3730,11 +3921,13 @@ function switchTab(t){
   if(t==="gloss"){ renderGloss(); }
   if(t==="hl" && !loaded.hl){ loaded.hl=1; loadHl(); }
   if(t==="hl" && !loaded.h2){ loaded.h2=1; loadHl2(); }
+  if(t==="hl" && !loaded.okx){ loaded.okx=1; loadOkx(); }
   if(t==="opt" && !loaded.opt){ loaded.opt=1; loadOpt(); }
   if(t==="news" && !loaded.news){ loaded.news=1; loadNews(); }
   if(t==="flow" && !loaded.flow){ loaded.flow=1; loadFlow(); }
   if(t==="flow" && !loaded.fm){ loaded.fm=1; loadFlowMore(); }
   if(t==="flow" && !loaded.fd){ loaded.fd=1; loadFund(); }
+  if(t==="flow" && !loaded.cg){ loaded.cg=1; loadCg(); }
   if(t==="top") loadTop();
 }
 $$("nav.tabs button[data-tab]").forEach(b=>b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
@@ -3866,6 +4059,8 @@ function loadTop(){
   if(!loaded.flow){ loaded.flow = 1; loadFlow(); }
   if(!loaded.fm){ loaded.fm = 1; loadFlowMore(); }
   if(!loaded.fd){ loaded.fd = 1; loadFund(); }
+  if(!loaded.cg){ loaded.cg = 1; loadCg(); }
+  if(!loaded.okx){ loaded.okx = 1; loadOkx(); }
   if(!loaded.opt){ loaded.opt = 1; loadOpt(); }
   if(!loaded.news){ loaded.news = 1; loadNews(); }
   renderTop();
@@ -3941,7 +4136,7 @@ function renderTop(){
   }
   /* --- Hyperliquid --- */
   let hlBody;
-  if(!HL.data || !HL.data.snap) hlBody = (!gas ? hmNoGas : HL.tried ? hmFail : hmWait) + h2TopRows();
+  if(!HL.data || !HL.data.snap) hlBody = (!gas ? hmNoGas : HL.tried ? hmFail : hmWait) + h2TopRows() + okTopRows();
   else{
     const P = HL.data.snap.perps || [], btc = P.find(r=>r.n === "BTC") || {}, o24 = hlOi24("BTC");
     const alerts = [];
@@ -3954,7 +4149,7 @@ function renderTop(){
         <div><small>ファンディング</small><b>${hlF8(btc.f*8)}</b><span>8時間あたり</span></div></div>
       ${alerts.slice(0, 3).join("") || `<div class="hm-ok">✅ 建玉・ファンディングに大きな異変はありません</div>`}
       ${arb ? `<div class="hm-row"><div class="hm-row-main"><b>取引所との差が最大: ${esc(arb[0].n)}</b><small>Hyperliquid ${hlF8(arb[0].f*8)} ／ 他の平均との差</small></div><span class="hm-badge">${hlF8(arb[1])}</span></div>` : ""}
-      ${h2TopRows()}`;
+      ${h2TopRows()}${okTopRows()}`;
   }
   /* --- オプション市場 --- */
   let opBody;
@@ -3968,7 +4163,7 @@ function renderTop(){
   }
   /* --- お金の流れ --- */
   let flBody;
-  if(!FL.data) flBody = !gas ? hmNoGas : FL.tried ? hmFail : hmWait;
+  if(!FL.data) flBody = (!gas ? hmNoGas : FL.tried ? hmFail : hmWait) + cgTopRow();
   else{
     const C = FL.data.chains || [];
     const big = C.filter(c=>c.tvl >= 1e8 && c.c30 != null).sort((a,b)=>b.c30 - a.c30).slice(0, 3);
@@ -3977,7 +4172,7 @@ function renderTop(){
     flBody = (big.length ? `<div class="hm-sub">TVL が伸びているチェーン (30日)</div>` + big.map(c=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(c.n)}</b><small>TVL ${esc(flUsd(c.tvl))}</small></div><span class="hm-num">${flPct(c.c30)}</span></div>`).join("") : "")
       + (st ? `<div class="hm-row"><div class="hm-row-main"><b>ステーブルコインの流入が最大: ${esc(st.n)}</b><small>30日の増加額</small></div><span class="hm-num up">+${esc(flUsd(st.s30d))}</span></div>` : "")
       + (cand.length ? `<div class="hm-sub">🪂 エアドロップ候補 (トークン未発行の先物 DEX)</div>` + cand.map(x=>`<div class="hm-row"><div class="hm-row-main"><b>${esc(x.n)}${x.isNew ? ` <span class="pm-tag new">NEW</span>` : ""}</b><small>建玉 ${esc(flUsd(x.oi))} ・ ${esc((x.ch||[]).join("・"))}</small></div><span class="hm-num">${flPct(x.c30)}</span></div>`).join("") : "")
-      + fmTopRows() + fdTopRow()
+      + cgTopRow() + fmTopRows() + fdTopRow()
       || `<div class="hint" style="margin:0">データを取得中です</div>`;
   }
   /* --- ニュースと公式発表 --- */
@@ -4046,7 +4241,9 @@ $("#tab-top").addEventListener("click", ev=>{
   loadUs = done(loadUs, US); renderUs = wrap("renderUs", renderUs);
   loadFlowMore = done(loadFlowMore, FM); renderFlowMore = wrap("renderFlowMore", renderFlowMore);
   loadFund = done(loadFund, FD); renderFund = wrap("renderFund", renderFund);
-  loadHl2 = done(loadHl2, H2); renderHl2 = wrap("renderHl2", renderHl2); }
+  loadHl2 = done(loadHl2, H2); renderHl2 = wrap("renderHl2", renderHl2);
+  loadCg = done(loadCg, CG); renderCg = wrap("renderCg", renderCg);
+  loadOkx = done(loadOkx, OK); renderOkx = wrap("renderOkx", renderOkx); }
 
 load();
 applyTheme();
