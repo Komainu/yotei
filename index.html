@@ -543,6 +543,20 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 .ok-ls i{display:block; font-style:normal; text-align:center; overflow:hidden; white-space:nowrap}
 .ok-ls .l{background:var(--ok)}
 .ok-ls .s{background:var(--danger)}
+/* 今日の注目・今週の AI まとめ (ホーム) */
+.hm-hi{background:var(--card); border:1px solid var(--border); border-radius:18px; padding:12px 14px; margin:0 0 12px}
+.hm-hi h3{font-size:15px; margin:0 0 4px}
+.hm-hi .hm-row:first-of-type{border-top:none}
+.hm-hi-ic{font-size:18px; width:24px; text-align:center; flex:none}
+.hm-hi-note{font-size:12px; color:var(--muted); margin-top:6px}
+.hm-wk{background:var(--card); border:1px solid var(--border); border-radius:18px; padding:10px 14px; margin:0 0 12px}
+.hm-wk > summary{cursor:pointer; font-weight:700; font-size:15px}
+.hm-wk-p{font-weight:400; font-size:12.5px; color:var(--muted)}
+.wk-meta{font-size:12px; color:var(--muted); margin:8px 0; display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.wk-sel select{width:auto; padding:2px 6px; font-size:12px}
+.wk-h{font-weight:700; margin:12px 0 4px}
+.wk-ul{margin:0; padding-left:1.2em; font-size:14px; line-height:1.6}
+.wk-p{margin:4px 0; font-size:14px; line-height:1.6}
 </style>
 </head>
 <body>
@@ -573,6 +587,8 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 <!-- ============ ホーム ============ -->
 <section class="tab active" id="tab-top">
   <div class="hm-date" id="homeDate"></div>
+  <section class="hm-hi" id="hmHi"></section>
+  <details class="hm-wk" id="wkBox" hidden><summary>🗞 今週の AI まとめ <span id="wkPeriod" class="hm-wk-p"></span></summary><div id="wkBody"></div></details>
   <div id="homeBody"></div>
   <p class="hint">各タブの要点を集めています。「くわしく →」や行を押すと、そのタブへ移動します。信号や候補は目安で、売買の判断ではありません。</p>
 </section>
@@ -798,6 +814,16 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
   </div>
 
   <div class="set-card">
+    <h3>🔑 CoinGecko のキー (任意)</h3>
+    <p class="hint" style="margin-top:0">無料の Demo キーを入れると、取得の失敗 (混雑による制限) が減ります。CoinGecko のサイトで無料登録すると発行されます (<a href="https://www.coingecko.com/en/api/pricing" target="_blank" rel="noopener">CoinGecko の料金のページ</a>)。</p>
+    <div id="cgKeyState" style="font-size:12.5px; color:var(--muted); margin:8px 0"></div>
+    <label>CoinGecko の Demo キー <span style="color:var(--dim)">(登録済みなら空のまま)</span></label>
+    <input id="cgKeyIn" type="password" autocomplete="off" placeholder="CG-…">
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="cgKeySave">保存</button><button class="btn" id="cgKeyClear">キーを消す</button><span id="cgKeyResult" style="font-size:13px"></span></div>
+    <p class="hint">キーはこの端末には残さず、あなたの Apps Script にだけ保存します。画面には「登録済み」かどうかだけを表示します。</p>
+  </div>
+
+  <div class="set-card">
     <h3>📧 通知メール</h3>
     <p class="hint" style="margin-top:0">「あなた向け」とウォッチ中の市場の急変、Kalshi とのずれ、先物の異変、毎朝8時のまとめをメールで送ります。MUSE がつながっている Gmail を入れておくと、MUSE が読めます。通知が多い・少ないと感じたら、下の「通知の条件」で調整できます。</p>
     <div id="pmMailState" style="font-size:12.5px; color:var(--muted); margin:8px 0"></div>
@@ -805,6 +831,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
     <input id="pmMailTo" type="email" autocomplete="off" placeholder="you@gmail.com">
     <label class="check" style="margin-top:10px"><input type="checkbox" id="pmAlertOn" style="width:auto" checked>⚡ 急変の通知 (10分おきに確認)</label>
     <label class="check"><input type="checkbox" id="pmDigestOn" style="width:auto" checked>🗞 毎朝8時のまとめ</label>
+    <label class="check"><input type="checkbox" id="pmWeeklyOn" style="width:auto" checked>🗞 毎週日曜の AI 総まとめ <span style="color:var(--dim)">(日曜の朝8時、1週間の記録から AI が書きます。Gemini のキーが必要です)</span></label>
     <details id="ntfBox" class="ntf-box">
       <summary>🎚 通知の条件を変える <span id="ntfChanged" class="pm-tag" hidden>変更あり</span></summary>
       <div class="ntf-g">
@@ -875,7 +902,7 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
       </div>
       <div class="row" style="margin-top:8px"><button class="btn small" id="ntfReset" type="button">初期値に戻す</button><span class="hint" style="margin:0">変えたあと、下の「保存」を押してください。数字を小さくすると通知が増え、大きくすると減ります。</span></div>
     </details>
-    <div class="row" style="margin-top:12px; flex-wrap:wrap"><button class="btn primary" id="pmMailSave">保存</button><button class="btn" id="pmMailTest">テスト送信</button><span id="pmMailResult" style="font-size:13px"></span></div>
+    <div class="row" style="margin-top:12px; flex-wrap:wrap"><button class="btn primary" id="pmMailSave">保存</button><button class="btn" id="pmMailTest">テスト送信</button><button class="btn" id="pmWeeklyNow">今すぐ作る (テスト)</button><span id="pmMailResult" style="font-size:13px"></span></div>
   </div>
 
   <div class="set-card">
@@ -1017,9 +1044,9 @@ nav.tabs button:hover:not(.active){background:var(--card2)}
 /* ================= state ================= */
 const LS_KEY = "sakiyomi_v1";
 /* 版数: 更新のたびに日付を上げる。Mac・Windows・GitHubが同じ版か確認する用 */
-const APP_VERSION = "2026.12.13";   /* sw.js の VERSION も同じにする */
+const APP_VERSION = "2026.12.14";   /* sw.js の VERSION も同じにする */
 /* このアプリが前提とするサーバー(Apps Script)の最低版数 */
-const MIN_GAS_VERSION = "2026.12.13";
+const MIN_GAS_VERSION = "2026.12.14";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let state = { settings: {} };
@@ -1978,9 +2005,32 @@ async function pmAiSettingsLoad(){
     st.innerHTML = (ai.key ? `✅ Gemini のキー: 登録済み` : `⚠ Gemini のキー: 未登録 (和訳・あなた向け・ルールの要約に必要です)`)
       + ` ／ 今日の利用 ${ai.today} / ${ai.max} 回`;
     if(!$("#pmProfile").value) $("#pmProfile").value = ai.profile || "";
+    cgKeyRender(ai);
     pmMailRender(d.pm.mail);
   }catch(err){ st.textContent = "確認できません: " + err.message; }
 }
+/* ---- 設定: CoinGecko のキー (サーバーは登録済みかどうかだけを返す) ---- */
+function cgKeyRender(ai){
+  const st = $("#cgKeyState"); if(!st || !ai) return;
+  st.textContent = ai.cgKey ? "✅ CoinGecko のキー: 登録済み" : "CoinGecko のキー: 未登録 (なくても使えます)";
+}
+async function cgKeySend(body, okMsg){
+  const r = $("#cgKeyResult"); r.innerHTML = `<span class="spin"></span>`;
+  try{
+    saveGasSettings();
+    const d = await pmGasPost(Object.assign({ action:"pmConfig" }, body));
+    if(!d || !d.ok) throw new Error((d && d.error) || "保存できませんでした");
+    $("#cgKeyIn").value = "";
+    cgKeyRender(d.ai);
+    r.textContent = "✅ " + okMsg; r.style.color = "var(--ok)";
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+}
+$("#cgKeySave").addEventListener("click", ()=>{
+  const k = $("#cgKeyIn").value.trim();
+  if(!k){ $("#cgKeyResult").textContent = "キーを入れてください"; return; }
+  cgKeySend({ cgKey: k }, "保存しました");
+});
+$("#cgKeyClear").addEventListener("click", ()=>{ if(confirm("CoinGecko のキーを消しますか? (キーなしでも使えます)")) cgKeySend({ cgKeyClear: true }, "消しました"); });
 /* ---- 通知の条件 ---- */
 let ntfDef = null;
 function ntfRender(n, def){
@@ -2007,16 +2057,18 @@ function pmMailRender(mail){
   const t = s => s ? new Date(String(s).split(" ")[0]).toLocaleString("ja-JP") + (String(s).includes(" ") ? " (" + String(s).split(" ").slice(1).join(" ") + ")" : "") : "まだ";
   if(!$("#pmMailTo").value) $("#pmMailTo").value = mail.to || "";
   $("#pmAlertOn").checked = !!mail.alert; $("#pmDigestOn").checked = !!mail.digest;
+  if("weekly" in mail) $("#pmWeeklyOn").checked = !!mail.weekly;
   ntfRender(mail.notify, mail.notifyDef);
   st.innerHTML = (mail.to ? `送り先: ${esc(mail.to)}` : `⚠ 送り先が未設定です`)
     + (mail.scheduled ? "" : `<br><b style="color:var(--warn)">⚠ まだ動いていません: Apps Script で <code>setup</code> を1回実行してください</b>`)
-    + `<br>最後の急変通知: ${esc(t(mail.alertLast))} ／ 最後のまとめ: ${esc(t(mail.digestLast))}`;
+    + `<br>最後の急変通知: ${esc(t(mail.alertLast))} ／ 最後のまとめ: ${esc(t(mail.digestLast))}`
+    + ("weekly" in mail ? ` ／ 最後の週1回のまとめ: ${esc(mail.weeklyLast || "まだ")}` : "");
 }
 $("#pmMailSave") && $("#pmMailSave").addEventListener("click", async ()=>{
   const r = $("#pmMailResult"); r.innerHTML = `<span class="spin"></span>`;
   try{
     saveGasSettings();
-    const d = await pmGasPost({ action:"pmConfig", mailTo: $("#pmMailTo").value.trim(), alertOn: $("#pmAlertOn").checked, digestOn: $("#pmDigestOn").checked, notify: ntfRead() });
+    const d = await pmGasPost({ action:"pmConfig", mailTo: $("#pmMailTo").value.trim(), alertOn: $("#pmAlertOn").checked, digestOn: $("#pmDigestOn").checked, weeklyOn: $("#pmWeeklyOn").checked, notify: ntfRead() });
     CMP.data = null;   /* ずれの基準が変わったかもしれないので、比較を取り直す */
     if(!d || !d.ok) throw new Error((d && d.error) || "保存できませんでした");
     pmMailRender(d.mail);
@@ -2029,6 +2081,16 @@ $("#pmMailTest") && $("#pmMailTest").addEventListener("click", async ()=>{
     const d = await pmGasPost({ action:"pmMailTest" });
     if(!d || !d.ok) throw new Error((d && d.error) || "送れませんでした");
     r.textContent = "✅ " + d.to + " に送りました"; r.style.color = "var(--ok)";
+  }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
+});
+$("#pmWeeklyNow").addEventListener("click", async ()=>{
+  const r = $("#pmMailResult"); r.innerHTML = `<span class="spin"></span> AI がまとめています (1分ほどかかります)…`; r.style.color = "";
+  try{
+    saveGasSettings();
+    const d = await pmGasPost({ action:"pmWeeklyNow" });
+    if(!d || !d.ok) throw new Error((d && d.error) || "作れませんでした");
+    r.textContent = "✅ 作りました" + (d.sent ? " (メールも送りました)" : " (送り先が未設定なので、ホームにだけ出します)"); r.style.color = "var(--ok)";
+    loadWeekly();
   }catch(err){ r.textContent = "❌ " + err.message; r.style.color = "var(--danger)"; }
 });
 $("#pmAiSave") && $("#pmAiSave").addEventListener("click", async ()=>{
@@ -3011,7 +3073,7 @@ function renderCg(){
       ${card("ETH の占める割合", "dominance", g.ethDom == null ? "-" : esc(String(g.ethDom)) + "%", dom("ethDom"))}
     </div>` : `<div class="hint">全体の時価総額を取得できませんでした</div>`;
   $("#cgRead").innerHTML = ((d.read || []).length ? `<ul class="op-read">${d.read.map(x=>`<li>${linkTerms(esc(x))}</li>`).join("")}</ul>` : "")
-    + `<div class="hint">ソース: CoinGecko の公開データ (2時間ごとにサーバーが取り直します)。読み取りは一般的な目安で、売買の判断ではありません。</div>`;
+    + `<div class="hint">ソース: CoinGecko の公開データ${g.src === "coinpaprika" ? ` (全体の数は CoinGecko が混み合っていたため CoinPaprika から。ETH とステーブルコインの割合はありません)` : ""}。サーバーが部分ごとに取り直します (全体・分野・注目の銘柄は2時間ごと、企業の保有は12時間ごと)。読み取りは一般的な目安で、売買の判断ではありません。</div>`;
   /* ドミナンスの推移 (記録が2日分以上) */
   const h = CG.hist || {}, ds = Object.keys(h).sort();
   const box = (title, k) => { const pts = ds.map(x=>[x + "T00", h[x][k]]).filter(p=>p[1] != null), l = pts[pts.length-1];
@@ -3037,7 +3099,7 @@ function renderCg(){
     return `<div class="hm-sub">${K}: 合計 ${esc(Math.round(t.total).toLocaleString())} ${K} (${esc(flUsd(t.usd))})</div><div class="hl-wrap"><table class="hl-tbl"><thead><tr><th>企業</th><th>国</th><th>保有</th><th>いまの価値</th><th>発行量に占める割合</th></tr></thead><tbody>`
       + t.top.map(c=>`<tr><td><b>${esc(c.n)}</b> <small>${esc(c.sym)}</small></td><td>${esc(c.cty)}</td><td>${esc(Math.round(c.h).toLocaleString())} ${K}</td><td>${esc(flUsd(c.usd))}</td><td>${c.pct == null ? "-" : esc(String(c.pct)) + "%"}</td></tr>`).join("") + `</tbody></table></div>`; }).join("");
   const t = d.at ? new Date(d.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
-  $("#cgInfo").textContent = (t ? t + " 時点" : "") + (CG.err ? " ・ " + CG.err + " (前回の内容を表示しています)" : (d.errors || []).length ? " ・ 一部取得できず (" + d.errors.join("、") + ")" : "");
+  $("#cgInfo").textContent = (t ? t + " 時点" : "") + (g.src ? " ・ 全体の数: " + (g.src === "coinpaprika" ? "CoinPaprika" : "CoinGecko") : "") + (CG.err ? " ・ " + CG.err + " (前回の内容を表示しています)" : (d.errors || []).length ? " ・ 一部取得できず (" + d.errors.join("、") + ")" : "");
 }
 /** ホームの「お金の流れ」に足す行: BTC の占める割合 */
 function cgTopRow(){
@@ -4051,6 +4113,7 @@ async function loadHealth(){
 }
 function loadTop(){
   if(!HEALTH.data) loadHealth();
+  if(!loaded.wk){ loaded.wk = 1; loadWeekly(); }
   if(!loaded.poly){ loaded.poly = 1; pmLoad(); }
   if(!loaded.btc){ loaded.btc = 1; loadMacro(); }
   if(!loaded.us){ loaded.us = 1; loadUs(); }
@@ -4065,6 +4128,54 @@ function loadTop(){
   if(!loaded.news){ loaded.news = 1; loadNews(); }
   renderTop();
 }
+/* ---- ホーム: 🗞 今週の AI まとめ (サーバーの action=weekly。閉じた囲みで、開くと読める) ---- */
+const WK = { data: null, list: [], ai: null, loading: false, tried: false, err: null };
+async function loadWeekly(date){
+  const box = $("#wkBox");
+  if(!state.settings.gasUrl){ box.hidden = true; return; }
+  box.hidden = false;
+  WK.loading = true; renderWeekly();
+  try{
+    const r = await fetch(gasGetUrl("action=weekly" + (date ? "&date=" + encodeURIComponent(date) : "") + "&t=" + Date.now()), { redirect:"follow" });
+    const d = await r.json();
+    if(d && d.needKey) throw new Error(d.error || "合言葉が違います");
+    if(!d || !("weekly" in d)) throw new Error("サーバーが古い版です (自動公開を待ってください)");
+    WK.data = d.weekly; WK.list = d.list || []; WK.ai = d.ai; WK.err = null;
+  }catch(err){ WK.err = err.message; }
+  finally{ WK.loading = false; WK.tried = true; renderWeekly(); }
+}
+const wkMd = d => Number(String(d).slice(5, 7)) + "/" + Number(String(d).slice(8, 10));
+function wkRange(to){ const t = new Date(String(to) + "T00:00:00Z"); if(isNaN(t)) return String(to); return wkMd(new Date(t - 6 * 86400000).toISOString().slice(0, 10)) + "〜" + wkMd(to); }
+/** AI の文 (「■」見出し・「・」箇条書き) → HTML。文字は必ずエスケープ */
+function wkTextHtml(t){
+  const out = []; let ul = [];
+  const flush = () => { if(ul.length){ out.push(`<ul class="wk-ul">${ul.join("")}</ul>`); ul = []; } };
+  String(t || "").split("\n").forEach(l=>{
+    l = l.trim();
+    if(!l){ flush(); return; }
+    if(/^■/.test(l)){ flush(); out.push(`<div class="wk-h">${esc(l.replace(/^■\s*/, ""))}</div>`); }
+    else if(/^[・\-]/.test(l)) ul.push(`<li>${esc(l.replace(/^[・\-]\s*/, ""))}</li>`);
+    else{ flush(); out.push(`<p class="wk-p">${esc(l)}</p>`); }
+  });
+  flush();
+  return out.join("");
+}
+function renderWeekly(){
+  const b = $("#wkBody"), w = WK.data;
+  $("#wkPeriod").textContent = w ? "(" + wkMd(w.from) + "〜" + wkMd(w.to) + ")" : "";
+  if(!w){
+    b.innerHTML = WK.loading ? `<div class="hint"><span class="spin"></span> 読み込み中…</div>`
+      : WK.err ? `<div class="hint">読み込めませんでした: ${esc(WK.err)}</div>`
+      : `<div class="hint">まだありません。毎週日曜の朝8時に、1週間の記録から AI がまとめを作ります${WK.ai === false ? " (設定「🈯 和訳とあなた向け」で Gemini のキーを登録すると始まります)" : ""}。</div>`;
+    return;
+  }
+  const sel = WK.list.length > 1 ? `<label class="wk-sel">ほかの週: <select id="wkSel">${WK.list.map(d=>`<option value="${esc(d)}"${d === w.to ? " selected" : ""}>${esc(wkRange(d))}</option>`).join("")}</select></label>` : "";
+  const at = new Date(w.at).toLocaleString("ja-JP", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" });
+  b.innerHTML = `<div class="wk-meta"><span>期間: ${esc(w.from)} 〜 ${esc(w.to)} ・ ${esc(at)} に作成</span>${sel}</div>`
+    + wkTextHtml(w.text)
+    + `<div class="hint">AI が記録から書いたまとめです。数字は各タブの記録で確かめてください。売買の判断には使わないでください。</div>`;
+}
+$("#wkBody").addEventListener("change", ev=>{ if(ev.target.id === "wkSel") loadWeekly(ev.target.value); });
 /** ホームの「お金の流れ」に足す行: 14日以内の2,000万ドル以上のハッキング・ペッグ外れ */
 function fmTopRows(){
   const d = FM.data; if(!d) return "";
@@ -4080,12 +4191,113 @@ function topCard(icon, title, tab, body, extra){
 const hmWait = `<div class="hm-wait"><span class="spin"></span> 読み込み中…</div>`;
 const hmFail = `<div class="hint" style="margin:0">取得できませんでした (タブを開くと理由が出ます)</div>`;
 const hmNoGas = `<div class="hint" style="margin:0">設定でサーバー (Apps Script) の URL を入れると表示されます</div>`;
+/* ---- ホーム: ⭐ 今日の注目 (各タブが読み込んだデータから。サーバーへの通信は増やさない) ----
+   点数 (0〜100) のそろえ方: 動いた大きさを「その知らせの基準」で割って 50 を掛ける (基準ちょうど = 50、基準の2倍 = 100 で頭打ち)。
+     hiScale(値, 基準) = min(100, round(50 × |値| ÷ 基準))
+   大きさの無い知らせ (信号が変わった・SRF の利用・弱い入札・公式発表など) は決まった点数 (重い指標ほど高い)。
+   ウォッチ中の市場は +10、トークン未発行の資金調達は +15。同じ種類・同じ対象は高い方の1つだけ。上位5つを出す。
+   新しいタブ・データを足したら、ここにも知らせを足す */
+const HI_MAX = 5;
+const hiScale = (v, th) => Math.max(0, Math.min(100, Math.round(50 * Math.abs(v) / th)));
+const hiPt = x => (x >= 0 ? "+" : "−") + Math.abs(Math.round(x)) + "pt";
+function hiSignals(){
+  const out = [], add = (kind, subj, score, icon, title, sub, jump) => out.push({ kind, subj: String(subj), score: Math.max(0, Math.min(100, Math.round(score))), icon, title, sub, jump });
+  const now = Date.now(), day = t => fmJst(t);
+  /* Polymarket: ウォッチ中・あなた向けで、24時間に10pt以上 */
+  (pm.events || []).forEach(e=>{
+    const w = !!pm.watch[e.id];
+    if(!w && !(pmScore(e) >= 2 && !pm.hide[e.id])) return;
+    const m = pmMain(e), d1 = e.multi ? e.d1 : m.d1;
+    if(d1 == null || Math.abs(d1) < 0.10) return;
+    add("pm", e.id, hiScale(d1*100, 10) + (w ? 10 : 0), w ? "⭐" : "📊", pmJa(e.multi ? e.t : m.q),
+      `24時間で ${hiPt(d1*100)} ・ いま ${e.multi ? pmJa(m.g || m.q) + " " : "はい "}${pmPct(m.p[0])}${w ? " ・ ウォッチ中" : ""}`, "poly");
+  });
+  /* Kalshi と Polymarket のずれ (赤) */
+  if(CMP.data){ const red = cmpGapRed();
+    (CMP.data.list || []).forEach(m=>(m.rows || []).forEach(r=>{ if(cmpLevel(r) !== "r") return;
+      add("kalshi", m.d, hiScale(r.gap, red), "⚖️", `${cmpMeetLabel(m.d)}: Kalshi とのずれ (${r.ja})`, `Polymarket ${cmpPct(r.pm.p)} ／ Kalshi ${cmpPct(r.k.p)} (差 ${Math.round(r.gap*100)}pt)`, "poly"); })); }
+  /* マクロ: 昨日から変わった信号 (重い指標ほど高い)・重い指標の赤 */
+  if(MC.res){
+    (MC.changed || []).forEach(c=>{ const w = MC_WEIGHT[c.id] || 0.5;
+      add("mc", c.id, 40 + 20 * w, "🔄", `${mcName(c.id)} の信号が変わりました`, `${MC_SIG[c.from] || ""} → ${MC_SIG[c.to] || ""}${(MC.res[c.id] || {}).why ? " ・ " + MC.res[c.id].why : ""}`, "btc"); });
+    Object.keys(MC.res).forEach(id=>{ const r = MC.res[id], w = MC_WEIGHT[id] || 0;
+      if(!r || r.sig !== "r" || w < 1.5) return;
+      add("mc", id, 30 + 15 * w, "🔴", `${mcName(id)} が向かい風`, r.why || "重い指標が赤の信号です", "btc"); });
+  }
+  /* オプション: DVOL の24時間の変化 5 以上・順位 85 以上/15 以下・スキューの向きが昨日と逆 */
+  if(OP.data && OP.data.opt){ const C = OP.data.opt.cur || {}, H = OP.data.hist || {}, ds = Object.keys(H).sort();
+    ["BTC", "ETH"].forEach(c=>{ const o = C[c]; if(!o) return; const dv = o.dvol || {};
+      let s = 0; const why = [];
+      if(dv.d1 != null && Math.abs(dv.d1) >= 5){ s = Math.max(s, hiScale(dv.d1, 5)); why.push(`24時間で ${opSigned(dv.d1)}`); }
+      if(dv.rank != null && (dv.rank >= 85 || dv.rank <= 15)){ s = Math.max(s, 50 + Math.round((dv.rank >= 85 ? dv.rank - 85 : 15 - dv.rank) / 15 * 50)); why.push(`90日の中で ${dv.rank}% の位置`); }
+      if(s) add("dvol", c, s, "🎯", `${c} の予想変動率 (DVOL) ${dv.v == null ? "" : dv.v}`, why.join(" ・ "), "opt");
+      const prev = ds.filter(k=>k < day(now) && H[k][c] && H[k][c][6] != null).pop();
+      const ps = prev ? H[prev][c][6] : null;
+      if(o.skew != null && ps != null && Math.abs(o.skew) >= 1 && Math.abs(ps) >= 1 && Math.sign(o.skew) !== Math.sign(ps))
+        add("skew", c, 55, "🎯", `${c} のスキューの向きが変わりました`, `${opSigned(ps)} → ${opSigned(o.skew)} (${o.skew > 0 ? "下げへの備えが増えた" : "上げへの期待が増えた"})`, "opt");
+    }); }
+  /* Hyperliquid: 建玉の24時間 ±15%・ファンディングの極端 */
+  if(HL.data && HL.data.snap){ const P = HL.data.snap.perps || [];
+    hlTracked().forEach(c=>{ const o = hlOi24(c), r = P.find(x=>x.n === c);
+      if(o != null && Math.abs(o) >= 15) add("oi", c, hiScale(o, 15), "🟢", `${c} の建玉が${o > 0 ? "急増" : "急減"} (Hyperliquid)`, `24時間で ${hlPct(o, 0)}`, "hl");
+      if(r && r.f != null){ const f8 = r.f * 8;
+        if(f8 >= 0.0005 || f8 <= -0.0003) add("fund", c, hiScale(f8, f8 > 0 ? 0.0005 : 0.0003), "🟢", `${c} のファンディングが${f8 > 0 ? "高い (買いが過熱)" : "マイナス (売りが優勢)"}`, `8時間あたり ${hlF8(f8)}`, "hl"); }
+    }); }
+  /* OKX: ロング・ショート比率 2.5 以上/0.6 以下・大きな清算 (片方 1億ドル以上) */
+  const OC = OK.data && OK.data.coins;
+  if(OC) OK_COINS.forEach(c=>{ const o = OC[c]; if(!o) return;
+    if(o.ls != null && o.ls > 0 && (o.ls >= 2.5 || o.ls <= 0.6)) add("ls", c, o.ls >= 2.5 ? hiScale(o.ls, 2.5) : hiScale(1 / o.ls, 1 / 0.6), "🏦", `OKX の ${c}: ${o.ls >= 2.5 ? "買い" : "売り"}の口座が大きく多い`, `ロング・ショート比率 ${o.ls}`, "hl");
+    const l = o.liq;
+    if(l && Math.max(l.long24 || 0, l.short24 || 0) >= 1e8){ const lg = (l.long24 || 0) >= (l.short24 || 0), v = lg ? l.long24 : l.short24;
+      add("liq", c, hiScale(v, 1e8), "💥", `OKX の ${c}: ${lg ? "買い" : "売り"}の清算が多い`, `${okSpan(l)} で ${hlUsd(v)}`, "hl"); }
+  });
+  /* 大口 (Hyperliquid) の BTC の向きが前の日と逆 (前の値が無ければ出さない) */
+  if(H2.data && H2.data.whales && H2.data.whales.nLb){ const b = (H2.data.whales.net || []).find(x=>x.c === "BTC"), H = H2.hist || {};
+    const prev = Object.keys(H).sort().filter(k=>k < day(now) && H[k] && H[k].net && H[k].net.BTC != null).pop();
+    const pv = prev ? H[prev].net.BTC : null;
+    if(b && pv != null && b.net && pv && Math.sign(b.net) !== Math.sign(pv))
+      add("whale", "BTC", 60, "🐋", `大口の BTC が${b.net > 0 ? "買い越し" : "売り越し"}に変わりました`, `${b.nL}人が買い・${b.nS}人が売り (前の日は${pv > 0 ? "買い越し" : "売り越し"})`, "hl");
+  }
+  /* 米国のお金: SRF の利用・TGA の1日の増減 500億ドル以上・3日以内の弱い入札 */
+  if(US.data){ const u = US.data, s = usLast(u.srf);
+    if(s && s[1] > 0 && s[0] >= day(now - 3 * 86400000)) add("srf", "srf", hiScale(s[1], 1), "🏛", "SRF (緊急の資金の窓口) が使われました", `${usMd(s[0])} に ${mcMoney(s[1])}`, "btc");
+    const t1 = usChg(u.tga, 1);
+    if(t1 != null && Math.abs(t1) >= 50) add("tga", "tga", hiScale(t1, 50), "🏛", `財務省口座 (TGA) が1日で${t1 > 0 ? "増えました (市場からお金を吸い上げ)" : "減りました (市場にお金が戻る)"}`, `1日で ${usSigned(t1)}`, "btc");
+    ((u.auctions && u.auctions.recent) || []).filter(a=>a.weak && a.d >= day(now - 3 * 86400000)).forEach(a=>add("auc", a.n + a.d, 55, "🏛", `国債の入札が不調: ${a.n}`, `${usMd(a.d)} ・ 前の入札より弱い結果`, "btc"));
+  }
+  /* お金の流れ: ペッグ外れ (流通5億ドル以上)・3日以内のハッキング 2,000万ドル以上・2日以内の資金調達 3,000万ドル以上・BTC の占める割合の7日の変化 1pt 以上 */
+  if(FM.data){ const d = FM.data;
+    ((d.pegs && d.pegs.off) || []).filter(x=>x.circ >= 5e8 && x.dev != null).forEach(x=>add("peg", x.sym, hiScale(x.dev, 0.5), "⚠", `${x.sym} が1ドルからずれています`, `${x.px != null ? x.px.toFixed(4) + "ドル" : ""} (${x.dev > 0 ? "+" : ""}${x.dev}%) ・ 流通 ${flUsd(x.circ)}`, "flow"));
+    ((d.hacks && d.hacks.list) || []).filter(x=>x.d >= day(now - 3 * 86400000) && x.amt >= 2e7).forEach(x=>add("hack", x.n, hiScale(x.amt, 2e7), "🚨", `ハッキング被害: ${x.n}`, `${fmMd(x.d)} ・ ${flUsd(x.amt)}`, "flow"));
+  }
+  fdList().filter(x=>x.t >= now - 2 * 86400000 && x.amt >= 3e7).forEach(x=>add("raise", x.p, hiScale(x.amt, 3e7) + (x.token === false ? 15 : 0), "💰", `資金調達: ${x.p}`, `${flUsd(x.amt)}${x.r ? " ・ " + fdRound(x.r) : ""}${x.token === false ? " ・ トークン未発行" : ""}`, "flow"));
+  if(CG.data){ const c = cgChg7("btcDom");
+    if(c != null && Math.abs(c) >= 1) add("dom", "btc", hiScale(c, 1), "🧭", `BTC の占める割合が7日で${c > 0 ? "上がりました" : "下がりました"}`, `いま ${(CG.data.global || {}).btcDom}% ・ 7日で ${cgPt(c)}`, "flow"); }
+  /* ニュース: 12時間以内の公式発表 (🏛) で、重要度 3 */
+  nwItems().filter(x=>x.sc >= 3 && nwFeed(x.s).off && now - x.t < 12 * 3600000).forEach(x=>add("news", x.id || x.l || nwTitle(x), 60, "🏛", nwTitle(x), `${nwFeed(x.s).n} ・ ${nwAgo(x.t)}${x.sum ? " ・ " + x.sum : ""}`, "news"));
+  /* 同じ種類・同じ対象は高い方だけ → 点数の高い順 (同じ点数は見つけた順) */
+  const best = new Map();
+  out.forEach((x, i)=>{ x.i = i; const k = x.kind + ":" + x.subj, o = best.get(k); if(!o || x.score > o.score) best.set(k, x); });
+  return [...best.values()].sort((a, b)=>b.score - a.score || a.i - b.i).slice(0, HI_MAX);
+}
+function hiLoading(){ return [pm, MC, CMP, HL, H2, OK, OP, NW, US, FL, FM, FD, CG].some(o=>o && o.loading); }
+function renderHighlights(){
+  const box = $("#hmHi");
+  if(!state.settings.gasUrl && !(pm.events || []).length){ box.innerHTML = `<h3>⭐ 今日の注目</h3><div class="hint" style="margin:0">設定でサーバー (Apps Script) の URL を入れると、各タブの大きな変化をここに集めます</div>`; return; }
+  let list = [];
+  try{ list = hiSignals(); }catch(e){ list = []; }
+  box.innerHTML = `<h3>⭐ 今日の注目</h3>`
+    + (list.length ? list.map(x=>`<button class="hm-row hm-click" data-jump="${esc(x.jump)}" data-hi="${esc(x.kind)}"><span class="hm-hi-ic">${x.icon}</span><div class="hm-row-main"><b>${esc(x.title)}</b><small>${esc(x.sub)}</small></div><span class="hm-badge" title="注目の点数 (0〜100)">${x.score}</span></button>`).join("")
+      : `<div class="hint" style="margin:0">大きな変化は今のところありません</div>`)
+    + (hiLoading() ? `<div class="hm-hi-note"><span class="spin"></span> 読み込み中のデータがあります</div>` : "");
+}
 function renderTop(){
   const box = $("#homeBody"); if(!box || !$("#tab-top").classList.contains("active")) return;
   const gas = !!state.settings.gasUrl;
   const h = new Date().getHours();
   const hello = h < 5 ? "こんばんは" : h < 11 ? "おはようございます" : h < 18 ? "こんにちは" : "こんばんは";
   $("#homeDate").textContent = `${hello} ・ ${new Date().toLocaleDateString("ja-JP", { month:"long", day:"numeric", weekday:"short" })}`;
+  renderHighlights();
 
   /* --- 相場の天気 --- */
   let hero;

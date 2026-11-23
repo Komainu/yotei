@@ -7,7 +7,12 @@
    ・/companies/public_treasury/bitcoin|ethereum … { total_holdings, total_value_usd, market_cap_dominance, companies: [{ name, symbol, country, total_holdings, total_current_value_usd, percentage_of_total_supply }] }
    world = { down: { global, trend, cats, treasBtc, treasEth } (true = 503、数 = その HTTP の番号), all: 番号 (全部), rate429: true (全部 429),
              global: {...} (上書き), trend: [...], cats: [...] }
-   fetch.calls = [{ part, url, headers, t }] */
+   ・CoinPaprika (予備) https://api.coinpaprika.com/v1/global … { market_cap_usd, volume_24h_usd, bitcoin_dominance_percentage, cryptocurrencies_number,
+     market_cap_ath_value, market_cap_ath_date, volume_24h_ath_value, volume_24h_ath_date, market_cap_change_24h (%), volume_24h_change_24h, last_updated (unix 秒) }
+     (2026-11 に本物で確かめた欄)
+   world.n429 = { global: 2, … } … その部分だけ、あと N 回 429 を返す (1回ごとに減る)
+   world.paprikaDown … true = 503、数 = その番号 / world.paprika … 上書き
+   fetch.calls = [{ part, url, headers, t }] (CoinPaprika は part = 'paprika') */
 const ok = o => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify(o) });
 const fail = code => ({ getResponseCode: () => code, getContentText: () => (code === 429 ? '{"status":{"error_code":429,"error_message":"You\'ve exceeded the Rate Limit."}}' : 'error') });
 
@@ -46,11 +51,21 @@ function defaultTreas(coin) {
     { name: 'BitMine', symbol: 'BMNR.US', country: 'US', total_holdings: 3000000, total_entry_value_usd: 9e9, total_current_value_usd: 9e9, percentage_of_total_supply: 2.5 },
   ] };
 }
+function defaultPaprika() {
+  return { market_cap_usd: 3150000000000, volume_24h_usd: 98000000000, bitcoin_dominance_percentage: 56.23, cryptocurrencies_number: 9000,
+    market_cap_ath_value: 4.4e12, market_cap_ath_date: '2025-10-06T00:00:00Z', volume_24h_ath_value: 3e11, volume_24h_ath_date: '2021-05-19T00:00:00Z',
+    market_cap_change_24h: 3.98, volume_24h_change_24h: -5.1, last_updated: 1795000000 };
+}
 function cgFetch(clock, world) {
   world = world || {};
   world.down = world.down || {};
   const calls = [];
   const fetch = (url, params) => {
+    if (url === 'https://api.coinpaprika.com/v1/global') {
+      calls.push({ part: 'paprika', url, headers: (params && params.headers) || {}, t: clock.now });
+      if (world.paprikaDown) return fail(world.paprikaDown === true ? 503 : world.paprikaDown);
+      return ok(world.paprika || defaultPaprika());
+    }
     const m = /^https:\/\/api\.coingecko\.com\/api\/v3(\/[^?]*)/.exec(url);
     if (!m) return null;
     const path = m[1];
@@ -60,6 +75,7 @@ function cgFetch(clock, world) {
     calls.push({ part, url, headers: (params && params.headers) || {}, t: clock.now });
     if (world.rate429) return fail(429);
     if (world.all) return fail(world.all);
+    if (world.n429 && world.n429[part] > 0) { world.n429[part]--; return fail(429); }
     const d = world.down[part];
     if (d) return fail(d === true ? 503 : d);
     if (part === 'global') return ok(world.global || defaultGlobal());
@@ -72,4 +88,4 @@ function cgFetch(clock, world) {
   return fetch;
 }
 
-module.exports = { cgFetch, defaultGlobal, defaultTrend, defaultCats, defaultTreas };
+module.exports = { cgFetch, defaultGlobal, defaultTrend, defaultCats, defaultTreas, defaultPaprika };

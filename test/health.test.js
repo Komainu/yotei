@@ -96,7 +96,7 @@ test('アプリ: ホームに記録の状態 (正常/止まっている)、設�
     app.doc.querySelector('#gasCheck').click();
     for (let i = 0; i < 4; i++) await app.settle();
     const rows = [...app.doc.querySelectorAll('#gasResult .hc-tbl tbody tr')];
-    assert.equal(rows.length, 17);
+    assert.equal(rows.length, 18);
     assert.match(rows.map(r => r.textContent).join('\n'), /オプション市場.*✅ 動いています/);
     assert.match(rows[0].textContent, /Polymarket の確率・出来高1時間ごと.*✅ 動いています/);
   } finally { app.close(); }

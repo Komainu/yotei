@@ -16,7 +16,7 @@
  */
 
 /** このスクリプトの版数 (アプリ側で古いかどうか判定するのに使う) */
-const GAS_VERSION = '2026.12.13';
+const GAS_VERSION = '2026.12.14';
 
 // =====================================================================
 //  合言葉 (API_SECRET) — URLを知っているだけではデータを読み書きできないようにする
@@ -175,6 +175,7 @@ function doGetInner_(e) {
   if (action === 'hl2') {
     return json(hl2Get_(e.parameter.force === '1'));
   }
+  if (action === 'weekly') return json(pmWeeklyGet_(e.parameter.date));
   if (action === 'cg') {
     let d = null, err = null;
     try { d = cgData_(e.parameter.force === '1'); } catch (x) { err = String(x && x.message || x); }
@@ -711,6 +712,12 @@ function pmRule_(data) {
 function pmConfig_(data) {
   const props = PropertiesService.getScriptProperties();
   if (data.geminiKey) props.setProperty('GEMINI_KEY', String(data.geminiKey).trim());
+  if (data.cgKeyClear) props.deleteProperty('CG_KEY');
+  else if (data.cgKey) {
+    const k = String(data.cgKey).trim();
+    if (!/^[A-Za-z0-9_\-]{8,100}$/.test(k)) return { ok: false, error: 'CoinGecko のキーの形が正しくありません (英数字だけです)' };
+    props.setProperty('CG_KEY', k);
+  }
   if (data.profile != null && String(data.profile).trim()) props.setProperty('PM_PROFILE', String(data.profile).trim().slice(0, 2000));
   if (data.model) props.setProperty('PM_MODEL', String(data.model));
   if (data.mailTo != null) {
@@ -720,6 +727,7 @@ function pmConfig_(data) {
   }
   if (data.alertOn != null) props.setProperty('PM_ALERT_ON', data.alertOn ? '1' : '0');
   if (data.digestOn != null) props.setProperty('PM_DIGEST_ON', data.digestOn ? '1' : '0');
+  if (data.weeklyOn != null) props.setProperty('PM_WEEKLY_ON', data.weeklyOn ? '1' : '0');
   if (data.notify === 'reset') props.deleteProperty('PM_NOTIFY');
   else if (data.notify && typeof data.notify === 'object') ntfSave_(data.notify);
   return { ok: true, ai: pmAiStatus_(), mail: pmMailStatus_() };
@@ -734,7 +742,7 @@ function pmWatch_(data) {
 
 function pmMailStatus_() {
   const props = PropertiesService.getScriptProperties();
-  return { to: props.getProperty('MAIL_TO') || '', alert: pmMailOn_('PM_ALERT_ON'), digest: pmMailOn_('PM_DIGEST_ON'),
+  return { to: props.getProperty('MAIL_TO') || '', alert: pmMailOn_('PM_ALERT_ON'), digest: pmMailOn_('PM_DIGEST_ON'), weekly: pmMailOn_('PM_WEEKLY_ON'), weeklyLast: props.getProperty('PM_WEEKLY_LAST') || null,
     alertLast: props.getProperty('PM_ALERT_LAST') || null, digestLast: props.getProperty('PM_DIGEST_LAST') || null,
     scheduled: ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'pmAlert'; }),
     notify: ntf_(), notifyDef: ntfDefaults_() };
@@ -743,7 +751,7 @@ function pmAiStatus_() {
   const props = PropertiesService.getScriptProperties();
   let day = {};
   try { day = JSON.parse(props.getProperty('PM_AI_DAY') || '{}'); } catch (e) {}
-  return { key: !!props.getProperty('GEMINI_KEY'), profile: pmProfile_(), today: day.d === todayJst_() ? day.n : 0, max: PM_AI_DAY_MAX };
+  return { key: !!props.getProperty('GEMINI_KEY'), cgKey: !!props.getProperty('CG_KEY'), profile: pmProfile_(), today: day.d === todayJst_() ? day.n : 0, max: PM_AI_DAY_MAX };
 }
 
 /** doPost の入口から呼ぶ */
@@ -753,6 +761,7 @@ function pmDoPost_(data) {
   if (data.action === 'pmConfig') return pmConfig_(data);
   if (data.action === 'pmWatch') return pmWatch_(data);
   if (data.action === 'pmMailTest') return pmMailTest_();
+  if (data.action === 'pmWeeklyNow') return pmWeeklyNow_();
   if (data.action === 'pmHlWatch') {
     const coins = (Array.isArray(data.coins) ? data.coins : []).map(String).filter(function (c) { return /^[A-Za-z0-9:_\-]{1,20}$/.test(c); }).slice(0, 30);
     PropertiesService.getScriptProperties().setProperty('HL_WATCH', JSON.stringify(coins));
@@ -1041,6 +1050,10 @@ function pmFlowSection_() {
 }
 
 function pmDigest() {
+  try { pmDigestMain_(); }
+  finally { try { pmWeeklyMaybe_(); } catch (e) { Logger.log('週1回のまとめに失敗: ' + e); } }   // 日曜は、まとめの後に週1回のまとめ
+}
+function pmDigestMain_() {
   const props = PropertiesService.getScriptProperties();
   const to = pmMailTo_();
   if (!to || !pmMailOn_('PM_DIGEST_ON')) return;
@@ -1125,6 +1138,126 @@ function pmMailTest_() {
   MailApp.sendEmail({ to: to, subject: '【ポリマーケット】テスト送信', body: 'ポリマーケット記録アプリからのテストです。このメールが届いていれば、急変の通知と毎朝のまとめもここに届きます。',
     htmlBody: pmMailHtml_('✅ テスト送信', '<tr><td style="font-size:14px">このメールが届いていれば、急変の通知と毎朝のまとめもここに届きます。</td></tr>') });
   return { ok: true, to: to };
+}
+
+// =====================================================================
+//  週1回の AI 総まとめ (毎週日曜の朝・pmDigest の後)
+//    新しいトリガーは足さない: 毎朝8時の pmDigest が、日曜 (日本時間) ならまとめメールの後に pmWeeklyMaybe_ を呼ぶ。
+//    入力は pmReport_({ days: 7 }) の Markdown (先頭の依頼文は外す・節ごと/全体に上限)。Gemini は1週に1回 (pmGemini_・1日の上限に数える)
+//    ドライブに weekly-YYYY-MM-DD.json { at, from, to, text, src } と weekly-index.json [日付…] (新しい順・52件)
+//    PM_WEEKLY_ON (既定オン)・PM_WEEKLY_LAST (送った日)・PM_WEEKLY_NOW (アプリの「今すぐ作る」の時刻)
+// =====================================================================
+const WEEKLY_IN_MAX = 60000;      // Gemini に渡す記録の上限 (文字)
+const WEEKLY_PART_MAX = 9000;     // 節ごとの上限 (文字)
+const WEEKLY_OUT_MAX = 2400;      // 出てきた文の上限 (1,800字以内を頼んだうえで、念のため)
+const WEEKLY_NOW_GAP = 10 * 60000;   // 「今すぐ作る」は10分に1回まで
+const WEEKLY_PROMPT = 'あなたは、経済と暗号資産の記録を読んで「今週のまとめ」を書くアナリストです。読者は専門家ではない日本の人で、この情報で売買はしません。世の中の流れを知りたいだけです。\n'
+  + '入力は、読者のアプリが自動で集めた1週間分の記録 (Markdown) です。予測市場 (Polymarket・Kalshi)、マクロ (金利・景気・ドル)、暗号資産の先物とオプション、お金の流れ (DefiLlama・ステーブルコイン・CoinGecko)、米国のお金の量 (財務省・NY連銀)、ニュースと公式発表、資金調達が入っています (無い部分もあります)。\n'
+  + '今週の全体を、次の形でやさしい日本語で書いてください。\n'
+  + '■ 今週の要点\n・いちばん大事な変化を3〜5個。それぞれ数字を入れる\n'
+  + '■ 分野ごと\n・予測市場: …\n・マクロと米国のお金: …\n・暗号資産の先物・オプション: …\n・お金の流れ・資金調達: …\n・ニュース: …\n(それぞれ1〜2文で短く。記録が無い分野は「記録がありません」)\n'
+  + '■ 来週の注目\n・記録にある予定 (経済の発表・会合・決着の日など) と、まだ答えが出ていない問い\n'
+  + '■ 気になる食い違い\n・記録どうしで食い違うところ (例: 予測市場と別の指標が逆を向いている)。無ければこの見出しごと書かない\n'
+  + 'ルール:\n'
+  + '・数字は入力にあるものだけを使う。自分で数字を作らない\n'
+  + '・推し量って書く時は「推測」と書く\n'
+  + '・投資の助言や、買う・売るのすすめはしない\n'
+  + '・全体で1,800字以内\n'
+  + '・見出しは「■」、箇条書きは「・」で始める。Markdown の記号 (#、*、|) や表は使わない\n'
+  + '出力は JSON {"text": "まとめの本文"} だけにしてください。';
+
+/** 日本時間で日曜か */
+function pmIsSundayJst_(t) { return new Date(Number(t) + 9 * 3600000).getUTCDay() === 0; }   // 日本時間に夏時間は無い
+/** 「11/16〜11/22」 */
+function pmWeekLabel_(from, to) { const f = function (d) { return Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)); }; return f(from) + '〜' + f(to); }
+/** Gemini に渡す記録: レポートの節 (## から) だけを、節ごと・全体に上限をつけて */
+function pmWeeklyInput_() {
+  const r = pmReport_({ days: 7 });
+  const t = String(r.text || ''), i = t.indexOf('\n## ');
+  const secs = (i >= 0 ? t.slice(i + 1) : t).split(/\n(?=## )/);
+  let out = '', cut = 0;
+  secs.forEach(function (s) {
+    if (s.length > WEEKLY_PART_MAX) { s = s.slice(0, WEEKLY_PART_MAX) + '\n(長いので、ここから先は省きました)'; cut++; }
+    if (out.length + s.length + 1 > WEEKLY_IN_MAX) { cut++; return; }
+    out += (out ? '\n' : '') + s;
+  });
+  return { text: out, chars: out.length, raw: t.length, cut: cut, from: r.from, to: r.to, parts: secs.length };
+}
+/** Gemini の答えを、メールと画面に出せる形に (制御文字を除き、長すぎれば行の切れ目で切る) */
+function pmWeeklyClean_(s) {
+  s = String(s == null ? '' : s).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  if (s.length > WEEKLY_OUT_MAX) { const k = s.lastIndexOf('\n', WEEKLY_OUT_MAX); s = s.slice(0, k > WEEKLY_OUT_MAX / 2 ? k : WEEKLY_OUT_MAX).trim() + '\n(長いので省きました)'; }
+  return s;
+}
+/** まとめを作ってドライブに保存し、送り先があればメール。{ ok, weekly, sent } か { ok:false, error } */
+function pmWeeklyMake_() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('GEMINI_KEY')) return { ok: false, error: 'Gemini のキーが登録されていないため、週1回のまとめを作れません' };
+  if (pmAiDayLeft_() <= 0) return { ok: false, error: '今日の Gemini の上限 (' + PM_AI_DAY_MAX + '回) に達しているため、作れません' };
+  const now = Date.now(), to = pmJstDay_(now), from = pmDayAdd_(to, -6);
+  const inp = pmWeeklyInput_();
+  let res;
+  try { res = pmGemini_(WEEKLY_PROMPT, inp.text, 4096); }
+  catch (e) { return { ok: false, error: 'Gemini でまとめを作れませんでした: ' + String(e && e.message || e).replace(/key=[^&\s]+/g, 'key=…').slice(0, 160) }; }
+  const text = pmWeeklyClean_(res && typeof res === 'object' ? res.text : res);
+  if (!text) return { ok: false, error: 'Gemini の答えが空でした' };
+  const w = { at: now, from: from, to: to, text: text, src: { from: inp.from, to: inp.to, chars: inp.chars, cut: inp.cut } };
+  pmWrite_('weekly-' + to + '.json', JSON.stringify(w));
+  let idx = [];
+  try { idx = JSON.parse(pmRead_('weekly-index.json') || '[]'); } catch (e) {}
+  idx = [to].concat((Array.isArray(idx) ? idx : []).filter(function (d) { return d !== to && /^\d{4}-\d{2}-\d{2}$/.test(d); })).sort().reverse().slice(0, 52);
+  pmWrite_('weekly-index.json', JSON.stringify(idx));
+  const mailTo = pmMailTo_();
+  if (mailTo) {
+    const m = pmWeeklyMail_(w);
+    MailApp.sendEmail({ to: mailTo, subject: m.subject, body: m.text, htmlBody: m.html });
+  }
+  return { ok: true, weekly: w, sent: !!mailTo };
+}
+/** メールの件名・本文 (テキスト / HTML。Gemini の文は必ずエスケープ) */
+function pmWeeklyMail_(w) {
+  const lab = pmWeekLabel_(w.from, w.to), src = w.src || {};
+  const foot = ['期間: ' + w.from + ' 〜 ' + w.to + ' (日本時間)',
+    '使った記録の範囲: ' + (src.from || w.from) + ' 〜 ' + (src.to || w.to) + ' のレポート (' + (src.chars || 0).toLocaleString() + '文字' + (src.cut ? '・長い部分は一部省略' : '') + ')',
+    '※ AI が記録から書いたまとめです。数字は元の記録で確かめてください。売買の判断には使わないでください'];
+  const text = w.text + '\n\n――――\n' + foot.join('\n');
+  const rows = w.text.split('\n').filter(function (l) { return l.trim(); }).map(function (l) {
+    return /^\s*■/.test(l) ? '<tr><td style="padding:12px 0 2px;font-weight:700;font-size:15px">' + esc(l.trim()) + '</td></tr>' : pmMailRow_(esc(l.trim()));
+  }).join('') + foot.map(function (l) { return '<tr><td style="padding:4px 0;font-size:12px;color:#6b7280">' + esc(l) + '</td></tr>'; }).join('');
+  return { subject: '【ポリマーケット】今週のまとめ (' + lab + ')', text: text, html: pmMailHtml_('🗞 今週のまとめ (' + esc(lab) + ')', rows) };
+}
+/** pmDigest の後: 日曜 (日本時間) なら週1回のまとめ。オフ・送り先なし・今週送った後は何もしない */
+function pmWeeklyMaybe_() {
+  const props = PropertiesService.getScriptProperties(), now = Date.now();
+  if (!pmIsSundayJst_(now)) return null;
+  if (!pmMailTo_() || !pmMailOn_('PM_WEEKLY_ON')) return null;
+  const today = pmJstDay_(now), last = props.getProperty('PM_WEEKLY_LAST') || '';
+  if (last && last > pmDayAdd_(today, -6)) return null;   // 今週はもう送った
+  let r;
+  try { r = pmWeeklyMake_(); } catch (e) { r = { ok: false, error: String(e && e.message || e).slice(0, 160) }; }
+  if (r.ok) { props.setProperty('PM_WEEKLY_LAST', today); hbOk_('weekly'); }
+  else { hbErr_('weekly', r.error); Logger.log('週1回のまとめ: ' + r.error); }
+  return r;
+}
+/** アプリの「今すぐ作る (テスト)」: 日曜でなくても作る (Gemini の上限は守る・10分に1回まで) */
+function pmWeeklyNow_() {
+  const props = PropertiesService.getScriptProperties(), now = Date.now();
+  const prev = Number(props.getProperty('PM_WEEKLY_NOW') || 0);
+  if (prev && now - prev < WEEKLY_NOW_GAP) return { ok: false, error: '続けて作れません。' + Math.ceil((WEEKLY_NOW_GAP - (now - prev)) / 60000) + '分ほどあけてください' };
+  props.setProperty('PM_WEEKLY_NOW', String(now));
+  let r;
+  try { r = pmWeeklyMake_(); } catch (e) { r = { ok: false, error: String(e && e.message || e).slice(0, 160) }; }
+  return r;
+}
+/** doGet ?action=weekly (&date=YYYY-MM-DD) → { ok, version, ai, weekly (その日か最新・無ければ null), list (新しい順・8件) } */
+function pmWeeklyGet_(date) {
+  let idx = [];
+  try { idx = JSON.parse(pmRead_('weekly-index.json') || '[]'); } catch (e) {}
+  if (!Array.isArray(idx)) idx = [];
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? String(date) : idx[0];
+  let w = null;
+  if (d && idx.indexOf(d) >= 0) { try { w = JSON.parse(pmRead_('weekly-' + d + '.json') || 'null'); } catch (e) {} }
+  return { ok: true, version: GAS_VERSION, ai: !!PropertiesService.getScriptProperties().getProperty('GEMINI_KEY'), weekly: w, list: idx.slice(0, 8) };
 }
 
 // =====================================================================
@@ -3855,11 +3988,12 @@ function usReportLines_(from) {
 // =====================================================================
 //  暗号資産の市場全体 (CoinGecko の公開 API・キー不要)
 //    api.coingecko.com は鍵なしだと回数の制限がきつく、Apps Script は IP を共有するので、
-//    2時間に1回・1回に4つまで・あいだを1.5秒あける。429 などで落ちた部分は前回のまま (errors に名前)
+//    部分ごとに予定 (CG_PARTS: 全体・注目・分野は2時間、企業の保有は12時間) を持ち、1回に2つまで・あいだを1.5秒あける。
+//    429 などで落ちた部分は前回のまま (errors に名前)・30分あけて取り直す (CG_NEXT)。全体の数は CoinPaprika を予備に。
+//    無料の Demo キー (Script Property CG_KEY) があればヘッダーに付ける
 //    cg-latest.json … { at, global, trend, cats, treas, read, errors } / cg-YYYY-MM.json … { 日付: { btcDom, ethDom, stableDom, mcap } }
 // =====================================================================
 const CG_BASE = 'https://api.coingecko.com/api/v3';
-const CG_TTL = 115 * 60000;          // 2時間ごと (定期の取得の every=120 より少し短く)
 const CG_FORCE_MIN = 10 * 60000;     // 取り直しの指定があっても、前回から10分たつまでは取りに行かない
 const CG_GAP = 1500;                 // 呼び出しのあいだ (ミリ秒)
 const CG_CAT_MIN = 1e9;              // 分野の値動きは時価総額10億ドル以上のものだけ
@@ -3874,8 +4008,8 @@ function cgCode_(e) { return e && e.code != null ? e.code : null; }
 /** 1つ取る。200 以外は HTTP の番号つきで投げる (429 = 混み合い) */
 function cgGet_(path) {
   let res;
-  try { res = UrlFetchApp.fetch(CG_BASE + path, { muteHttpExceptions: true, headers: { accept: 'application/json' } }); }
-  catch (e) { const x = new Error('通信できません: ' + String(e).slice(0, 80)); x.code = 0; throw x; }
+  try { res = UrlFetchApp.fetch(CG_BASE + path, { muteHttpExceptions: true, headers: cgHeaders_() }); }
+  catch (e) { const x = new Error('通信できません'); x.code = 0; throw x; }
   const code = res.getResponseCode();
   if (code !== 200) { const x = new Error('HTTP ' + code); x.code = code; throw x; }
   return JSON.parse(res.getContentText());
@@ -3938,39 +4072,113 @@ function cgChg7_(hist, k, now) {
 }
 /** 接続できない時の文 (見張り・アプリ共通) */
 function cgFailMsg_(code) {
-  return 'CoinGecko に接続できません (' + (code ? 'HTTP ' + code : '通信できません') + ')。' + (code === 429 ? '混み合っているため、しばらくしてから取り直します' : '時間をおいて取り直します');
+  return 'CoinGecko に接続できません (' + (code ? 'HTTP ' + code : '通信できません') + ')。' + (code === 429 ? '混み合っているため、しばらくしてから取り直します'
+    : (code === 401 || code === 403) && PropertiesService.getScriptProperties().getProperty('CG_KEY') ? '登録した CoinGecko のキーが正しいか確かめてください' : '時間をおいて取り直します');
 }
+/** CoinGecko の部分ごとの予定 (every = 分)。1回の取得で呼ぶのは CG_MAX_CALLS まで (いちばん待っているものから) */
+const CG_PARTS = [
+  { k: 'global', n: '全体の時価総額', every: 120 },
+  { k: 'trend', n: '注目の銘柄', every: 120 },
+  { k: 'cats', n: '分野ごとの値動き', every: 120 },
+  { k: 'treas', n: '企業の保有', every: 720 },   // BTC と ETH を1回ずつ交互に
+];
+const CG_MAX_CALLS = 2;              // 1回の取得で CoinGecko を呼ぶのは2つまで (定期の取得も、アプリからの取り直しも)
+const CG_BACKOFF = 30 * 60000;       // 落ちた部分 (429 など) は30分あけてから取り直す
+const CG_EARLY = 10 * 60000;         // 予定の10分前から取りに行く (定期の取得の時刻のずれ)
+const PAPRIKA_GLOBAL = 'https://api.coinpaprika.com/v1/global';   // 全体の数の予備 (キー不要)
+/** CoinGecko に付けるヘッダー。Script Property CG_KEY (無料の Demo キー) があれば付ける (キーはログにも応答にも出さない) */
+function cgHeaders_() {
+  const h = { accept: 'application/json' }, k = PropertiesService.getScriptProperties().getProperty('CG_KEY');
+  if (k) h['x-cg-demo-api-key'] = k;
+  return h;
+}
+/** CoinPaprika の /v1/global → 全体の数 (ETH とステーブルコインの割合は無いので null) */
+function cgPaprika_() {
+  let res;
+  try { res = UrlFetchApp.fetch(PAPRIKA_GLOBAL, { muteHttpExceptions: true, headers: { accept: 'application/json' } }); }
+  catch (e) { const x = new Error('通信できません'); x.code = 0; throw x; }
+  const code = res.getResponseCode();
+  if (code !== 200) { const x = new Error('HTTP ' + code); x.code = code; throw x; }
+  const j = JSON.parse(res.getContentText()) || {};
+  const mcap = cgNum_(j.market_cap_usd), btc = cgNum_(j.bitcoin_dominance_percentage), chg = cgNum_(j.market_cap_change_24h);
+  if (!mcap || mcap <= 0) throw new Error('全体の時価総額がありません');
+  return { mcap: Math.round(mcap), vol: Math.round(cgNum_(j.volume_24h_usd) || 0), btcDom: btc == null ? null : cgRound_(btc), ethDom: null, stableDom: null,
+    chg24: chg == null ? null : cgRound_(chg), src: 'coinpaprika', upd: cgNum_(j.last_updated) ? cgNum_(j.last_updated) * 1000 : null };
+}
+function cgNextRead_() {
+  let o = {};
+  try { o = JSON.parse(PropertiesService.getScriptProperties().getProperty('CG_NEXT') || '{}') || {}; } catch (e) {}
+  if (!o.f || typeof o.f !== 'object') o.f = {};
+  return o;
+}
+/** 部分ごとに予定を見て、時間になったもの (force なら落ちて休んでいるもの以外) を、いちばん待っているものから2つまで取る。
+ *  落ちた部分は前回のまま (errors に「名前 (HTTP 番号)」)、次は30分後。全体の数は CoinGecko が落ちたら CoinPaprika から */
 function cgData_(force) {
-  const cur = cgCache_(), now = Date.now();
+  const cur = cgCache_(), now = Date.now(), props = PropertiesService.getScriptProperties();
   CG_LAST_ERR = null;
-  if (cur && now - cur.at < (force ? CG_FORCE_MIN : CG_TTL)) return cur;
-  const fresh = { at: now, global: cur ? cur.global : null, trend: cur ? cur.trend || [] : [], cats: cur ? cur.cats : null, treas: (cur && cur.treas) || {}, errors: [] };
-  // 企業の保有は BTC と ETH を1回ずつ交互に (1回の呼び出しを4つまでにする)
-  const tb = fresh.treas.btc, te = fresh.treas.eth, tk = !tb ? 'btc' : !te ? 'eth' : (tb.at <= te.at ? 'btc' : 'eth');
-  let gOk = false;
-  const parts = [
-    { k: 'global', n: '全体の時価総額', path: '/global', fn: function (j) { fresh.global = cgGlobal_(j); gOk = true; } },
-    { k: 'trend', n: '注目の銘柄', path: '/search/trending', fn: function (j) { fresh.trend = cgTrend_(j); } },
-    { k: 'cats', n: '分野ごとの値動き', path: '/coins/categories', fn: function (j) { fresh.cats = cgCats_(j); } },
-    { k: 'treas', n: '企業の保有 (' + tk.toUpperCase() + ')', path: '/companies/public_treasury/' + (tk === 'btc' ? 'bitcoin' : 'ethereum'), fn: function (j) { fresh.treas[tk] = cgTreas_(j, now); } },
-  ];
-  let got = 0;
-  const codes = [];
-  parts.forEach(function (p, i) {
-    if (i) Utilities.sleep(CG_GAP);
-    try { p.fn(cgGet_(p.path)); got++; }
-    catch (e) { const c = cgCode_(e); codes.push(c); fresh.errors.push(p.n + (c ? ' (HTTP ' + c + ')' : '')); Logger.log('CoinGecko ' + p.k + ' に失敗: ' + e); }
-  });
-  if (!got) {
-    CG_LAST_ERR = cgFailMsg_(codes.filter(Boolean)[0] || null);
+  const nx = cgNextRead_();
+  if (cur && force && now - (Number(nx.t) || 0) < CG_FORCE_MIN) return cur;
+  const due = function (p) { return (Number(nx[p.k]) || 0) - CG_EARLY <= now; };
+  const resting = function (p) { return Number(nx.f[p.k]) > now; };
+  const pick = CG_PARTS.filter(function (p) { return !resting(p) && (force || due(p)); })
+    .sort(function (a, b) { return (Number(nx[a.k]) || 0) - (Number(nx[b.k]) || 0); }).slice(0, CG_MAX_CALLS);
+  if (!pick.length) {
     if (cur) return cur;
+    CG_LAST_ERR = cgFailMsg_(429);
     throw new Error(CG_LAST_ERR);
   }
-  // 日ごとの行 (全体の値が取れた時だけ。その日の最後の値で上書き)
+  const fresh = { at: cur ? cur.at : now, global: cur ? cur.global : null, trend: cur ? cur.trend || [] : [], cats: cur ? cur.cats : null, treas: (cur && cur.treas) || {},
+    ts: Object.assign({}, (cur && cur.ts) || {}), errs: Object.assign({}, (cur && cur.errs) || {}), errors: [] };
+  // 企業の保有は BTC と ETH を1回ずつ交互に
+  const tb = fresh.treas.btc, te = fresh.treas.eth, tk = !tb ? 'btc' : !te ? 'eth' : (tb.at <= te.at ? 'btc' : 'eth');
+  const job = {
+    global: { path: '/global', fn: function (j) { fresh.global = cgGlobal_(j); fresh.global.src = 'coingecko'; } },
+    trend: { path: '/search/trending', fn: function (j) { fresh.trend = cgTrend_(j); } },
+    cats: { path: '/coins/categories', fn: function (j) { fresh.cats = cgCats_(j); } },
+    treas: { path: '/companies/public_treasury/' + (tk === 'btc' ? 'bitcoin' : 'ethereum'), fn: function (j) { fresh.treas[tk] = cgTreas_(j, now); } },
+  };
+  let got = 0, gOk = false;
+  const codes = [];
+  pick.forEach(function (p, i) {
+    if (i) Utilities.sleep(CG_GAP);
+    const name = p.k === 'treas' ? p.n + ' (' + tk.toUpperCase() + ')' : p.n;
+    try {
+      job[p.k].fn(cgGet_(job[p.k].path));
+      got++; if (p.k === 'global') gOk = true;
+      fresh.ts[p.k] = now; delete fresh.errs[p.k];
+      nx[p.k] = now + p.every * 60000; delete nx.f[p.k];
+    } catch (e) {
+      const c = cgCode_(e); codes.push(c);
+      nx[p.k] = now + CG_BACKOFF; nx.f[p.k] = now + CG_BACKOFF;
+      Logger.log('CoinGecko ' + p.k + ' に失敗: ' + (c ? 'HTTP ' + c : '通信できません'));
+      // 全体の数だけは予備 (CoinPaprika) から
+      if (p.k === 'global') {
+        try { fresh.global = cgPaprika_(); got++; gOk = true; fresh.ts.global = now; delete fresh.errs.global; return; }
+        catch (e2) { Logger.log('CoinPaprika にも失敗: ' + (cgCode_(e2) ? 'HTTP ' + cgCode_(e2) : '通信できません')); }
+      }
+      fresh.errs[p.k] = name + (c ? ' (HTTP ' + c + ')' : '');
+    }
+  });
+  nx.t = now;
+  props.setProperty('CG_NEXT', JSON.stringify(nx));
+  fresh.errors = CG_PARTS.filter(function (p) { return fresh.errs[p.k]; }).map(function (p) { return fresh.errs[p.k]; });
+  if (!got) {
+    CG_LAST_ERR = cgFailMsg_(codes.filter(Boolean)[0] || null);
+    if (!cur) throw new Error(CG_LAST_ERR);
+    const keep = Object.assign({}, cur, { errs: fresh.errs, errors: fresh.errors });
+    try { pmWrite_('cg-latest.json', JSON.stringify(keep)); } catch (e) { Logger.log('cg-latest.json を保存できません: ' + e); }
+    return keep;
+  }
+  fresh.at = now;
+  // 日ごとの行 (全体の値が取れた時だけ。その日の最後の値で上書き。予備の元で無い数は、その日の前の値を残す)
   if (gOk) {
-    const day = pmJstDay_(now), name = 'cg-' + day.slice(0, 7) + '.json';
-    try { const f = pmLoadJson_(name); f[day] = { btcDom: fresh.global.btcDom, ethDom: fresh.global.ethDom, stableDom: fresh.global.stableDom, mcap: fresh.global.mcap }; pmWrite_(name, JSON.stringify(f)); }
-    catch (e) { Logger.log(name + ' を保存できません: ' + e); }
+    const day = pmJstDay_(now), name = 'cg-' + day.slice(0, 7) + '.json', g = fresh.global;
+    try {
+      const f = pmLoadJson_(name), old = f[day] || {};
+      f[day] = { btcDom: g.btcDom != null ? g.btcDom : old.btcDom == null ? null : old.btcDom, ethDom: g.ethDom != null ? g.ethDom : old.ethDom == null ? null : old.ethDom,
+        stableDom: g.stableDom != null ? g.stableDom : old.stableDom == null ? null : old.stableDom, mcap: g.mcap };
+      pmWrite_(name, JSON.stringify(f));
+    } catch (e) { Logger.log(name + ' を保存できません: ' + e); }
   }
   fresh.read = cgRead_(fresh, cgHist_(14), now);
   try { pmWrite_('cg-latest.json', JSON.stringify(fresh)); } catch (e) { Logger.log('cg-latest.json を保存できません: ' + e); }
@@ -4006,7 +4214,7 @@ function cgRead_(d, hist, now) {
 }
 /** 2時間ごと (SIDE_JOBS): 取り直す (前回から10分以内なら取りに行かない)。全部落ちたら HTTP の番号つきで投げる (見張りに出る) */
 function cgRecord_() {
-  const d = cgData_(true);
+  const d = cgData_(false);
   if (CG_LAST_ERR) throw new Error(CG_LAST_ERR);
   return d;
 }
@@ -4015,7 +4223,9 @@ function pmCgSection_() {
   const d = cgCache_();
   if (!d || !d.global) return null;
   const g = d.global, cats = d.cats || { up: [], down: [] };
-  const nums = '時価総額の合計 ' + cgMoney_(g.mcap) + ' (24時間 ' + cgPct_(g.chg24) + ') ／ BTC ' + g.btcDom + '% ／ ETH ' + g.ethDom + '% ／ ステーブルコイン ' + g.stableDom + '%';
+  const pc = function (x) { return x == null ? '-' : x + '%'; };
+  const nums = '時価総額の合計 ' + cgMoney_(g.mcap) + ' (24時間 ' + cgPct_(g.chg24) + ') ／ BTC ' + pc(g.btcDom) + ' ／ ETH ' + pc(g.ethDom) + ' ／ ステーブルコイン ' + pc(g.stableDom)
+    + (g.src === 'coinpaprika' ? ' (全体の数は CoinPaprika から)' : '');
   const cl = function (c) { return c.n + ' ' + cgPct_(c.chg) + ' (時価総額 ' + cgMoney_(c.mcap) + ')'; };
   const up = cats.up.slice(0, 5), dn = cats.down.slice(0, 5), tr = (d.trend || []).slice(0, 5);
   const tl = function (t) { return t.n + ' (' + t.sym + ')' + (t.chg != null ? ' 24時間 ' + cgPct_(t.chg) : '') + (t.rank ? ' ・ 時価総額 ' + t.rank + '位' : ''); };
@@ -4036,6 +4246,7 @@ function cgReportLines_(from) {
   lines.push('ドミナンス = 暗号資産全体の時価総額のうち、その銘柄が占める割合 (%)。BTC が上がるとお金が BTC に集まり、下がるとアルトコインに回っている。ステーブルコイン = USDT + USDC (上がると様子見のお金が多い)。時価総額の合計は10億ドル単位。');
   const d = cgCache_(), hist = cgHist_(200), ds = Object.keys(hist).filter(function (x) { return x >= from; }).sort();
   if (d && (d.read || []).length) lines.push('いまの読み取り: ' + d.read.join(' ／ '));
+  if (d && d.global && d.global.src === 'coinpaprika') lines.push('(いまの全体の数は CoinGecko が取れなかったため CoinPaprika から。ETH とステーブルコインの割合はありません)');
   const v = function (x) { return x == null ? '-' : x; };
   if (ds.length) lines.push(pmMdTable_(['日付', 'BTC (%)', 'ETH (%)', 'ステーブルコイン (%)', '時価総額の合計'], ds.map(function (x) { const r = hist[x]; return [x, v(r.btcDom), v(r.ethDom), v(r.stableDom), r.mcap ? cgRound_(r.mcap / 1e9, 0) : '-']; })));
   else lines.push('(この期間の記録はありません)');
@@ -4287,7 +4498,7 @@ const HEALTH_JOBS = [
   { k: 'us',       n: '米国のお金の流れ (財務省・NY連銀)',  every: '1時間ごと', max: 6 },
   { k: 'llama2',   n: 'ハッキング・ペッグ・DEX (DefiLlama)', every: '1時間ごと', max: 6 },
   { k: 'hl2',      n: 'Hyperliquid の金庫・大口・買い戻し', every: '1時間ごと', max: 6 },
-  { k: 'cg',       n: '暗号資産の市場全体 (CoinGecko)',   every: '2時間ごと', max: 8 },
+  { k: 'cg',       n: '暗号資産の市場全体 (CoinGecko)',   every: '1時間ごと', max: 6 },
   { k: 'okx',      n: '取引所の先物 (OKX)',               every: '1時間ごと', max: 6 },
   { k: 'resolve',  n: '決着の取り込み',                    every: '毎日5時',   max: 30 },
   { k: 'daily',    n: '日ごとの要約',                      every: '毎日5時',   max: 30 },
@@ -4295,6 +4506,7 @@ const HEALTH_JOBS = [
   { k: 'llama',    n: 'お金の流れ (TVL・先物 DEX)',        every: '毎日5時',   max: 30 },
   { k: 'alert',    n: '急変の確認 (通知)',                 every: '10分おき',  max: 1, mail: 'PM_ALERT_ON' },
   { k: 'digest',   n: '毎朝のまとめメール',                every: '毎日8時',   max: 30, mail: 'PM_DIGEST_ON' },
+  { k: 'weekly',   n: '週1回の AI 総まとめ',               every: '毎週日曜8時', max: 8 * 24, mail: 'PM_WEEKLY_ON' },
 ];
 const HEALTH_TRIGGERS = ['pmRecord', 'pmResolve', 'pmAlert', 'pmDigest'];
 
@@ -4307,7 +4519,7 @@ const SIDE_JOBS = [
   { k: 'us',     fn: usRecord_,         every: 60 },
   { k: 'llama2', fn: llamaMoreRecord_,  every: 60 },
   { k: 'hl2',    fn: hl2Record_,        every: 60 },
-  { k: 'cg',     fn: cgRecord_,         every: 120 },
+  { k: 'cg',     fn: cgRecord_,         every: 60 },    // 中で部分ごとの予定を見る (1回に CoinGecko 2つまで)
   { k: 'okx',    fn: okxRecord_,        every: 60 },
 ];
 const SIDE_SLACK = 60000;   // 1分早くても動かす (トリガーの時刻のずれ)

@@ -114,8 +114,8 @@ test('順番: 1つ目が60秒未満で終わったら、予定より10分以上�
   put({ opt: now - 80 * M, news: now - 65 * M });
   assert.deepEqual(alert(), ['opt'], 'news の遅れは5分 → 動かさない');
   put({ opt: now - 80 * M, cg: now - 125 * M, okx: now - 130 * M });
-  assert.deepEqual(alert(), ['opt', 'okx'], '一番待っている okx (70分遅れ) と、2つ目に opt (20分遅れ)。cg は2時間ごとなので5分の遅れ (並びは SIDE_LAST の順)');
-  assert.ok(sideLast(gas).cg === now - 125 * M);
+  assert.deepEqual(alert(), ['cg', 'okx'], '一番待っている okx (70分遅れ) と、2つ目に cg (65分遅れ。cg も1時間ごと。中で部分ごとの予定を見る)。opt (20分遅れ) は次の回');
+  assert.ok(sideLast(gas).opt === now - 80 * M);
   put({});
   const o = JSON.parse(gas.props.getProperty('SIDE_LAST')); delete o.cg; delete o.okx; gas.props.setProperty('SIDE_LAST', JSON.stringify(o));
   assert.deepEqual(alert(), ['cg'], 'まだ一度も動いていないものが2つ → 1つ目 (並び順) だけ。もう1つは2つ目に回さない (足したばかりの取得で回を重くしない)');
@@ -126,18 +126,17 @@ test('順番: 1つ目が60秒未満で終わったら、予定より10分以上�
   assert.equal(gas.ctx.pmSideJobs_(), 'news', 'pmSideJobs_ 自体はいつも1つ');
 });
 
-test('順番: 7つの取得を10分おきの pmAlert で回しても、1時間ごとのものは70分以内、2時間ごとの cg は130分以内に動く (12時間)', () => {
+test('順番: 7つの取得 (cg も1時間ごと) を10分おきの pmAlert で回しても、どれも70分以内に動く (12時間)', () => {
   const { gas, clock, alert } = world();
   const seen = {}, gaps = {};
   for (let i = 0; i < 6 * 12; i++) {
     for (const k of alert()) { if (seen[k]) (gaps[k] = gaps[k] || []).push((clock.now - seen[k]) / M); seen[k] = clock.now; }
     clock.tick(10 * M);
   }
-  for (const k of ['opt', 'news', 'us', 'llama2', 'hl2', 'okx']) {
-    assert.ok(gaps[k].length >= 10, k + ' は12時間で10回以上');
+  for (const k of ['opt', 'news', 'us', 'llama2', 'hl2', 'cg', 'okx']) {
+    assert.ok(gaps[k].length >= 9, k + ' は12時間で9回以上 (7つとも1時間ごとなので、ふだんは70分おき)');
     assert.ok(Math.max(...gaps[k]) <= 70, k + ': ' + gaps[k].join(','));
   }
-  assert.ok(gaps.cg.length >= 5 && Math.max(...gaps.cg) <= 130, 'cg: ' + gaps.cg.join(','));
   const h = health(gas);
   assert.deepEqual(['opt', 'news', 'us', 'llama2', 'hl2', 'cg', 'okx'].map(k => h[k].st), ['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
 });
@@ -233,5 +232,5 @@ test('見張り: setup のあと pmAlert を7回で、7つとも ok', () => {
   for (let i = 0; i < 7; i++) { gas.ctx.pmAlert(); clock.tick(10 * M); }
   h = health(gas);
   assert.deepEqual([h.opt.st, h.news.st, h.us.st, h.llama2.st, h.hl2.st, h.cg.st, h.okx.st, h.alert.st], ['ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok']);
-  assert.deepEqual([h.opt.every, h.news.every, h.us.every, h.llama2.every, h.hl2.every, h.cg.every, h.okx.every], ['1時間ごと', '1時間ごと', '1時間ごと', '1時間ごと', '1時間ごと', '2時間ごと', '1時間ごと']);
+  assert.deepEqual([h.opt.every, h.news.every, h.us.every, h.llama2.every, h.hl2.every, h.cg.every, h.okx.every], ['1時間ごと', '1時間ごと', '1時間ごと', '1時間ごと', '1時間ごと', '1時間ごと', '1時間ごと']);
 });

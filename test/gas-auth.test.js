@@ -6,8 +6,8 @@ const { loadGas, project } = require('./helpers/gas');
 const { createClock } = require('./helpers/clock');
 
 const SECRET = 'test-secret-ABCDEFG-123';
-const CONTENT_KEYS = ['count', 'projects', 'deleted', 'pm', 'locked', 'macro', 'health', 'llama', 'snap', 'series', 'md'];
-const GET_ACTIONS = [undefined, 'load', 'report', 'macro', 'hl', 'llama', 'llamaFees', 'health', 'compare', 'opt', 'news', 'us', 'llama2', 'hl2', 'fund', 'cg', 'okx'];
+const CONTENT_KEYS = ['count', 'projects', 'deleted', 'pm', 'locked', 'macro', 'health', 'llama', 'snap', 'series', 'md', 'weekly', 'list'];
+const GET_ACTIONS = [undefined, 'load', 'report', 'macro', 'hl', 'llama', 'llamaFees', 'health', 'compare', 'opt', 'news', 'us', 'llama2', 'hl2', 'fund', 'cg', 'okx', 'weekly'];
 
 function withData(opts) {
   const clock = createClock('2026-11-02T10:00:00+09:00');
@@ -57,6 +57,8 @@ test('合言葉: POST は「なし/違う」だと設定を変えられない。
     { action: 'pmHlWatch', coins: ['DOGE'] },
     { action: 'pmHlWallets', wallets: [{ a: '0x1111222233334444555566667777888899990000', n: 'x' }] },
     { action: 'pmMailTest' },
+    { action: 'pmWeeklyNow' },
+    { action: 'pmConfig', cgKey: 'CG-attackerkey123', weeklyOn: false },
     { action: 'setSecret', newKey: 'attacker-key-123456' },
     { all: [], force: true },
   ];
@@ -71,6 +73,9 @@ test('合言葉: POST は「なし/違う」だと設定を変えられない。
   assert.equal(gas.props.getProperty('GEMINI_KEY'), 'AIza-secret-gemini');
   assert.equal(gas.props.getProperty('API_SECRET'), SECRET, '合言葉は乗っ取られない');
   assert.equal(gas.props.getProperty('HL_WALLETS'), null, '見張るアドレスも変えられない');
+  assert.equal(gas.props.getProperty('CG_KEY'), null, 'CoinGecko のキーも変えられない');
+  assert.equal(gas.props.getProperty('PM_WEEKLY_ON'), null, '週1回のまとめのオン/オフも変えられない');
+  assert.equal(gas.props.getProperty('PM_WEEKLY_NOW'), null, '「今すぐ作る」も動かない');
   assert.equal(gas.mails.length, 0, 'テスト送信もされない');
 
   // 正しい合言葉 (JSON の key / フォーム送信) なら変えられる
